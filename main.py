@@ -152,6 +152,9 @@ def run_gui(cfg, cam, tracker, mouse, smooth_idx, gesture_ai, voice, tuner, spea
 
     app = QApplication.instance() or QApplication([])
     app.setStyle("Fusion")
+    from ui.fonts import ensure_fonts
+
+    ensure_fonts()
     window = MainWindow(
         cfg, cam, tracker, mouse, gesture_ai=gesture_ai, voice=voice,
         tuner=tuner, speaker=speaker, snap=snap,
@@ -306,13 +309,14 @@ def main():
     magnifier = MagnifierCtl(cfg.magnifier_step_frac) if cfg.magnifier_enabled else None
 
     voice = None
-    if cfg.voice_enabled:
+    if not args.no_voice:
         import queue as _queue
 
         voice = VoiceEngine(cfg, _queue.Queue())
         if speaker is not None:
             voice.set_speaker(speaker)
-        voice.start()
+        if cfg.voice_enabled:
+            voice.start()
 
     ctx = AppCtl()
     state = {

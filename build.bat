@@ -54,6 +54,7 @@ echo [4/6] A construir executavel (pode demorar varios minutos) ...
 .venv\Scripts\python.exe -m PyInstaller airmouse.spec --noconfirm
 if errorlevel 1 exit /b 1
 xcopy /E /I /Y models "dist\AirMouse\models" >nul
+xcopy /E /I /Y assets\fonts "dist\AirMouse\assets\fonts" >nul
 
 rem ── Assinar o AirMouse.exe (antes de o empacotar no instalador) ───────
 if defined PFX_PATH if defined SIGNTOOL (

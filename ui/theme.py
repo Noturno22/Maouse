@@ -59,17 +59,17 @@ def make_font(family, size, weight=QFont.Normal):
     return f
 
 
-FONT_PRIMARY = make_font("Segoe UI", 14)
-FONT_PRIMARY_BOLD = make_font("Segoe UI", 14, QFont.DemiBold)
-FONT_MONO = make_font("Consolas", 11)
-FONT_MONO_BOLD = make_font("Consolas", 11, QFont.DemiBold)
-FONT_DISPLAY = make_font("Segoe UI", 32, QFont.Bold)
-FONT_BADGE = make_font("Consolas", 12, QFont.DemiBold)
-FONT_HELP = make_font("Consolas", 12)
-FONT_STATUS = make_font("Consolas", 11)
+FONT_PRIMARY = make_font("Inter", 14)
+FONT_PRIMARY_BOLD = make_font("Inter", 14, QFont.DemiBold)
+FONT_MONO = make_font("JetBrains Mono", 11)
+FONT_MONO_BOLD = make_font("JetBrains Mono", 11, QFont.DemiBold)
+FONT_DISPLAY = make_font("Space Grotesk", 32, QFont.Bold)
+FONT_BADGE = make_font("JetBrains Mono", 12, QFont.DemiBold)
+FONT_HELP = make_font("JetBrains Mono", 12)
+FONT_STATUS = make_font("JetBrains Mono", 11)
 
 
-MAIN_STYLESHEET = """
+_BASE_STYLESHEET = """
 QWidget#MainWindow {
     background-color: #000000;
     border: 1px solid #2A2A45;
@@ -169,6 +169,28 @@ QPushButton#MenuLangBtn:hover {
 QPushButton#MenuLangBtn:pressed {
     background-color: #50C8FF;
     color: #0A0A12;
+}
+QMenu#MenuLangMenu {
+    background-color: #101020;
+    color: #D8E5F0;
+    border: 1px solid #2A3B4A;
+    border-radius: 8px;
+    padding: 4px;
+}
+QMenu#MenuLangMenu::item {
+    padding: 5px 18px 5px 12px;
+    border-radius: 5px;
+}
+QMenu#MenuLangMenu::item:selected {
+    background-color: rgba(80, 200, 255, 0.22);
+    color: #FFFFFF;
+}
+QMenu#MenuLangMenu::item:checked {
+    color: #50C8FF;
+    font-weight: bold;
+}
+QMenu#MenuLangMenu::separator {
+    height: 5px;
 }
 QLabel#HelpTitle {
     color: #FFFFFF;
@@ -516,6 +538,30 @@ QGroupBox::title {
     padding: 0 6px;
 }
 """
+
+
+def _bundle_font_families(qss):
+    """Antepõe as fontes embebidas às famílias de sistema, com fallback.
+
+    Inter/corpo, Space Grotesk/display e JetBrains Mono/mono (Etapa C). Usa
+    placeholders para cada token único e evita substituição dupla em cadeias.
+    """
+    mark = "\x00"
+    out = qss
+    out = out.replace("'Cascadia Code', 'Consolas'", mark + "mono_combo" + mark)
+    out = out.replace("'Cascadia Code'", mark + "casc" + mark)
+    out = out.replace("'Consolas'", mark + "con" + mark)
+    out = out.replace(mark + "mono_combo" + mark, "'JetBrains Mono', 'Cascadia Code', 'Consolas'")
+    out = out.replace(mark + "casc" + mark, "'JetBrains Mono', 'Cascadia Code'")
+    out = out.replace(mark + "con" + mark, "'JetBrains Mono', 'Consolas'")
+    out = out.replace("'Segoe UI Variable Display', 'Segoe UI'", mark + "disp" + mark)
+    out = out.replace("'Segoe UI'", mark + "body" + mark)
+    out = out.replace(mark + "disp" + mark, "'Space Grotesk', 'Segoe UI Variable Display', 'Segoe UI'")
+    out = out.replace(mark + "body" + mark, "'Inter', 'Segoe UI'")
+    return out
+
+
+MAIN_STYLESHEET = _bundle_font_families(_BASE_STYLESHEET)
 
 
 def apply_glow(widget, color=ACCENT_GLOW, radius=20):
