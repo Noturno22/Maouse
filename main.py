@@ -146,7 +146,8 @@ def run_gui(cfg, cam, tracker, mouse, smooth_idx, gesture_ai, voice, tuner, spea
 
         from ui.main_window import MainWindow
     except Exception as exc:
-        log.warning("PySide6 indisponivel (%s); a usar preview OpenCV.", exc)
+        log.error("ERRO CRITICO: GUI PySide6 falhou a importar (%s). "
+                  "A cair para preview OpenCV. Corrige antes de usar.", exc)
         cfg.gui_enabled = False
         return None
 
