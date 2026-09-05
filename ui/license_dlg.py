@@ -251,7 +251,7 @@ class LicenseDialog(QDialog):
 
         hero = QHBoxLayout()
         badge = QLabel("PRO")
-        badge.setObjectName("HeroBadge")
+        badge.setObjectName("HeroChip")
         hero.addWidget(badge)
         hero.addSpacing(10)
         title = QLabel(tr("license.pro_active_title"))
@@ -267,7 +267,7 @@ class LicenseDialog(QDialog):
 
         lay.addStretch()
         remover = QPushButton(tr("license.remove"))
-        remover.setObjectName("SettingsButton")
+        remover.setObjectName("SettingsButtonSecondary")
         remover.clicked.connect(self._deactivate)
         lay.addWidget(remover)
 

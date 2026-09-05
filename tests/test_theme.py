@@ -20,3 +20,7 @@ def test_stylesheet_uses_modern_font_fallback_lists():
 def test_stylesheet_has_procta_rules():
     assert "QPushButton#ProCta" in MAIN_STYLESHEET
     assert "QPushButton#ProCta:hover" in MAIN_STYLESHEET
+
+
+def test_stylesheet_has_secondary_button():
+    assert "SettingsButtonSecondary" in MAIN_STYLESHEET

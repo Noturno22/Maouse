@@ -434,6 +434,20 @@ QPushButton#SettingsButton:hover {
 QPushButton#SettingsButton:pressed {
     background-color: #3AA8E0;
 }
+QPushButton#SettingsButtonSecondary {
+    background-color: rgba(231, 76, 60, 0.12);
+    color: #FF7B7B;
+    border: 1px solid #5C1A1A;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-family: 'Segoe UI';
+    font-size: 12px;
+}
+QPushButton#SettingsButtonSecondary:hover {
+    background-color: #C0392B;
+    color: #FFFFFF;
+    border-color: #E74C3C;
+}
 QPushButton#ProCta {
     background-color: #FFD766;
     color: #0A0A12;
