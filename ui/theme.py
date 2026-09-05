@@ -268,13 +268,13 @@ QLabel#HeroBadge {
 }
 QLabel#HeroTitle {
     color: #FFFFFF;
-    font-family: 'Segoe UI';
+    font-family: 'Segoe UI Variable Display', 'Segoe UI';
     font-size: 20px;
     font-weight: bold;
 }
 QLabel#HeroSubtitle {
     color: #969696;
-    font-family: 'Segoe UI';
+    font-family: 'Segoe UI Variable Display', 'Segoe UI';
     font-size: 12px;
 }
 QLabel#SectionTitle {
@@ -284,21 +284,25 @@ QLabel#SectionTitle {
     font-weight: bold;
     letter-spacing: 2px;
 }
-QFrame#ProductCard {
+QFrame#PlanCard {
     background-color: rgba(255,255,255,0.02);
-    border: 2px solid #1A1A2E;
+    border: 1px solid #1A1A2E;
     border-radius: 12px;
 }
-QFrame#ProductCard:hover {
+QFrame#PlanCard:hover {
     border-color: #2A3B4A;
 }
-QLabel#ProductName {
-    color: #7DD4FF;
-    font-family: 'Segoe UI';
-    font-size: 11px;
-    font-weight: bold;
+QFrame#PlanCard[selected="true"] {
+    background-color: rgba(80,200,255,0.07);
+    border: 1px solid #7DD4FF;
 }
-QLabel#ProductBadge {
+QLabel#PlanName {
+    color: #F0F4F8;
+    font-family: 'Segoe UI Variable Display', 'Segoe UI';
+    font-size: 12px;
+    font-weight: 600;
+}
+QLabel#PlanBadge {
     background-color: #FFD766;
     color: #0A0A12;
     border: none;
@@ -308,81 +312,59 @@ QLabel#ProductBadge {
     font-size: 9px;
     font-weight: bold;
 }
-QLabel#ProductPrice {
+QLabel#PlanPrice {
     color: #FFFFFF;
-    font-family: 'Segoe UI';
-    font-size: 17px;
-    font-weight: bold;
-}
-QLabel#ProductExtra {
-    color: #969696;
-    font-family: 'Consolas';
-    font-size: 10px;
-}
-QLabel#FeatureRow {
-    color: #F0F4F8;
-    font-family: 'Consolas';
-    font-size: 12px;
-    padding: 1px 0;
-}
-QPushButton#ProCta {
-    background-color: #FFD766;
-    color: #1A1A1F;
-    border: none;
-    border-radius: 8px;
-    padding: 12px 20px;
-    font-family: 'Segoe UI';
+    font-family: 'Cascadia Code', 'Consolas';
     font-size: 15px;
     font-weight: bold;
 }
-QPushButton#ProCta:hover {
-    background-color: #FFE28A;
-}
-QPushButton#ProCta:pressed {
-    background-color: #E8A93A;
-}
-QLineEdit#KeyEdit {
-    background-color: #12121E;
-    color: #F0F4F8;
-    border: 1px solid #1A1A2E;
-    border-radius: 8px;
-    padding: 8px 12px;
-    font-family: 'Consolas';
-}
-QLineEdit#KeyEdit:focus {
-    border-color: #50C8FF;
-}
-QFrame#FreeBanner {
-    background-color: #2A1208;
-    border: 2px solid #FF8A3C;
-    border-radius: 10px;
-}
-QLabel#FreeBadge {
-    background-color: #FF8A3C;
-    color: #1A0D00;
-    border: none;
-    border-radius: 6px;
-    padding: 5px 12px;
+QLabel#PlanExtra {
+    color: #8A9AA6;
     font-family: 'Segoe UI';
-    font-size: 13px;
-    font-weight: bold;
-}
-QLabel#FreeTitle {
-    color: #FFB27D;
-    font-family: 'Segoe UI';
-    font-size: 14px;
-    font-weight: bold;
-}
-QLabel#FreeSub {
-    color: #F0D8C0;
-    font-family: 'Segoe UI';
-    font-size: 11px;
+    font-size: 10px;
 }
 QLabel#BenefitRow {
     color: #EAF3F8;
     font-family: 'Segoe UI';
     font-size: 12px;
     background: transparent;
+}
+QLabel#StatusChip {
+    background-color: rgba(255, 214, 102, 0.10);
+    color: #FFD766;
+    border: 1px solid rgba(255, 214, 102, 0.35);
+    border-radius: 6px;
+    padding: 3px 10px;
+    font-family: 'Segoe UI';
+    font-size: 10px;
+    font-weight: bold;
+    letter-spacing: 1px;
+}
+QLabel#HeroChip {
+    background-color: #FFD766;
+    color: #0A0A12;
+    border: none;
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-family: 'Segoe UI';
+    font-size: 10px;
+    font-weight: bold;
+}
+QLabel#KeyCaption {
+    color: #969696;
+    font-family: 'Segoe UI';
+    font-size: 11px;
+}
+QLineEdit#KeyField {
+    background-color: #12121E;
+    color: #F0F4F8;
+    border: 1px solid #1A1A2E;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-family: 'Cascadia Code', 'Consolas';
+}
+QLineEdit#KeyField:focus {
+    border-color: #50C8FF;
 }
 QLabel#SettingsLabel {
     color: #F0F4F8;
