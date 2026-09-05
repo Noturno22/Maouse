@@ -5,12 +5,20 @@ pitch de \"nova experiência tecnológica\", grelha de benefícios
 revolucionários, planos selecionáveis, CTA dourado a pulsar e ativação
 offline de chave Pro.
 """
-import math
+import json
+import os
+import re
+import shutil
+import time
+import uuid
+from urllib.parse import urlencode
 
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor
+from PySide6.QtCore import Qt, QUrl, Signal
+from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
+    QComboBox,
     QDialog,
+    QFileDialog,
     QFrame,
     QGridLayout,
     QHBoxLayout,
@@ -23,16 +31,18 @@ from PySide6.QtWidgets import (
 
 from core.licensing import Tier
 from i18n import tr
-from ui.theme import MAIN_STYLESHEET, breathe_glow
+from ui.theme import MAIN_STYLESHEET
+
+SUPPORT_EMAIL = "suporte@maouse.app"
 
 PADDLE_VENDOR_ID = 0  # TODO: preencher com o vendor_id real do Paddle (D2)
 
 # (id, nome, preço curto, linha extra, destaque)
 _PRODUCTS = [
     ("lifetime", "Lifetime", "€39,90", "uma vez · para sempre", True),
-    ("subscription", "Subscrição", "€4,99/mês", "€3,49/mês no plano anual", False),
     ("family", "Família", "€59,90", "3 dispositivos", False),
-    ("access", "Acessibilidade", "€19,95", "sob validação", False),
+    ("trading_master", "Trading Master", "€149,90", "multi-monitor", False),
+    ("access", "Acessibilidade", "€19,95", "50% · sob validação", False),
 ]
 
 # (chave nome, chave descrição) — só os mais fortes, para não poluir a tela.
@@ -68,9 +78,9 @@ class _ProductCard(QFrame):
         super().__init__(parent)
         self._plan_id = plan_id
         self._highlight = highlight
-        self.setObjectName("ProductCard")
+        self.setObjectName("PlanCard")
         self.setCursor(Qt.PointingHandCursor)
-        self.setMinimumHeight(96)
+        self.setMinimumHeight(84)
 
         lay = QVBoxLayout(self)
         lay.setContentsMargins(14, 12, 14, 12)
@@ -78,44 +88,31 @@ class _ProductCard(QFrame):
 
         top = QHBoxLayout()
         self._name_lbl = QLabel(name.upper())
-        self._name_lbl.setObjectName("ProductName")
+        self._name_lbl.setObjectName("PlanName")
         top.addWidget(self._name_lbl)
         if highlight:
             badge = QLabel("POPULAR")
-            badge.setObjectName("ProductBadge")
+            badge.setObjectName("PlanBadge")
             top.addWidget(badge)
         else:
             top.addStretch()
         lay.addLayout(top)
 
         self._price_lbl = QLabel(price)
-        self._price_lbl.setObjectName("ProductPrice")
+        self._price_lbl.setObjectName("PlanPrice")
         lay.addWidget(self._price_lbl)
 
         self._extra_lbl = QLabel(extra)
-        self._extra_lbl.setObjectName("ProductExtra")
+        self._extra_lbl.setObjectName("PlanExtra")
         lay.addWidget(self._extra_lbl)
 
         self._selected = False
-        self._refresh_style()
 
     def set_selected(self, value: bool):
         self._selected = value
-        self._refresh_style()
-
-    def _refresh_style(self):
-        if self._selected:
-            border = "#FFD766" if self._highlight else "#7DD4FF"
-            bg = "rgba(255,215,102,0.10)" if self._highlight else "rgba(80,200,255,0.08)"
-        else:
-            border = "#1A1A2E"
-            bg = "rgba(255,255,255,0.02)"
-        hover_bg = "rgba(255,255,255,0.06)" if not self._selected else bg
-        self.setStyleSheet(
-            f"QFrame#ProductCard {{ background-color:{bg}; border:2px solid {border}; "
-            f"border-radius:12px; }}"
-            f"QFrame#ProductCard:hover {{ background-color:{hover_bg}; }}"
-        )
+        self.setProperty("selected", "true" if value else "false")
+        self.style().unpolish(self)
+        self.style().polish(self)
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
@@ -138,7 +135,7 @@ class LicenseDialog(QDialog):
             self.setFixedSize(560, 340)
             self._build_pro_ui()
         else:
-            self.setFixedWidth(700)
+            self.setFixedWidth(620)
             self._build_free_ui()
             self.adjustSize()
 
@@ -158,7 +155,10 @@ class LicenseDialog(QDialog):
                 w.set_selected(w._plan_id == plan_id)
         for plan_id2, _name, price, _extra, _ in _PRODUCTS:
             if plan_id2 == plan_id:
-                self._cta.setText(f"⭐  {tr('license.cta')} · {price}")
+                if plan_id2 == "access":
+                    self._cta.setText(tr("license.cta_access"))
+                else:
+                    self._cta.setText(f"{tr('license.cta')} · {price}")
                 break
 
     # ── Free / upgrade ────────────────────────────────────────────────
@@ -167,34 +167,16 @@ class LicenseDialog(QDialog):
         lay.setContentsMargins(26, 20, 26, 24)
         lay.setSpacing(12)
 
-        # Banner de modo FREE — faixa fina, discreta mas sempre visível.
-        banner = QFrame()
-        banner.setObjectName("FreeBanner")
-        b_lay = QHBoxLayout(banner)
-        b_lay.setContentsMargins(14, 8, 14, 8)
-        b_lay.setSpacing(10)
-        b_badge = QLabel("FREE")
-        b_badge.setObjectName("FreeBadge")
-        b_lay.addWidget(b_badge)
-        b_title = QLabel(tr("license.free_badge"))
-        b_title.setObjectName("FreeSub")
-        b_lay.addWidget(b_title)
-        remaining = self._lm.trial_remaining_seconds()
-        if remaining > 0:
-            rem = QLabel(tr("license.trial_remaining").format(m=max(1, math.ceil(remaining / 60))))
-            rem.setObjectName("FreeSub")
-            b_lay.addWidget(rem)
-        b_lay.addStretch()
-        lay.addWidget(banner)
-        self._banner_pulse = breathe_glow(
-            banner, QColor(255, 138, 60),
-            min_alpha=60, max_alpha=170, min_blur=3, max_blur=18, ms=850,
-        )
+        # Chip de estado FREE — discreto, sem pulsos.
+        chip = QLabel(tr("license.free_badge").replace(" ", " · "))
+        chip.setObjectName("StatusChip")
+        chip.setAlignment(Qt.AlignLeft)
+        lay.addWidget(chip)
 
         # Hero com o pitch de nova experiência tecnológica.
         hero = QHBoxLayout()
         badge = QLabel("PRO")
-        badge.setObjectName("HeroBadge")
+        badge.setObjectName("HeroChip")
         hero.addWidget(badge)
         hero.addSpacing(10)
         title = QLabel(tr("license.hero"))
@@ -224,17 +206,13 @@ class LicenseDialog(QDialog):
             self._cards_grid.addWidget(self._make_card(plan), i // 2, i % 2)
         lay.addLayout(self._cards_grid)
 
-        # CTA principal — a pulsar (destacado).
-        self._cta = QPushButton(f"⭐  {tr('license.cta')} · €39,90")
+        # CTA principal — plano em destaque, sem pulso.
+        self._cta = QPushButton(f"{tr('license.cta')} \u00b7 {_PRODUCTS[0][2]}")
         self._cta.setObjectName("ProCta")
         self._cta.setCursor(Qt.PointingHandCursor)
         self._cta.setFixedHeight(46)
         self._cta.clicked.connect(self._on_cta)
         lay.addWidget(self._cta)
-        self._cta_pulse = breathe_glow(
-            self._cta, QColor(255, 215, 102),
-            min_alpha=70, max_alpha=200, min_blur=6, max_blur=30, ms=850,
-        )
 
         self._build_key_row(lay)
 
@@ -242,12 +220,16 @@ class LicenseDialog(QDialog):
         divider = QFrame()
         divider.setObjectName("MenuDivider")
         divider.setFixedHeight(1)
-        lay.addSpacing(6)
         lay.addWidget(divider)
+        lay.addSpacing(6)
+        caption = QLabel(tr("license.has_key"))
+        caption.setObjectName("KeyCaption")
+        caption.setAlignment(Qt.AlignLeft)
+        lay.addWidget(caption)
         key_row = QHBoxLayout()
         self._key_edit = QLineEdit()
-        self._key_edit.setPlaceholderText(tr("license.has_key"))
-        self._key_edit.setObjectName("KeyEdit")
+        self._key_edit.setPlaceholderText(tr("license.key_hint"))
+        self._key_edit.setObjectName("KeyField")
         key_row.addWidget(self._key_edit, 1)
         activate = QPushButton(tr("license.activate_key"))
         activate.setObjectName("SettingsButton")
@@ -256,6 +238,9 @@ class LicenseDialog(QDialog):
         lay.addLayout(key_row)
 
     def _on_cta(self):
+        if self._selected_plan == "access":
+            AccessibilityDialog(self).exec()
+            return
         self._open_checkout(self._selected_plan)
 
     # ── Pro ativo ─────────────────────────────────────────────────────
@@ -318,6 +303,154 @@ class LicenseDialog(QDialog):
         self.accept()
 
 
+class AccessibilityDialog(QDialog):
+    """Pedido de desconto de acessibilidade (50%) — D3.
+
+    Formulário + comprovativo. A validação é manual: o pedido fica registado
+    localmente (``%APPDATA%\\AirMouse\\accessibility_requests``), abre-se um
+    email para o suporte com o comprovativo, e a equipa gera o cupão de 50%.
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Mãouse Pro")
+        self.setObjectName("SettingsDialog")
+        self.setStyleSheet(MAIN_STYLESHEET)
+        self.setModal(True)
+        self.setFixedWidth(520)
+        self._proof_path = ""
+        self._build()
+
+    def _build(self):
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(28, 24, 28, 24)
+        lay.setSpacing(12)
+
+        title = QLabel(tr("access.title"))
+        title.setObjectName("HeroTitle")
+        lay.addWidget(title)
+
+        sub = QLabel(tr("access.sub"))
+        sub.setObjectName("HeroSubtitle")
+        sub.setWordWrap(True)
+        lay.addWidget(sub)
+
+        self._name_edit = QLineEdit()
+        self._name_edit.setPlaceholderText(tr("access.name"))
+        self._name_edit.setObjectName("KeyEdit")
+        lay.addWidget(self._name_edit)
+
+        self._email_edit = QLineEdit()
+        self._email_edit.setPlaceholderText(tr("access.email"))
+        self._email_edit.setObjectName("KeyEdit")
+        lay.addWidget(self._email_edit)
+
+        self._proof_combo = QComboBox()
+        self._proof_combo.setObjectName("SettingsCombo")
+        for key in (
+            "access.proof_medical",
+            "access.proof_disability_card",
+            "access.proof_health_unit",
+            "access.proof_association",
+        ):
+            self._proof_combo.addItem(tr(key))
+        lay.addWidget(self._proof_combo)
+
+        attach_row = QHBoxLayout()
+        self._attach_btn = QPushButton(tr("access.attach"))
+        self._attach_btn.setObjectName("SettingsButton")
+        self._attach_btn.clicked.connect(self._pick_proof)
+        attach_row.addWidget(self._attach_btn)
+        self._proof_lbl = QLabel(tr("access.attach_hint"))
+        self._proof_lbl.setObjectName("HeroSubtitle")
+        self._proof_lbl.setWordWrap(True)
+        attach_row.addWidget(self._proof_lbl, 1)
+        lay.addLayout(attach_row)
+
+        self._error_lbl = QLabel()
+        self._error_lbl.setObjectName("ErrorLabel")
+        self._error_lbl.setWordWrap(True)
+        self._error_lbl.hide()
+        lay.addWidget(self._error_lbl)
+
+        lay.addSpacing(4)
+        submit = QPushButton(tr("access.submit"))
+        submit.setObjectName("ProCta")
+        submit.setCursor(Qt.PointingHandCursor)
+        submit.setFixedHeight(44)
+        submit.clicked.connect(self._submit)
+        lay.addWidget(submit)
+
+    def _pick_proof(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, tr("access.attach"), "",
+            "PDF (*.pdf);;Imagens (*.jpg *.jpeg *.png)",
+        )
+        if path:
+            self._proof_path = path
+            self._proof_lbl.setText(os.path.basename(path))
+            self._proof_lbl.setStyleSheet("color:#7DD4FF;")
+            self._error_lbl.hide()
+
+    def _submit(self):
+        name = self._name_edit.text().strip()
+        email = self._email_edit.text().strip()
+        if not name or not self._valid_email(email) or not self._proof_path:
+            self._error_lbl.setText(tr("access.missing"))
+            self._error_lbl.show()
+            return
+        ref = "ACC-" + uuid.uuid4().hex[:8].upper()
+        try:
+            saved = self._save_request(ref, name, email)
+        except OSError as e:
+            self._error_lbl.setText(f"Erro ao registar o pedido: {e}")
+            self._error_lbl.show()
+            return
+        QMessageBox.information(
+            self, "Mãouse Pro",
+            tr("access.submitted").format(ref=ref),
+        )
+        self._open_email_draft(ref, name, email, saved)
+        self.accept()
+
+    def _valid_email(self, email):
+        return re.match(r"[^@\s]+@[^@\s]+\.[^@\s]+$", email) is not None
+
+    def _save_request(self, ref, name, email):
+        base = os.getenv("APPDATA") or os.path.expanduser("~")
+        folder = os.path.join(base, "AirMouse", "accessibility_requests")
+        os.makedirs(folder, exist_ok=True)
+        _, ext = os.path.splitext(self._proof_path)
+        dest = os.path.join(folder, ref + (ext.lower() or ".bin"))
+        shutil.copy2(self._proof_path, dest)
+        meta = {
+            "ref": ref,
+            "created": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "name": name,
+            "email": email,
+            "proof_type": self._proof_combo.currentText(),
+            "proof_file": os.path.basename(dest),
+        }
+        meta_path = os.path.join(folder, ref + ".json")
+        with open(meta_path, "w", encoding="utf-8") as f:
+            json.dump(meta, f, ensure_ascii=False, indent=2)
+        return meta_path
+
+    def _open_email_draft(self, ref, name, email, meta_path):
+        body = (
+            f"Referência: {ref}\n"
+            f"Nome: {name}\n"
+            f"Email: {email}\n"
+            f"Comprovativo: {self._proof_combo.currentText()}\n"
+            f"Anexar ficheiro (cópia): {meta_path}\n"
+        )
+        params = urlencode({
+            "subject": f"Mãouse Pro — Pedido de Acessibilidade {ref}",
+            "body": body,
+        })
+        QDesktopServices.openUrl(QUrl(f"mailto:{SUPPORT_EMAIL}?{params}"))
+
+
 class BlockDialog(QDialog):
     """Pop-up urgente de bloqueio total.
 
@@ -353,7 +486,7 @@ class BlockDialog(QDialog):
         lay.addWidget(sub)
 
         # CTA principal — abre o checkout Paddle (lifetime por omissão).
-        cta = QPushButton(f"⭐  {tr('license.activate_now')}")
+        cta = QPushButton(f"{tr('license.activate_now')}")
         cta.setObjectName("ProCta")
         cta.setCursor(Qt.PointingHandCursor)
         cta.setFixedHeight(44)

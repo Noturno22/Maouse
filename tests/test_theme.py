@@ -15,3 +15,8 @@ def test_stylesheet_removed_old_free_tokens():
 def test_stylesheet_uses_modern_font_fallback_lists():
     assert "Segoe UI Variable Display" in MAIN_STYLESHEET
     assert "Cascadia Code" in MAIN_STYLESHEET
+
+
+def test_stylesheet_has_procta_rules():
+    assert "QPushButton#ProCta" in MAIN_STYLESHEET
+    assert "QPushButton#ProCta:hover" in MAIN_STYLESHEET

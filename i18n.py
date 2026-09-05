@@ -174,6 +174,36 @@ _STRINGS = {
         "pt": "Liga-te para confirmar o teu trial antes de começar.",
         "en": "Connect to confirm your trial before starting.",
     },
+    "license.cta_access": {
+        "pt": "PEDIR DESCONTO ACESSIBILIDADE",
+        "en": "REQUEST ACCESSIBILITY DISCOUNT",
+    },
+    "access.title": {
+        "pt": "Desconto Acessibilidade (50%)",
+        "en": "Accessibility Discount (50%)",
+    },
+    "access.sub": {
+        "pt": "Mãouse Pro a metade do preço para quem precisa de tecnologia assistiva. Preenche o formulário e anexa o comprovativo. A verificação é manual e gera um cupão.",
+        "en": "Mãouse Pro at half price for those who need assistive technology. Fill the form and attach your proof. Verification is manual and generates a coupon.",
+    },
+    "access.name": {"pt": "Nome completo", "en": "Full name"},
+    "access.email": {"pt": "Email", "en": "Email"},
+    "access.proof_type": {"pt": "Tipo de comprovativo", "en": "Proof type"},
+    "access.proof_medical": {"pt": "Atestado médico", "en": "Medical attestation"},
+    "access.proof_disability_card": {"pt": "Cartão de deficiência", "en": "Disability card"},
+    "access.proof_health_unit": {"pt": "Documento de unidade de saúde", "en": "Health unit document"},
+    "access.proof_association": {"pt": "Certificado de associação", "en": "Association certificate"},
+    "access.attach": {"pt": "Anexar comprovativo", "en": "Attach proof"},
+    "access.attach_hint": {"pt": "PDF, JPG ou PNG até 10 MB", "en": "PDF, JPG or PNG up to 10 MB"},
+    "access.submit": {"pt": "ENVIAR PEDIDO", "en": "SUBMIT REQUEST"},
+    "access.missing": {
+        "pt": "Preenche nome, um email válido e anexa o comprovativo.",
+        "en": "Fill in your name, a valid email and attach your proof.",
+    },
+    "access.submitted": {
+        "pt": "Pedido registado com a referência {ref}. Foi aberto um email para suporte@maouse.app — anexa o comprovativo e envia. A verificação é manual (≤ 2 dias úteis) e gera um cupão de 50%.",
+        "en": "Request registered with reference {ref}. An email to support@maouse.app was opened — attach your proof and send it. Verification is manual (≤ 2 business days) and generates a 50% coupon.",
+    },
 }
 
 

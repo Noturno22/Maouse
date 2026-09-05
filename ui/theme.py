@@ -72,6 +72,8 @@ FONT_STATUS = make_font("Consolas", 11)
 MAIN_STYLESHEET = """
 QWidget#MainWindow {
     background-color: #000000;
+    border: 1px solid #2A2A45;
+    border-radius: 18px;
 }
 QLabel#GestureBadge {
     background-color: rgba(0, 0, 0, 204);
@@ -230,10 +232,10 @@ QPushButton#MenuBtn:checked {
     border-color: #7DD4FF;
 }
 QPushButton#MenuBtnUpgrade {
-    background-color: rgba(214, 175, 60, 0.12);
-    color: #FFD766;
-    border: 1px solid #B8860B;
-    border-left: 3px solid #FFD766;
+    background-color: #C0392B;
+    color: #FFFFFF;
+    border: 1px solid #A93226;
+    border-left: 3px solid #E74C3C;
     border-radius: 6px;
     padding: 6px 12px;
     font-family: 'Consolas';
@@ -242,15 +244,15 @@ QPushButton#MenuBtnUpgrade {
     text-align: center;
 }
 QPushButton#MenuBtnUpgrade:hover {
-    background-color: #B8860B;
-    color: #0A0A12;
-    border-color: #FFD766;
+    background-color: #E74C3C;
+    color: #FFFFFF;
+    border-color: #FF8A80;
 }
 QPushButton#MenuBtnUpgrade:disabled {
-    background-color: transparent;
-    color: #6A7B8A;
-    border: 1px solid #1A1A2E;
-    border-left: 3px solid #2A3B4A;
+    background-color: rgba(39, 174, 96, 0.15);
+    color: #2ECC71;
+    border: 1px solid #239B56;
+    border-left: 3px solid #2ECC71;
 }
 QDialog#SettingsDialog {
     background-color: #000000;
@@ -366,6 +368,34 @@ QLineEdit#KeyField {
 QLineEdit#KeyField:focus {
     border-color: #50C8FF;
 }
+QLineEdit#KeyEdit {
+    background-color: #12121E;
+    color: #F0F4F8;
+    border: 1px solid #1A1A2E;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-family: 'Cascadia Code', 'Consolas';
+}
+QLineEdit#KeyEdit:focus {
+    border-color: #50C8FF;
+}
+QLabel#ErrorLabel {
+    color: #FF7B7B;
+    font-family: 'Segoe UI';
+    font-size: 12px;
+}
+QComboBox#SettingsCombo {
+    background-color: #12121E;
+    color: #F0F4F8;
+    border: 1px solid #1A1A2E;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-family: 'Cascadia Code', 'Consolas';
+}
+QComboBox#SettingsCombo::drop-down {
+    border: none;
+    width: 24px;
+}
 QLabel#SettingsLabel {
     color: #F0F4F8;
     font-family: 'Segoe UI';
@@ -403,6 +433,22 @@ QPushButton#SettingsButton:hover {
 }
 QPushButton#SettingsButton:pressed {
     background-color: #3AA8E0;
+}
+QPushButton#ProCta {
+    background-color: #FFD766;
+    color: #0A0A12;
+    border: none;
+    border-radius: 8px;
+    padding: 4px 14px;
+    font-family: 'Segoe UI';
+    font-size: 13px;
+    font-weight: bold;
+}
+QPushButton#ProCta:hover {
+    background-color: #FFE08A;
+}
+QPushButton#ProCta:pressed {
+    background-color: #E8B84E;
 }
 QCheckBox {
     color: #F0F4F8;
