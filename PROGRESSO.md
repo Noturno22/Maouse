@@ -157,6 +157,14 @@ airmouse/
 - **Etapa A concluída** — área de subscrição modernizada para **premium minimalista**
   (design em `.superpawers\specs\2026-09-05-license-dialog-modernize-design.md`,
   plano em `.superpawers\plans\2026-09-05-license-dialog-modernize.md`).
+- **Etapa C concluída (fontes embebidas)** — `assets\fonts` com **Inter** (corpo/interface),
+  **Space Grotesk** (display/títulos) e **JetBrains Mono** (mono/badges/código),
+  TTFs variáveis OFL + licenças. `ui/fonts.py` regista-as via `QFontDatabase`
+  (`ensure_fonts()` chamado no `run_gui` do `main.py`); `ui/theme.py` antepõe
+  estas famílias às de sistema (fallback `Segoe UI`/`Consolas` mantido) através
+  de `_bundle_font_families`; `FONT_*` usam as famílias embebidas; `build.bat`
+  copia `assets\fonts` para o pacote (instalador inclui via recursive).
+  Tests `tests/test_fonts.py` 4/4.
 - **Copy confiante e conciso** (`i18n.py`): hero "PRO", sub "Com o PRO sente-se a
   diferença", secção "Tudo incluído no PRO", CTA "ATIVAR PRO"; campo de chave com
   placeholder (`license.key_hint`). Chaves `has_key`/`activate_key` preservadas.
@@ -175,9 +183,7 @@ airmouse/
   4/4, `tests/test_license_dialog_pro_ui.py` 3/3 — padrão TDD (RED→GREEN);
   suíte completa verde (exceto falha de ambiente pré-existente da licença ativa).
 - Commits: `f73506e` (copy) · `4ab2270` (tokens) · `57d0ae5` (UI FREE + ProCta)
-  · `8d1f88a` (UI PRO).
-- **Etapa C (follow-up)**: bundling de fontes (Inter/Space Grotesk/JetBrains Mono)
-  em `assets/fonts/` com `QFontDatabase`, a validar depois da Etapa A.
+  · `8d1f88a` (UI PRO) · `c6e2b21` (Etapa C: fontes embebidas).
 
 ## Estado anterior (2026-08-24)
 
