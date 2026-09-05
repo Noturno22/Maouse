@@ -10,7 +10,7 @@ def make_cfg(**kw):
         stt_provider="auto",
         stt_model="whisper-large-v3-turbo",
         stt_base_url="https://api.groq.com/openai/v1",
-        stt_api_key_env="GROQ_API_KEY",
+        stt_api_key_env="MAOUSE_STT_TEST_KEY",
         whisper_model="small",
     )
     base.update(kw)
@@ -35,7 +35,7 @@ class FakeNet:
 
 
 def test_cloud_transcribe_sends_multipart(monkeypatch):
-    monkeypatch.setenv("GROQ_API_KEY", "gsk_x")
+    monkeypatch.setenv("MAOUSE_STT_TEST_KEY", "gsk_x")
     net = FakeNet({"text": "clica uma vez"})
     cs = stt.CloudSTT(make_cfg(), transport=net)
     assert cs.transcribe(pcm()) == "clica uma vez"
@@ -47,7 +47,7 @@ def test_cloud_transcribe_sends_multipart(monkeypatch):
 
 
 def test_cloud_returns_empty_without_key(monkeypatch):
-    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.delenv("MAOUSE_STT_TEST_KEY", raising=False)
     net = FakeNet({"text": "x"})
     cs = stt.CloudSTT(make_cfg(), transport=net)
     assert cs.transcribe(pcm()) == ""
@@ -55,20 +55,20 @@ def test_cloud_returns_empty_without_key(monkeypatch):
 
 
 def test_cloud_ping_false_without_key(monkeypatch):
-    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.delenv("MAOUSE_STT_TEST_KEY", raising=False)
     cs = stt.CloudSTT(make_cfg())
     assert cs.ping() is False
 
 
 def test_cloud_ping_true_with_200(monkeypatch):
-    monkeypatch.setenv("GROQ_API_KEY", "gsk_ping")
+    monkeypatch.setenv("MAOUSE_STT_TEST_KEY", "gsk_ping")
     net = FakeNet({"text": ""})
     cs = stt.CloudSTT(make_cfg(), transport=net)
     assert cs.ping() is True
 
 
 def test_router_prepare_auto_picks_cloud(monkeypatch):
-    monkeypatch.setenv("GROQ_API_KEY", "gsk_x")
+    monkeypatch.setenv("MAOUSE_STT_TEST_KEY", "gsk_x")
     net = FakeNet({"text": ""})
     r = stt.STTRouter(make_cfg(), transport=net)
     assert r.prepare() == "cloud"
@@ -76,24 +76,26 @@ def test_router_prepare_auto_picks_cloud(monkeypatch):
 
 
 def test_router_prepare_auto_falls_local(monkeypatch):
-    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.delenv("MAOUSE_STT_TEST_KEY", raising=False)
     r = stt.STTRouter(make_cfg())
+    r.local.preload = lambda: None
     assert r.prepare() == "local"
     assert r.backend == "local"
 
 
 def test_router_forced_local_never_calls_cloud(monkeypatch):
-    monkeypatch.setenv("GROQ_API_KEY", "gsk_x")
+    monkeypatch.setenv("MAOUSE_STT_TEST_KEY", "gsk_x")
     net = FakeNet({"text": "x"})
     r = stt.STTRouter(make_cfg(stt_provider="local"), transport=net)
     r.local.transcribe = lambda pcm_bytes: "pausa"
+    r.local.preload = lambda: None
     assert r.prepare() == "local"
     assert r.transcribe(pcm()) == "pausa"
     assert net.calls == []
 
 
 def test_router_transcribe_falls_back_to_local(monkeypatch):
-    monkeypatch.setenv("GROQ_API_KEY", "gsk_x")
+    monkeypatch.setenv("MAOUSE_STT_TEST_KEY", "gsk_x")
     net = FakeNet({"text": ""})
     r = stt.STTRouter(make_cfg(stt_provider="cloud"), transport=net)
     r.local.transcribe = lambda pcm_bytes: "pausa"
