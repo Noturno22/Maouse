@@ -122,6 +122,63 @@ airmouse/
      carrega IA e modelos ao lado do exe, sai com erro limpo de camara
      (camara indisponivel nesta sessao — validar ao vivo com start.bat).
 
+### ROBUSTEZ DO GESTO MOVER (2026-09-05)
+
+- **Validado ao vivo pelo utilizador**: o gesto mover (mão aberta / 1 dedo) está
+  perfeito — latência, precisão e suavidade confirmadas.
+- **Cobertura de testes dedicada** (`tests/test_move_gesture.py`, **10/10 PASS**):
+  1. `GestureEngine` classifica `OPEN` e `ONE` como gestos de movimento (e `PINCH`
+     também; gestos não-movimento ficam de fora) — inclui sintetizador de mão ONE.
+  2. `SmoothEmitter` conserva pixels: emitido + residuo do acumulador = empurrado,
+     nunca duplica por cima, nunca reverte em negativo; `clear()` descarta pendente.
+  3. `MouseCtl.move_by` acumula frações corretamente e clampa ao ecrã virtual.
+- Sem alterações de comportamento no motor — apenas suíte de regressão para
+  proteger o gesto validado.
+
+### CORRECAO ALT+F4 POR PUNHO (2026-09-05)
+
+- **Bug**: a mao esquerda "instavel" fechava janelas com o punho demasiado
+  depressa e confundia-se. Causa: bastava **1 frame** de FIST (gesto commitado)
+  para disparar Alt+F4 — um punho **transitório** (pinca de clique que curva os
+  dedos, ou a mao do cursor a atravessar a metade esquerda do ecra) fechava a janela.
+- **Fix**: `core/twohand.py` ganhou `FistHoldDetector` (hold continuo + cooldown +
+  exigencia de soltar entre disparos), usado em `core/engine.py`:
+  - `left_hand_fist_close_hold_s = 0.8` — o punho (unica mao, lado esquerdo) tem
+    de ficar segurado continuamente antes de fechar a janela.
+  - `left_hand_fist_close_cooldown_s = 2.5` — sem disparos em rajada; e preciso
+    soltar o punho para re-armar.
+- Testes: `tests/test_fist_hold.py` **5/5 PASS** (hold curto nao dispara, hold
+  completo dispara 1x, segurar 6s nao fecha em rajadas, interrupcao reinicia,
+  re-disparo so apos soltar + cooldown). Suíte completa verde (exceto o teste de
+  licenca que depende da maquina, pre-existente).
+
+### REDESIGN AREA DE SUBSCRICAO (2026-09-05)
+
+- **Etapa A concluída** — área de subscrição modernizada para **premium minimalista**
+  (design em `.superpawers\specs\2026-09-05-license-dialog-modernize-design.md`,
+  plano em `.superpawers\plans\2026-09-05-license-dialog-modernize.md`).
+- **Copy confiante e conciso** (`i18n.py`): hero "PRO", sub "Com o PRO sente-se a
+  diferença", secção "Tudo incluído no PRO", CTA "ATIVAR PRO"; campo de chave com
+  placeholder (`license.key_hint`). Chaves `has_key`/`activate_key` preservadas.
+- **Tema** (`ui/theme.py`): tokens novos `StatusChip`, `HeroChip`, `PlanCard`
+  (+`[selected="true"]`), `PlanName/Badge/Price/Extra`, `KeyCaption`, `KeyField`,
+  `SettingsButtonSecondary`; fonts com fallback (`'Segoe UI Variable Display','Segoe UI'`,
+  `'Cascadia Code','Consolas'`); `ProCta` restaurado (CTA dourado); `breathe_glow`
+  mantido (usado pelo menu) mas a área de subscrição deixou de pulsar.
+- **UI FREE** (`ui/license_dlg.py`): 620px, chip de estado "FREE · 5 MIN DE TESTE"
+  sem pulse, hero + benefícios compactos, grelha 2 colunas de cartões de plano
+  (seleção via property + repolish, 84px), CTA único dourado sem animação, chave
+  secundária discreta (caption + `KeyField` + ativar).
+- **UI PRO ativa**: 560×340 sóbrio, remover licença em `SettingsButtonSecondary`
+  (vermelho suave, sem destaque dourado).
+- **Testes**: `tests/test_theme.py` 5/5, `tests/test_license_dialog_free_ui.py`
+  4/4, `tests/test_license_dialog_pro_ui.py` 3/3 — padrão TDD (RED→GREEN);
+  suíte completa verde (exceto falha de ambiente pré-existente da licença ativa).
+- Commits: `f73506e` (copy) · `4ab2270` (tokens) · `57d0ae5` (UI FREE + ProCta)
+  · `8d1f88a` (UI PRO).
+- **Etapa C (follow-up)**: bundling de fontes (Inter/Space Grotesk/JetBrains Mono)
+  em `assets/fonts/` com `QFontDatabase`, a validar depois da Etapa A.
+
 ## Estado anterior (2026-08-24)
 
 ### Motor de precisão V2 + garantia de qualidade por pipeline de agentes
