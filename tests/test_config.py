@@ -74,3 +74,26 @@ def test_suave_preset_persists(monkeypatch, tmp_path):
     assert idx == 0
     assert cfg.filter_min_cutoff == 0.9
     assert cfg.filter_beta == 0.02
+
+
+def test_voice_always_on_default_true():
+    assert config.Config().voice_always_on is True
+
+
+def test_stt_provider_default_auto():
+    assert config.Config().stt_provider == "auto"
+    assert config.Config().stt_model == "whisper-large-v3-turbo"
+    assert config.Config().stt_base_url == "https://api.groq.com/openai/v1"
+    assert config.Config().stt_api_key_env == "GROQ_API_KEY"
+
+
+def test_save_load_voice_settings(monkeypatch, tmp_path):
+    monkeypatch.setattr(config, "SETTINGS_FILE", str(tmp_path / "settings.json"))
+    cfg = config.Config()
+    cfg.voice_always_on = False
+    cfg.stt_provider = "local"
+    config.save_settings(cfg, "NORMAL")
+    cfg2 = config.Config()
+    config.load_settings(cfg2)
+    assert cfg2.voice_always_on is False
+    assert cfg2.stt_provider == "local"

@@ -94,6 +94,18 @@ class Config:
     # Segurar a mao esquerda ABERTA durante este tempo (s) abre o alternador
     # de janelas (pick mode) em vez de apenas avancar uma janela de cada vez.
     left_hand_open_switch_s: float = 2.0
+    # Deriva maxima (px) da palma durante o hold "aberta ~2s". Se a mao mexer
+    # mais que isto durante o hold, e a mao do CURSOR (direita) a atravessar a
+    # metade esquerda do ecra, nao um hold intencional -> nao abre o alternador.
+    left_hand_open_switch_max_move_px: float = 45.0
+    # FECHAR JANELA (Alt+F4) com o punho da mao esquerda e uma acao DESTRUTIVA.
+    # So dispara depois de segurar o punho continuamente durante este tempo (s),
+    # para nao fechar janelas com um punho transitorio (ex.: pinca/clique que
+    # curva os dedos) ou quando a mao do cursor atravessa a metade esquerda.
+    left_hand_fist_close_hold_s: float = 0.8
+    # Cooldown (s) apos fechar uma janela: impedir disparos em rajada enquanto
+    # o punho continuar segurado.
+    left_hand_fist_close_cooldown_s: float = 2.5
 
     click_freeze_ms: int = 100
     gesture_stable_frames: int = 2
@@ -130,11 +142,16 @@ class Config:
     voice_enabled: bool = True
     voice_wake_word: str = "jarvis"
     voice_window_s: float = 8.0
-    voice_always_on: bool = False
+    voice_always_on: bool = True
     vosk_model_url: str = (
         "https://alphacephei.com/vosk/models/vosk-model-small-pt-0.3.zip"
     )
     vosk_model_path: str = "models/vosk-model-small-pt"
+
+    stt_provider: str = "auto"  # auto | cloud | local
+    stt_model: str = "whisper-large-v3-turbo"
+    stt_base_url: str = "https://api.groq.com/openai/v1"
+    stt_api_key_env: str = "GROQ_API_KEY"
 
     llm_enabled: bool = True
     llm_model: str = "llama3.2:3b"
@@ -191,6 +208,10 @@ def load_settings(cfg):
             cfg.tracker_threads = int(data["tracker_threads"])
         if "voice_enabled" in data:
             cfg.voice_enabled = bool(data["voice_enabled"])
+        if "voice_always_on" in data:
+            cfg.voice_always_on = bool(data["voice_always_on"])
+        if "stt_provider" in data:
+            cfg.stt_provider = str(data["stt_provider"])
         if "tts_enabled" in data:
             cfg.tts_enabled = bool(data["tts_enabled"])
         if "ai_enabled" in data:
@@ -240,6 +261,8 @@ def save_settings(cfg, smooth_name):
                     "click_release_grace_s": round(float(cfg.click_release_grace_s), 3),
                     "tracker_threads": int(cfg.tracker_threads),
                     "voice_enabled": bool(cfg.voice_enabled),
+                    "voice_always_on": bool(cfg.voice_always_on),
+                    "stt_provider": str(cfg.stt_provider),
                     "tts_enabled": bool(cfg.tts_enabled),
                     "ai_enabled": bool(cfg.ai_enabled),
                     "autotune_enabled": bool(cfg.autotune_enabled),
