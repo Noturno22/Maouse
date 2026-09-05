@@ -34,19 +34,20 @@ _STRINGS = {
     "btn.help": {"pt": "AJUDA", "en": "HELP"},
     "btn.config": {"pt": "CONFIG", "en": "SETTINGS"},
     "btn.quit": {"pt": "SAIR", "en": "QUIT"},
-    "btn.upgrade": {"pt": "UPGRADE PRO", "en": "UPGRADE PRO"},
-    "btn.pro_active": {"pt": "PRO ATIVO", "en": "PRO ACTIVE"},
-    "license.free_badge": {"pt": "MODO FREE — 30 MIN DE TESTE", "en": "FREE MODE — 30 MIN TRIAL"},
-    "license.free_sub": {"pt": "Estás em teste gratuito: 30 minutos de uso. Quando esgota, o Mãouse bloqueia até ativares o Pro.", "en": "You're on a free trial: 30 minutes of use. When it runs out, Mãouse locks until you activate Pro."},  # noqa: E501
-    "license.hero": {"pt": "Uma nova experiência tecnológica", "en": "A brand-new tech experience"},
-    "license.hero_sub": {"pt": "Tudo o que já usa ficou mágico. Desbloqueie todo o poder do Mãouse.", "en": "Everything you use just got magical. Unlock the full power of Mãouse."},  # noqa: E501
-    "license.unlocks_title": {"pt": "O QUE DESBLOQUEIA — EXPERIÊNCIA REVOLUCIONÁRIA", "en": "WHAT YOU UNLOCK — REVOLUTIONARY EXPERIENCE"},  # noqa: E501
-    "license.cta": {"pt": "ATIVAR PRO · EXPERIÊNCIA COMPLETA", "en": "ACTIVATE PRO · FULL EXPERIENCE"},  # noqa: E501
+    "btn.upgrade": {"pt": "ATIVAR", "en": "ACTIVATE"},
+    "btn.pro_active": {"pt": "ATIVADO", "en": "ACTIVATED"},
+    "license.free_badge": {"pt": "MODO FREE — 5 MIN DE TESTE", "en": "FREE MODE — 5 MIN TRIAL"},
+    "license.free_sub": {"pt": "Estás em teste gratuito: 5 minutos de uso. Quando esgota, o Mãouse bloqueia até ativares o Pro.", "en": "You're on a free trial: 5 minutes of use. When it runs out, Mãouse locks until you activate Pro."},  # noqa: E501
+    "license.hero": {"pt": "Uma nova forma de trabalhar com a mão", "en": "A new way to work with your hand"},
+    "license.hero_sub": {"pt": "Tudo o que já usa, agora com todo o potencial do Mãouse desbloqueado.", "en": "Everything you already use, now with Mãouse's full potential unlocked."},  # noqa: E501
+    "license.unlocks_title": {"pt": "O QUE DESBLOQUEIA", "en": "WHAT YOU UNLOCK"},
+    "license.cta": {"pt": "ATIVAR PRO", "en": "ACTIVATE PRO"},
     "license.has_key": {"pt": "Já tem uma chave Pro? Cole-a aqui", "en": "Already have a Pro key? Paste it here"},  # noqa: E501
     "license.activate_key": {"pt": "Ativar Chave", "en": "Activate Key"},
-    "license.pro_active_title": {"pt": "A sua licença Pro está ativa 💎", "en": "Your Pro license is active 💎"},  # noqa: E501
-    "license.pro_active_sub": {"pt": "Obrigado por apoiar o Mãouse. Toda a experiência tecnológica está desbloqueada.", "en": "Thank you for supporting Mãouse. The full tech experience is unlocked."},  # noqa: E501
-    "license.remove": {"pt": "Remover Licença (voltar a Free)", "en": "Remove License (back to Free)"},  # noqa: E501
+    "license.key_hint": {"pt": "Cole a chave aqui", "en": "Paste the key here"},
+    "license.pro_active_title": {"pt": "A sua licença Pro está ativa", "en": "Your Pro license is active"},  # noqa: E501
+    "license.pro_active_sub": {"pt": "Obrigado por apoiar o Mãouse. Está tudo desbloqueado.", "en": "Thank you for supporting Mãouse. Everything is unlocked."},  # noqa: E501
+    "license.remove": {"pt": "Remover licença", "en": "Remove license"},
     "benefit.snap": {"pt": "Snap magnético", "en": "Magnetic snap"},
     "benefit.snap_d": {"pt": "O cursor “gruda” nos botões — cliques certeiros à primeira.", "en": "The cursor sticks to buttons — perfect clicks every time."},  # noqa: E501
     "benefit.voice": {"pt": "Voz “Jarvis” + TTS neural", "en": "“Jarvis” voice + neural TTS"},
