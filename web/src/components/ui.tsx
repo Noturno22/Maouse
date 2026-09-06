@@ -100,12 +100,12 @@ export function Wordmark({ compact = false }: { compact?: boolean }) {
       <Image
         src="/icon.png"
         alt="Mãouse"
-        width={compact ? 28 : 36}
-        height={compact ? 28 : 36}
-        className="rounded-md"
+        width={compact ? 44 : 56}
+        height={compact ? 44 : 56}
+        className="rounded-lg"
         unoptimized
       />
-      <span className="font-display text-xl font-bold tracking-tight">
+      <span className="font-display text-2xl font-bold tracking-tight">
         <span className="text-neon">Mã</span>
         <span className="text-ice">ouse</span>
       </span>
