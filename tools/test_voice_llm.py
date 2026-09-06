@@ -227,7 +227,7 @@ def test_dispatch_conversation_unknown_phrase():
     ve = _voice_engine(speaker=spk)  # chat=None
     ve.cfg.llm_enabled = False
     ve._dispatch("sacas o que me disseres")
-    check(spk.spoken == ["Nao entendi."],
+    check(spk.spoken == ["Não entendi — repete, por favor."],
           "_dispatch: sem chat e sem comando, diz 'Nao entendi'")
 
 
@@ -236,7 +236,7 @@ def test_reply_conversation_fallback_no_chat():
     ve = _voice_engine(speaker=spk, chat=None)
     ve.cfg.llm_enabled = False
     ve._dispatch("o que pensas do universo?")
-    check(spk.spoken == ["Nao entendi."],
+    check(spk.spoken == ["Não entendi — repete, por favor."],
           "_reply: sem chat fallback educado")
 
 

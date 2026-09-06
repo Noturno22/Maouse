@@ -14,6 +14,8 @@ import numpy as np
 
 from core.log import get_logger
 from core.nlu import parse_local, parse_with_llm
+from core.stt import STTRouter
+from i18n import tr
 
 log = get_logger("voice")
 
@@ -86,6 +88,31 @@ def _rms_i16(raw_bytes):
     return float(np.sqrt(np.mean(arr * arr)))
 
 
+class _NoiseFloor:
+    """Piso de ruido adaptativo: recomecalibra com a mediana de uma janela de
+    RMS capturada em silencio. trip_level() = max(base * factor, min_trip)."""
+
+    def __init__(self, start=420.0, min_trip=300.0, factor=1.6, window=16):
+        self._base = float(start)
+        self._win = collections.deque(maxlen=int(window))
+        self._min_trip = float(min_trip)
+        self._factor = float(factor)
+
+    def baseline(self):
+        return max(self._base, self._min_trip / self._factor)
+
+    def trip_level(self):
+        return max(self._base * self._factor, self._min_trip)
+
+    def update(self, rms, speech):
+        if speech:
+            return
+        self._win.append(float(rms))
+        if len(self._win) == self._win.maxlen:
+            s = sorted(self._win)
+            self._base = self._base * 0.8 + s[len(s) // 2] * 0.2
+
+
 class VoiceEngine:
     """Hibrido: VAD por energia para detetar atividade vocal; Whisper
     para transcrever e detetar a wake word e o comando num unico passo."""
@@ -103,6 +130,8 @@ class VoiceEngine:
         self._stream = None
         self._rec = None
         self._whisper = None
+        self._stt = STTRouter(cfg)
+        self._noise = _NoiseFloor()
 
     def set_speaker(self, speaker):
         self.speaker = speaker
@@ -110,6 +139,10 @@ class VoiceEngine:
     def set_chat(self, chat):
         """Liga o cliente de conversa por IA (respostas livres faladas)."""
         self.chat = chat
+
+    @property
+    def backend(self):
+        return self._stt.backend
 
     def start(self):
         if self._running:
@@ -158,13 +191,17 @@ class VoiceEngine:
         self._running = True
         self._thread = threading.Thread(target=self._loop, daemon=True)
         self._thread.start()
-        self.status = "wake"
+        self.status = "preparing"
+        threading.Thread(target=self._warmup_stt, daemon=True).start()
         wake = self.cfg.voice_wake_word
         mode = "sempre ativo" if self.cfg.voice_always_on else f'diga "{wake}"'
-        print(f"Voz ativa ({mode}) + Whisper '{self.cfg.whisper_model}' para comandos.")
-        print("  Exemplos: pausa | continua | clica | clique direito | scroll cima |")
-        print("  mais rapido | suave | abre o assistente | ampliar | tirar a lupa | sai")
+        print(f"Voz ativa ({mode})")
         return True
+
+    def _warmup_stt(self):
+        self._stt.prepare()
+        if self.status == "preparing":
+            self.status = "ready"
 
     def toggle(self):
         if self.status == "off":
@@ -197,37 +234,8 @@ class VoiceEngine:
         except Exception as e:
             log.debug("Falha ao reproduzir beep de alerta: %s", e)
 
-    def _get_whisper(self):
-        if self._whisper is not None:
-            return self._whisper
-        name = getattr(self.cfg, "whisper_model", "small")
-        print(f"A carregar Whisper '{name}' (a 1a vez descarrega o modelo)...")
-        try:
-            from faster_whisper import WhisperModel
-
-            self._whisper = WhisperModel(
-                name, device="cpu", compute_type="int8", cpu_threads=4
-            )
-            print("Whisper pronto.")
-        except Exception as exc:
-            print(f"Aviso: Whisper indisponivel ({exc}); comandos por voz limitados.")
-            self._whisper = False
-        return self._whisper
-
     def _transcribe(self, pcm_int16):
-        model = self._get_whisper()
-        if model is False or model is None:
-            return ""
-        audio = pcm_int16.astype(np.float32) / 32768.0
-        try:
-            segments, info = model.transcribe(
-                audio, language="pt", beam_size=1, vad_filter=False
-            )
-            text = " ".join(seg.text.strip() for seg in segments).strip()
-            return text
-        except Exception as exc:
-            print(f"(voz) erro Whisper: {exc}")
-            return ""
+        return self._stt.transcribe(pcm_int16)
 
     def _capture_utterance(self):
         chunks = collections.deque()
@@ -246,20 +254,22 @@ class VoiceEngine:
                 rms = _rms_i16(data)
                 chunks.append(data)
                 chunk_durs.append(dur)
-                while chunk_durs and sum(chunk_durs) > PREROLL_S:
-                    chunk_durs.popleft()
-                    chunks.popleft()
                 if started is None:
-                    if rms >= SIL_START_RMS:
+                    while chunk_durs and sum(chunk_durs) > PREROLL_S:
+                        chunk_durs.popleft()
+                        chunks.popleft()
+                    if rms >= self._noise.trip_level():
                         started = now
                         last_voice_t = now
-                elif rms >= SIL_END_RMS:
-                    last_voice_t = now
-            if started is not None:
-                if last_voice_t is not None and now - last_voice_t >= SILENCE_END_S:
-                    break
-                if time.monotonic() - (started - PREROLL_S) > MAX_UTT_S:
-                    break
+                else:
+                    self._noise.update(rms, speech=True)
+                    if rms >= SIL_END_RMS:
+                        last_voice_t = now
+                if started is not None:
+                    if last_voice_t is not None and now - last_voice_t >= SILENCE_END_S:
+                        break
+                    if time.monotonic() - (started - PREROLL_S) > MAX_UTT_S:
+                        break
         if started is None:
             return b""
         return b"".join(chunks)
@@ -272,6 +282,12 @@ class VoiceEngine:
                 continue
             if self.status == "off":
                 continue
+            rms = _rms_i16(data)
+            if (
+                self.status in ("ready", "wake")
+                and rms < self._noise.trip_level()
+            ):
+                self._noise.update(rms, speech=False)
             try:
                 if self._rec.AcceptWaveform(data):
                     text = json.loads(self._rec.Result()).get("text", "")
@@ -289,6 +305,11 @@ class VoiceEngine:
         if not t:
             return
 
+        if getattr(self.cfg, "voice_always_on", False):
+            if self.status in ("ready", "wake", "on", "preparing"):
+                self._listen_and_dispatch(prompt=False)
+            return
+
         for alias in WAKE_ALIASES:
             if alias in t or difflib.get_close_matches(t, (alias,), n=1, cutoff=0.7):
                 if self.cfg.voice_always_on:
@@ -298,7 +319,7 @@ class VoiceEngine:
                     if rest:
                         self._dispatch(rest)
                     return
-                self._listen_for_command()
+                self._listen_and_dispatch(prompt=True)
                 return
 
         words = t.split()
@@ -312,31 +333,34 @@ class VoiceEngine:
                         if rest:
                             self._dispatch(rest)
                         return
-                    self._listen_for_command()
+                    self._listen_and_dispatch(prompt=True)
                     return
 
         if self.cfg.voice_always_on and len(t.split()) >= 2:
             self._dispatch(t)
 
-    def _listen_for_command(self):
+    def _listen_and_dispatch(self, prompt=True):
         self.status = "listening"
-        self._beep()
-        if self.speaker is not None:
-            self.speaker.say("Sim?")
+        if prompt:
+            self._beep()
+            if self.speaker is not None:
+                self.speaker.say(tr("voice.prompt"))
         pcm = self._capture_utterance()
         if self.status == "off":
             return
         if not pcm:
-            self.status = "wake"
+            self.status = "ready"
             return
         raw = np.frombuffer(pcm, dtype=np.int16)
         said = self._transcribe(raw)
         if not said:
-            self.status = "wake"
-            if self.speaker is not None:
-                self.speaker.say("Nao ouvi nada.")
+            self.status = "ready"
+            if prompt and self.speaker is not None:
+                self.speaker.say(tr("voice.not_heard"))
             return
         self._dispatch(_strip_accents(said.lower()))
+        if self.status != "off":
+            self.status = "ready"
 
     def _dispatch(self, text):
         # 1) Comando por regras locais (rapido, sem rede)
@@ -377,7 +401,7 @@ class VoiceEngine:
         if self.chat is None or not getattr(self.cfg, "llm_enabled", True):
             print(f'(voz) nao entendi: "{text}"')
             if self.speaker is not None:
-                self.speaker.say("Nao entendi.")
+                self.speaker.say(tr("voice.not_understood"))
             return
         self._chat_busy = True
         self.status = "thinking"
