@@ -1,9 +1,20 @@
 # -*- mode: python ; coding: utf-8 -*-
+import os
 from PyInstaller.utils.hooks import collect_all
 
 datas = []
 binaries = []
 hiddenimports = []
+
+# Assets do produto empacotados junto do .exe (paridade com o build.bat).
+# Só os diretórios que existem; `.ttf`/`.png` são lidos em runtime pelo Qt.
+for src, dst in (
+    ("assets/brand", "assets/brand"),
+    ("assets/fonts", "assets/fonts"),
+    ("assets/models", "assets/models"),
+):
+    if os.path.isdir(src):
+        datas.append((src, dst))
 for pkg in ("mediapipe", "vosk"):
     d, b, h = collect_all(pkg)
     datas += d
