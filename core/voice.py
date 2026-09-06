@@ -14,6 +14,7 @@ import numpy as np
 from core.log import get_logger
 from core.nlu import parse_local, parse_with_llm
 from core.stt import STTRouter
+from core.voice_quality import CaptureQualityGate
 from i18n import tr
 
 log = get_logger("voice")
@@ -132,6 +133,7 @@ class VoiceEngine:
         self._whisper = None
         self._stt = STTRouter(cfg)
         self._noise = _NoiseFloor()
+        self._gate = CaptureQualityGate()
         self._deaf_until = 0.0
 
     def set_speaker(self, speaker):
@@ -361,6 +363,10 @@ class VoiceEngine:
             self.status = "ready"
             return
         raw = np.frombuffer(pcm, dtype=np.int16)
+        if not self._gate.evaluate(raw, self._noise.trip_level()):
+            log.debug("Captura rejeitada (%s)", self._gate.reject_reason())
+            self.status = "ready"
+            return
         said = self._transcribe(raw)
         if not said:
             self.status = "ready"
