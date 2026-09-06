@@ -109,3 +109,33 @@ def test_always_on_empty_capture_is_quiet():
 
 def test_voice_always_on_default_true():
     assert config_mod.Config().voice_always_on is True
+
+
+def test_toggle_off_then_on_resumes():
+    ve, _ = make_ve()
+    ve._running = True
+    ve.status = "off"
+    ve._warmup_stt = lambda: setattr(ve, "status", "ready")
+    assert ve.start() is True
+    assert ve.status == "ready"
+
+
+def test_deaf_while_speaker_talks_ignores_results():
+    ve, _ = make_ve()
+    spk = FakeSpeaker()
+    spk.is_speaking = True
+    ve.speaker = spk
+    ve.status = "ready"
+    ve._handle_vosk_result("qualquer fala")
+    assert ve.cmd_queue.empty()
+    assert ve.status == "ready"
+
+
+def test_deaf_window_after_speak_blocks_capture():
+    ve, _ = make_ve()
+    ve.status = "ready"
+    ve._say("olá")
+    assert ve.speaker.spoken == ["olá"]
+    ve._handle_vosk_result("eco")
+    assert ve.cmd_queue.empty()
+    assert ve.status == "ready"

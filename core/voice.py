@@ -3,7 +3,6 @@ import difflib
 import json
 import os
 import queue
-import re
 import threading
 import time
 import unicodedata
@@ -26,6 +25,7 @@ SIL_END_RMS = 380.0
 SILENCE_END_S = 1.0
 MAX_UTT_S = 7.0
 PREROLL_S = 0.45
+SELF_DEAF_S = 1.0
 
 
 def _strip_accents(text):
@@ -132,6 +132,7 @@ class VoiceEngine:
         self._whisper = None
         self._stt = STTRouter(cfg)
         self._noise = _NoiseFloor()
+        self._deaf_until = 0.0
 
     def set_speaker(self, speaker):
         self.speaker = speaker
@@ -146,6 +147,9 @@ class VoiceEngine:
 
     def start(self):
         if self._running:
+            if self.status == "off":
+                self.status = "preparing"
+                threading.Thread(target=self._warmup_stt, daemon=True).start()
             return True
         try:
             import sounddevice as sd
@@ -234,6 +238,27 @@ class VoiceEngine:
         except Exception as e:
             log.debug("Falha ao reproduzir beep de alerta: %s", e)
 
+    def _self_deaf(self):
+        if self.speaker is not None and getattr(self.speaker, "is_speaking", False):
+            return True
+        return time.monotonic() < self._deaf_until
+
+    def _say(self, text, interrupt=False):
+        if self.speaker is None:
+            return
+        self._deaf_until = time.monotonic() + SELF_DEAF_S
+        try:
+            self.speaker.say(text, interrupt=interrupt)
+        finally:
+            self._drain_audio()
+
+    def _drain_audio(self):
+        while True:
+            try:
+                self._audio_q.get_nowait()
+            except queue.Empty:
+                break
+
     def _transcribe(self, pcm_int16):
         return self._stt.transcribe(pcm_int16)
 
@@ -282,6 +307,8 @@ class VoiceEngine:
                 continue
             if self.status == "off":
                 continue
+            if self._self_deaf():
+                continue
             rms = _rms_i16(data)
             if (
                 self.status in ("ready", "wake")
@@ -306,19 +333,12 @@ class VoiceEngine:
             return
 
         if getattr(self.cfg, "voice_always_on", False):
-            if self.status in ("ready", "wake", "on", "preparing"):
+            if self.status in ("ready", "wake", "on", "preparing") and not self._self_deaf():
                 self._listen_and_dispatch(prompt=False)
             return
 
         for alias in WAKE_ALIASES:
             if alias in t or difflib.get_close_matches(t, (alias,), n=1, cutoff=0.7):
-                if self.cfg.voice_always_on:
-                    rest = re.sub(
-                        r"\b(" + "|".join(WAKE_ALIASES) + r")\b", "", t, flags=re.IGNORECASE
-                    ).strip()
-                    if rest:
-                        self._dispatch(rest)
-                    return
                 self._listen_and_dispatch(prompt=True)
                 return
 
@@ -326,25 +346,14 @@ class VoiceEngine:
         for word in words:
             for alias in WAKE_ALIASES:
                 if difflib.get_close_matches(word, (alias,), n=1, cutoff=0.55):
-                    if self.cfg.voice_always_on:
-                        rest = re.sub(
-                            r"\b(" + "|".join(WAKE_ALIASES) + r")\b", "", t, flags=re.IGNORECASE
-                        ).strip()
-                        if rest:
-                            self._dispatch(rest)
-                        return
                     self._listen_and_dispatch(prompt=True)
                     return
-
-        if self.cfg.voice_always_on and len(t.split()) >= 2:
-            self._dispatch(t)
 
     def _listen_and_dispatch(self, prompt=True):
         self.status = "listening"
         if prompt:
             self._beep()
-            if self.speaker is not None:
-                self.speaker.say(tr("voice.prompt"))
+            self._say(tr("voice.prompt"))
         pcm = self._capture_utterance()
         if self.status == "off":
             return
@@ -355,8 +364,8 @@ class VoiceEngine:
         said = self._transcribe(raw)
         if not said:
             self.status = "ready"
-            if prompt and self.speaker is not None:
-                self.speaker.say(tr("voice.not_heard"))
+            if prompt:
+                self._say(tr("voice.not_heard"))
             return
         self._dispatch(_strip_accents(said.lower()))
         if self.status != "off":
@@ -400,8 +409,7 @@ class VoiceEngine:
     def _reply_conversation(self, text):
         if self.chat is None or not getattr(self.cfg, "llm_enabled", True):
             print(f'(voz) nao entendi: "{text}"')
-            if self.speaker is not None:
-                self.speaker.say(tr("voice.not_understood"))
+            self._say(tr("voice.not_understood"))
             return
         self._chat_busy = True
         self.status = "thinking"
@@ -414,7 +422,6 @@ class VoiceEngine:
             self._chat_busy = False
         if reply:
             print(f'[jarvis] {reply}')
-            if self.speaker is not None:
-                self.speaker.say(reply, interrupt=True)
+            self._say(reply, interrupt=True)
         if self.status != "off":
             self.status = "wake"

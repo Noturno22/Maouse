@@ -43,10 +43,15 @@ class Speaker:
         self._thread = None
         self._pv = None
         self._sapi = None
+        self._speaking = False
 
     @property
     def status(self):
         return self.engine_name
+
+    @property
+    def is_speaking(self):
+        return self._speaking
 
     def start(self):
         if not self.enabled or self._running:
@@ -155,20 +160,27 @@ class Speaker:
             if self.engine_name == "piper" and self._pv is not None:
                 try:
                     data, sr = self._synth_piper(text)
-                    sd.play(data, sr)
-                    sd.wait()
+                    self._speaking = True
+                    try:
+                        sd.play(data, sr)
+                        sd.wait()
+                    finally:
+                        self._speaking = False
                     continue
                 except Exception:
+                    self._speaking = False
                     self.engine_name = "sapi5-fallback"
                     try:
                         import pyttsx3
-
                         self._sapi = pyttsx3.init()
                     except Exception:
                         self.engine_name = "off"
             if self.engine_name.startswith("sapi5") and self._sapi is not None:
                 try:
+                    self._speaking = True
                     self._sapi.say(text)
                     self._sapi.runAndWait()
                 except Exception as e:
                     log.debug("Falha ao reproduzir voz SAPI: %s", e)
+                finally:
+                    self._speaking = False
