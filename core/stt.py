@@ -142,9 +142,16 @@ class LocalSTT:
             log.debug("STT local indisponivel: %s", exc)
             return ""
         audio = pcm_int16.astype(np.float32) / 32768.0
+        language = getattr(self.cfg, "whisper_language", "pt")
+        vad = bool(getattr(self.cfg, "whisper_vad_filter", True))
+        beam = int(getattr(self.cfg, "whisper_beam_size", 3))
         try:
             segments, _info = model.transcribe(
-                audio, language="pt", beam_size=5, vad_filter=False
+                audio,
+                language=language,
+                beam_size=beam,
+                vad_filter=vad,
+                condition_on_previous_text=False,
             )
             return " ".join(seg.text.strip() for seg in segments).strip()
         except Exception as exc:

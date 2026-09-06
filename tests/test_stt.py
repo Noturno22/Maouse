@@ -34,6 +34,15 @@ class FakeNet:
         return self.result
 
 
+class FakeWhisper:
+    def __init__(self):
+        self.kwargs = None
+
+    def transcribe(self, audio, **kw):
+        self.kwargs = kw
+        return iter(()), None
+
+
 def test_cloud_transcribe_sends_multipart(monkeypatch):
     monkeypatch.setenv("MAOUSE_STT_TEST_KEY", "gsk_x")
     net = FakeNet({"text": "clica uma vez"})
@@ -111,3 +120,30 @@ def test_router_transcribe_falls_back_to_local(monkeypatch):
     r.local.transcribe = lambda pcm_bytes: "pausa"
     assert r.transcribe(pcm()) == "pausa"
     assert r.backend == "local"
+
+
+def test_local_transcribe_forwards_defaults(monkeypatch):
+    lc = stt.LocalSTT(make_cfg())
+    fw = FakeWhisper()
+    lc._whisper = fw
+    assert lc.transcribe(pcm()) == ""
+    assert fw.kwargs["language"] == "pt"
+    assert fw.kwargs["vad_filter"] is True
+    assert fw.kwargs["beam_size"] == 3
+    assert fw.kwargs["condition_on_previous_text"] is False
+
+
+def test_local_transcribe_honors_cfg(monkeypatch):
+    lc = stt.LocalSTT(
+        make_cfg(
+            whisper_vad_filter=False,
+            whisper_beam_size=5,
+            whisper_language="en",
+        )
+    )
+    fw = FakeWhisper()
+    lc._whisper = fw
+    assert lc.transcribe(pcm()) == ""
+    assert fw.kwargs["language"] == "en"
+    assert fw.kwargs["vad_filter"] is False
+    assert fw.kwargs["beam_size"] == 5
