@@ -1441,6 +1441,51 @@ _STRINGS = {
         "it": "Chiave Groq (GROQ_API_KEY) per il riconoscimento cloud — mettila nel file .env",
         "pt_br": "Chave Groq (GROQ_API_KEY) para o reconhecimento na nuvem — coloque no arquivo .env",  # noqa: E501
     },
+    "settings.voice.mic_label": {
+        "pt": "Microfone",
+        "en": "Microphone",
+        "es": "Micrófono",
+        "fr": "Microphone",
+        "de": "Mikrofon",
+        "it": "Microfono",
+        "pt_br": "Microfone",
+    },
+    "settings.voice.mic_default": {
+        "pt": "Por omissão do sistema",
+        "en": "System default",
+        "es": "Por defecto del sistema",
+        "fr": "Par défaut du système",
+        "de": "Standard des Systems",
+        "it": "Predefinito di sistema",
+        "pt_br": "Padrão do sistema",
+    },
+    "settings.voice.mic_list_failed": {
+        "pt": "Não foi possível listar microfones — verifica a ligação do dispositivo.",
+        "en": "Could not list microphones — check the device connection.",
+        "es": "No se pudieron listar los micrófonos — comprueba la conexión del dispositivo.",
+        "fr": "Impossible de lister les microphones — vérifiez la connexion de l'appareil.",
+        "de": "Mikrofone konnten nicht aufgelistet werden — Geräteverbindung prüfen.",
+        "it": "Impossibile elencare i microfoni — controlla la connessione del dispositivo.",
+        "pt_br": "Não foi possível listar microfones — verifique a conexão do aparelho.",
+    },
+    "voice.mic_error_status": {
+        "pt": "MICROFONE INACESSÍVEL",
+        "en": "MICROPHONE UNAVAILABLE",
+        "es": "MICRÓFONO INACCESIBLE",
+        "fr": "MICROPHONE INACCESSIBLE",
+        "de": "MIKROFON NICHT VERFÜGBAR",
+        "it": "MICROFONO NON DISPONIBILE",
+        "pt_br": "MICROFONE INDISPONÍVEL",
+    },
+    "voice.mic_error_tip": {
+        "pt": "Verifica se o microfone está ligado e sem uso por outra app.",
+        "en": "Check that the microphone is connected and not in use by another app.",
+        "es": "Comprueba que el micrófono esté conectado y no lo use otra app.",
+        "fr": "Vérifiez que le microphone est branché et non utilisé par une autre application.",
+        "de": "Prüfe, ob das Mikrofon angeschlossen und nicht von einer anderen App belegt ist.",
+        "it": "Controlla che il microfono sia collegato e non in uso da un'altra app.",
+        "pt_br": "Verifique se o microfone está conectado e sem uso por outro aplicativo.",
+    },
 }
 
 

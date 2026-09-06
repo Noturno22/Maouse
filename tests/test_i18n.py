@@ -66,8 +66,11 @@ def test_voice_keys_exist_in_all_langs():
         "voice.status.preparing", "voice.status.ready",
         "voice.status.listening", "voice.status.thinking", "voice.status.on",
         "voice.backend.cloud", "voice.backend.local",
+        "voice.mic_error_status", "voice.mic_error_tip",
         "settings.voice.stt_provider", "settings.voice.direct_commands",
         "settings.voice.groq_key",
+        "settings.voice.mic_label", "settings.voice.mic_default",
+        "settings.voice.mic_list_failed",
         "settings.voice.provider.auto", "settings.voice.provider.cloud",
         "settings.voice.provider.local",
     ]
