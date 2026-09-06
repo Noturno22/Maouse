@@ -1,0 +1,70 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-space), var(--font-inter), ui-sans-serif, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, "Cascadia Mono", monospace;
+
+  --color-night: #0a0a12;
+  --color-panel: #1a1a2e;
+  --color-panel2: #222238;
+  --color-neon: #50c8ff;
+  --color-ice: #f0f4f8;
+  --color-tech: #969696;
+  --color-line: rgba(80, 200, 255, 0.15);
+  --color-glow: rgba(80, 200, 255, 0.3);
+  --color-success: #5adc5a;
+  --color-warn: #ffaa3c;
+  --color-error: #ff5050;
+  --color-pink: #ff50c8;
+  --color-violet: #b478ff;
+  --color-royal: #4682ff;
+  --color-teal: #78c8b4;
+  --color-gold: #ffc832;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: #0a0a12;
+  color: #f0f4f8;
+}
+
+::selection {
+  background: rgba(80, 200, 255, 0.4);
+}
+
+@keyframes drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.5;
+  }
+  50% {
+    transform: translate3d(-30px, 20px, 0) scale(1.12);
+    opacity: 0.9;
+  }
+}
+
+.hero-orb {
+  animation: drift 14s ease-in-out infinite;
+}
+
+@keyframes scanline {
+  0% {
+    top: -10%;
+  }
+  100% {
+    top: 110%;
+  }
+}
+
+.demo-scan {
+  animation: scanline 7s linear infinite;
+}
