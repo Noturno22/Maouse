@@ -37,7 +37,7 @@ export function Nav() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-line/60 bg-night/85 backdrop-blur-md">
-      <nav className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-3.5">
+      <nav className="mx-auto flex max-w-6xl items-center justify-between gap-5 px-5 py-4 sm:px-8">
         <a href="#top" aria-label="Mãouse">
           <Wordmark compact />
         </a>

@@ -98,10 +98,12 @@ export function Wordmark({ compact = false }: { compact?: boolean }) {
   return (
     <span className="inline-flex items-center gap-2">
       <Image
-        src="/logo-symbol.svg"
-        alt="Símbolo Mãouse"
-        width={compact ? 24 : 32}
-        height={compact ? 24 : 32}
+        src="/icon.png"
+        alt="Mãouse"
+        width={compact ? 28 : 36}
+        height={compact ? 28 : 36}
+        className="rounded-md"
+        unoptimized
       />
       <span className="font-display text-xl font-bold tracking-tight">
         <span className="text-neon">Mã</span>

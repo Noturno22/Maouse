@@ -42,19 +42,27 @@ export function Features() {
   );
 }
 
-const STORE_URL = process.env.NEXT_PUBLIC_STORE_URL;
+const PADDLE_VENDOR_ID = process.env.NEXT_PUBLIC_PADDLE_VENDOR_ID;
+const LIFETIME_URL = process.env.NEXT_PUBLIC_PADDLE_LIFETIME_URL;
+const FAMILY_URL = process.env.NEXT_PUBLIC_PADDLE_FAMILY_URL;
+const ACCESS_URL = process.env.NEXT_PUBLIC_PADDLE_ACCESS_URL;
 
 export function Pricing() {
   const { lang, t } = useLang();
   const checkoutFor = (id: string) => {
-    if (!STORE_URL) return null;
-    const product: Record<string, string> = {
+    const overrides: Record<string, string> = {
+      lifetime: LIFETIME_URL || "",
+      family: FAMILY_URL || "",
+      access: ACCESS_URL || "",
+    };
+    if (overrides[id]) return overrides[id] || null;
+    if (!PADDLE_VENDOR_ID) return null;
+    const products: Record<string, string> = {
       lifetime: "maouse-pro-lifetime",
       family: "maouse-family",
       access: "maouse-pro-access",
-      trading_master: "maouse-trading-master",
     };
-    return `${STORE_URL}?product=${product[id] ?? id}`;
+    return `https://checkout.paddle.com/${PADDLE_VENDOR_ID}?product=${products[id] ?? id}`;
   };
 
   return (
@@ -284,8 +292,8 @@ export function Footer() {
   const { t } = useLang();
   return (
     <footer className="border-t border-line/60 bg-panel/40">
-      <div className="mx-auto max-w-6xl px-5 py-16">
-        <div className="grid gap-10 lg:grid-cols-[1.2fr_2fr]">
+      <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8">
+        <div className="grid gap-12 lg:grid-cols-[1.2fr_2fr]">
           <div>
             <Wordmark />
             <p className="mt-4 font-display text-lg text-neon">{t.footer.tagline}</p>
@@ -307,7 +315,7 @@ export function Footer() {
                 <h3 className="font-mono text-xs tracking-widest text-tech uppercase">
                   {column.title}
                 </h3>
-                <ul className="mt-4 space-y-2.5">
+                <ul className="mt-4 space-y-3">
                   {column.links.map((link) => (
                     <li key={link.label}>
                       <a
@@ -324,7 +332,7 @@ export function Footer() {
           </div>
         </div>
 
-        <div className="mt-14 flex flex-col items-center justify-between gap-3 border-t border-line/60 pt-8 sm:flex-row">
+        <div className="mt-16 flex flex-col items-center justify-between gap-3 border-t border-line/60 pt-10 sm:flex-row">
           <p className="text-xs text-tech">{t.footer.rights}</p>
           <p className="font-mono text-xs text-tech">{t.footer.made}</p>
         </div>
