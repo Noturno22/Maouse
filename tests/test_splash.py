@@ -14,10 +14,10 @@ def _qapp():
     yield app
 
 
-def test_splash_path_resolves_svg():
+def test_splash_path_resolves_logo():
     path = splash.splash_path()
     assert path is not None
-    assert path.endswith("splash.svg")
+    assert path.endswith("logo.png")
 
 
 def test_render_splash_returns_pixmap():
@@ -34,8 +34,20 @@ def test_render_splash_missing_file_returns_none(monkeypatch):
 
 
 def test_show_splash_returns_widget_and_closes():
-    s = splash.show_splash(ms=10)
+    s = splash.show_splash(ms=10, force=True)
     assert s is not None
     assert s.isVisible()
     s.close()
     assert not s.isVisible()
+
+
+def test_show_splash_disabled_on_windows(monkeypatch):
+    monkeypatch.setattr(splash, "splash_enabled", lambda: False)
+    assert splash.show_splash(ms=5) is None
+
+
+def test_show_splash_enabled_off_windows(monkeypatch):
+    monkeypatch.setattr(splash, "splash_enabled", lambda: True)
+    s = splash.show_splash(ms=5)
+    assert s is not None
+    s.close()

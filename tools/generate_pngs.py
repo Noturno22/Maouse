@@ -20,7 +20,6 @@ ASSETS = {
     "favicon.svg": [16, 32, 48],
     "social/avatar.svg": [200, 400, 800],
     "social/banner.svg": [750, 1500],
-    "splash/splash.svg": [512, 1024],
 }
 
 

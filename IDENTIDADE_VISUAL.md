@@ -448,8 +448,6 @@ assets/brand/
 ├── social/
 │   ├── avatar.svg        # Avatar 400x400 (GitHub, Twitter)
 │   └── banner.svg        # Banner 1500x500 (Twitter, GitHub)
-└── splash/
-    └── splash.svg        # Splash screen 512x512
 ```
 
 ### Scripts de Geracao
