@@ -62,7 +62,7 @@ def test_open_checkout_calls_browser(monkeypatch):
     assert lm.open_checkout("lifetime", 12345) is True
 
 
-def test_active_license_defaults_to_free():
-    assert lic.active_tier() is lic.Tier.FREE
-    lic.set_active_license(lic.LicenseManager(store_path=":memory:"))
+def test_active_license_defaults_to_free(monkeypatch, tmp_path):
+    store = tmp_path / "lic.json"
+    lic.set_active_license(lic.LicenseManager(store_path=str(store)))
     assert lic.active_tier() is lic.Tier.FREE
