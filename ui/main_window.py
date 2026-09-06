@@ -85,6 +85,9 @@ class MainWindow(QMainWindow):
         # trial/lease esgotou (depois disso o utilizador reabre por menu).
         self._block_shown = False
 
+        # Timer do alerta de bloqueio (toast vermelho + borda + logo-look).
+        self._lock_flash_timer = None
+
         self._E = None
         self._ctx = None
         self._state = {}
@@ -163,15 +166,38 @@ class MainWindow(QMainWindow):
 
     def _load_bg_image(self):
         try:
-            root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             name = "logo.png" if self._license and self._license.is_pro else "logo-off.png"
-            path = os.path.join(root, "assets", "brand", name)
-            pm = QPixmap(str(path))
-            if not pm.isNull():
-                self._bg.setPixmap(pm)
-                self._fit_bg(self.width(), self.height())
+            self._set_bg_file(name)
         except Exception:
             self._bg.setPixmap(QPixmap())
+
+    def _set_bg_file(self, name):
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        path = os.path.join(root, "assets", "brand", name)
+        pm = QPixmap(str(path))
+        if not pm.isNull():
+            self._bg.setPixmap(pm)
+            self._fit_bg(self.width(), self.height())
+
+    def _flash_locked(self, message):
+        """Alerta de bloqueio do motor: toast vermelho + borda da janela
+        vermelha + logo-look durante uns segundos, depois volta ao normal."""
+        self._toast.show_toast(message, danger=True, duration_ms=2300)
+        self.setProperty("locked", True)
+        self.style().unpolish(self)
+        self.style().polish(self)
+        self._set_bg_file("logo-look.png")
+        if self._lock_flash_timer is None:
+            self._lock_flash_timer = QTimer(self)
+            self._lock_flash_timer.setSingleShot(True)
+            self._lock_flash_timer.timeout.connect(self._restore_locked_ui)
+        self._lock_flash_timer.start(2600)
+
+    def _restore_locked_ui(self):
+        self.setProperty("locked", False)
+        self.style().unpolish(self)
+        self.style().polish(self)
+        self._load_bg_image()
 
     def _fit_bg(self, w, h):
         if self._bg is None or w <= 0 or h <= 0:
@@ -292,13 +318,20 @@ class MainWindow(QMainWindow):
 
     def _toggle_voice(self, checked):
         if self._view_license_locked("voice"):
-            self._toast.show_toast("VOZ disponível no PRO — UPGRADE PRO")
+            self._flash_locked("VOZ disponível no PRO — UPGRADE PRO")
             self._menu_checkable(self._menu.btn_voice, False)
             return
         if self._voice:
+            mic_error = getattr(self._voice, "mic_error", None)
+            if mic_error:
+                self._toast.show_toast(
+                    tr("voice.mic_error_status"), danger=True, duration_ms=2300
+                )
             self._voice.toggle()
-            on = self._voice.status != "off"
+            on = self._voice.status not in ("off", "error")
             self._menu_checkable(self._menu.btn_voice, on)
+            if self._voice.status == "error":
+                return
             if on and self._voice.status == "preparing":
                 self._toast.show_toast(tr("voice.status.preparing"))
             else:
@@ -306,7 +339,7 @@ class MainWindow(QMainWindow):
 
     def _toggle_snap(self, checked):
         if self._view_license_locked("snap"):
-            self._toast.show_toast("SNAP disponível no PRO — UPGRADE PRO")
+            self._flash_locked("SNAP disponível no PRO — UPGRADE PRO")
             self._menu_checkable(self._menu.btn_snap, False)
             return
         if self._snap and self._snap.available:
@@ -352,7 +385,7 @@ class MainWindow(QMainWindow):
             self._toggle_voice(None)
         elif key == Qt.Key_M:
             if self._view_license_locked("snap"):
-                self._toast.show_toast("SNAP disponível no PRO — UPGRADE PRO")
+                self._flash_locked("SNAP disponível no PRO — UPGRADE PRO")
             elif self._snap and self._snap.available:
                 new_state = not self._snap.enabled
                 self._snap.enabled = new_state
@@ -533,9 +566,20 @@ class MainWindow(QMainWindow):
         if ui_show != self._ui_show:
             self._ui_show = ui_show
             if ui_show:
+                splash = None
+                try:
+                    from ui.splash import show_splash
+                    splash = show_splash(ms=480)
+                except Exception:
+                    splash = None
                 self.show()
                 self.raise_()
                 self.activateWindow()
+                if splash is not None:
+                    try:
+                        splash.finish(self)
+                    finally:
+                        splash.close()
             else:
                 self.hide()
 
@@ -580,13 +624,16 @@ class MainWindow(QMainWindow):
         is_pro = bool(self._license and self._license.is_pro)
         if not is_pro and hands >= 2 and not self._twohand_free_notified:
             self._twohand_free_notified = True
-            self._toast.show_toast("2 MÃOS DETETADAS · RECURSOS PRO LOCKED")
+            self._flash_locked("2 MÃOS DETETADAS · RECURSOS PRO LOCKED")
         if hands < 2:
             self._twohand_free_notified = False
 
         if self._voice:
             self._voice_bar.update_state(
-                self._voice.status, self._cfg.voice_wake_word, self._voice.backend
+                self._voice.status,
+                self._cfg.voice_wake_word,
+                self._voice.backend,
+                getattr(self._voice, "mic_error", None),
             )
         else:
             self._voice_bar.update_state("off")

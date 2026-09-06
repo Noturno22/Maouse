@@ -111,6 +111,22 @@ class SettingsDialog(QDialog):
         self._direct_ch = QCheckBox(tr("settings.voice.direct_commands"))
         self._direct_ch.setChecked(self._cfg.voice_always_on)
         vl.addWidget(self._direct_ch)
+        from core.audio_devices import list_input_devices
+        devices = list_input_devices()
+        vl.addWidget(QLabel(tr("settings.voice.mic_label")))
+        if devices:
+            self._mic_combo = QComboBox()
+            self._mic_combo.addItem(tr("settings.voice.mic_default"), "")
+            for _idx, name in devices:
+                self._mic_combo.addItem(name, name)
+            pos = self._mic_combo.findData(self._cfg.mic_device)
+            self._mic_combo.setCurrentIndex(pos if pos >= 0 else 0)
+            vl.addWidget(self._mic_combo)
+        else:
+            self._mic_combo = None
+            warn = QLabel(tr("settings.voice.mic_list_failed"))
+            warn.setWordWrap(True)
+            vl.addWidget(warn)
         hint = QLabel(tr("settings.voice.groq_key"))
         hint.setWordWrap(True)
         vl.addWidget(hint)
@@ -189,6 +205,8 @@ class SettingsDialog(QDialog):
         self._cfg.tts_enabled = self._tts_ch.isChecked()
         self._cfg.stt_provider = self._stt_combo.currentData()
         self._cfg.voice_always_on = self._direct_ch.isChecked()
+        if getattr(self, "_mic_combo", None) is not None:
+            self._cfg.mic_device = self._mic_combo.currentData() or ""
         self._cfg.ai_enabled = self._ai_ch.isChecked()
         self._cfg.autotune_enabled = self._at_ch.isChecked()
         self._cfg.mirror = self._mirror_ch.isChecked()
