@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 
 from config import SMOOTH_PRESETS
 from core.licensing import Tier, is_pro_locked
+from i18n import tr
 from ui.theme import FONT_MONO, FONT_PRIMARY, MAIN_STYLESHEET
 
 
@@ -93,6 +94,29 @@ class SettingsDialog(QDialog):
         t.setLayout(tl)
         lay.addWidget(t)
 
+        # Voz / reconhecimento
+        v = QGroupBox(tr("settings.voice.stt_provider"))
+        v.setFont(FONT_PRIMARY)
+        vl = QVBoxLayout()
+        self._stt_combo = QComboBox()
+        self._stt_combo.addItem(tr("settings.voice.provider.auto"), "auto")
+        self._stt_combo.addItem(tr("settings.voice.provider.cloud"), "cloud")
+        self._stt_combo.addItem(tr("settings.voice.provider.local"), "local")
+        try:
+            idx = ("auto", "cloud", "local").index(self._cfg.stt_provider)
+        except ValueError:
+            idx = 0
+        self._stt_combo.setCurrentIndex(idx)
+        vl.addWidget(self._stt_combo)
+        self._direct_ch = QCheckBox(tr("settings.voice.direct_commands"))
+        self._direct_ch.setChecked(self._cfg.voice_always_on)
+        vl.addWidget(self._direct_ch)
+        hint = QLabel(tr("settings.voice.groq_key"))
+        hint.setWordWrap(True)
+        vl.addWidget(hint)
+        v.setLayout(vl)
+        lay.addWidget(v)
+
         # Personalizacao
         p = QGroupBox("Personalizacao")
         p.setFont(FONT_PRIMARY)
@@ -163,6 +187,8 @@ class SettingsDialog(QDialog):
         self._cfg.snap_enabled = self._snap_ch.isChecked()
         self._cfg.voice_enabled = self._voice_ch.isChecked()
         self._cfg.tts_enabled = self._tts_ch.isChecked()
+        self._cfg.stt_provider = self._stt_combo.currentData()
+        self._cfg.voice_always_on = self._direct_ch.isChecked()
         self._cfg.ai_enabled = self._ai_ch.isChecked()
         self._cfg.autotune_enabled = self._at_ch.isChecked()
         self._cfg.mirror = self._mirror_ch.isChecked()

@@ -10,7 +10,7 @@ import time
 
 import cv2
 from PySide6.QtCore import Qt, QTimer, Signal
-from PySide6.QtGui import QPixmap
+from PySide6.QtGui import QPainterPath, QPixmap, QRegion
 from PySide6.QtWidgets import QLabel, QMainWindow, QWidget
 
 from config import SMOOTH_PRESETS, save_settings
@@ -106,6 +106,7 @@ class MainWindow(QMainWindow):
         self.resize(800, 600)
         self.setStyleSheet(MAIN_STYLESHEET)
         self.setWindowFlags(Qt.FramelessWindowHint)
+        self._apply_rounded_mask()
 
         central = QWidget()
         central.setObjectName("MainWindow")
@@ -152,6 +153,13 @@ class MainWindow(QMainWindow):
 
         self._build_menu()
         self._build_shortcuts()
+
+    def _apply_rounded_mask(self):
+        """Recorta a janela frameless em cantos arredondados (vê-se o fundo)."""
+        radius = 18
+        path = QPainterPath()
+        path.addRoundedRect(0, 0, self.width(), self.height(), radius, radius)
+        self.setMask(QRegion(path.toFillPolygon().toPolygon()))
 
     def _load_bg_image(self):
         try:
@@ -291,7 +299,10 @@ class MainWindow(QMainWindow):
             self._voice.toggle()
             on = self._voice.status != "off"
             self._menu_checkable(self._menu.btn_voice, on)
-            self._toast.show_toast(f"VOZ {'ON' if on else 'OFF'}")
+            if on and self._voice.status == "preparing":
+                self._toast.show_toast(tr("voice.status.preparing"))
+            else:
+                self._toast.show_toast(tr("toast.voice_on" if on else "toast.voice_off"))
 
     def _toggle_snap(self, checked):
         if self._view_license_locked("snap"):
@@ -413,11 +424,14 @@ class MainWindow(QMainWindow):
     def _sync_license_ui(self):
         """Atualiza a UI consoante o estado da licença (Free vs Pro)."""
         is_pro = bool(self._license and self._license.is_pro)
-        self._menu.btn_upgrade.setText("✔  PRO ATIVO" if is_pro else "UPGRADE PRO")
+        self._menu.btn_upgrade.set_key("btn.pro_active" if is_pro else "btn.upgrade")
         self._menu.btn_upgrade.setEnabled(not is_pro)
+        self._menu.btn_voice.set_locked(not is_pro and self._view_license_locked("voice"))
+        self._menu.btn_snap.set_locked(not is_pro and self._view_license_locked("snap"))
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
+        self._apply_rounded_mask()
         w, h = self.width(), self.height()
         self._layout_camera()
         self._fit_bg(w, h)
@@ -571,7 +585,9 @@ class MainWindow(QMainWindow):
             self._twohand_free_notified = False
 
         if self._voice:
-            self._voice_bar.update_state(self._voice.status, self._cfg.voice_wake_word)
+            self._voice_bar.update_state(
+                self._voice.status, self._cfg.voice_wake_word, self._voice.backend
+            )
         else:
             self._voice_bar.update_state("off")
 

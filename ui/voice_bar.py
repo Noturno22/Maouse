@@ -3,6 +3,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QLabel
 
+from i18n import tr
 from ui.theme import FONT_MONO, TEXT_SECONDARY
 
 
@@ -15,33 +16,42 @@ class VoiceBar(QLabel):
         self.setAlignment(Qt.AlignCenter)
         self.setFixedHeight(28)
         self.setMinimumWidth(140)
-        self._last = ("", "")
+        self._last = ("", "", "")
         self.hide()
 
-    def update_state(self, voice_status, wake_word="jarvis"):
+    def update_state(self, voice_status, wake_word="jarvis", backend=None):
         if voice_status == "off":
             self.hide()
             return
         self.show()
-        labels = {
-            "on": "VOZ ON",
-            "listening": "VOZ <OUVINDO>",
-            "thinking": "IA <A PENSAR>",
-            "wake": f"VOZ {wake_word.upper()}",
-        }
-        txt = labels.get(voice_status, f"VOZ {voice_status.upper()}")
+        if voice_status == "preparing":
+            txt = tr("voice.status.preparing")
+        elif voice_status in ("ready", "wake"):
+            if wake_word:
+                wake = wake_word.upper()
+                txt = f"{tr('voice.status.ready')} [{wake}]"
+            else:
+                txt = tr("voice.status.ready")
+        elif voice_status == "listening":
+            txt = tr("voice.status.listening")
+        elif voice_status == "thinking":
+            txt = tr("voice.status.thinking")
+        else:
+            txt = tr("voice.status.on")
+        if txt != tr("voice.status.on"):
+            btxt = tr("voice.backend.cloud") if backend == "cloud" else tr("voice.backend.local")
+            txt = f"{txt} · {btxt}"
         colors = {
+            "preparing": QColor(255, 170, 0),
             "on": QColor(255, 80, 200),
             "listening": QColor(255, 80, 200),
             "thinking": QColor(80, 200, 255),
-            "wake": TEXT_SECONDARY,
         }
         color = colors.get(voice_status, TEXT_SECONDARY)
-        # Evita `setStyleSheet`/`setText` em todos os frames quando nada mudou.
         color_name = color.name()
-        if (txt, color_name) == self._last:
+        if (txt, color_name, voice_status) == self._last:
             return
-        self._last = (txt, color_name)
+        self._last = (txt, color_name, voice_status)
         self.setText(txt)
         self.setStyleSheet(
             f"background-color: rgba(0,0,0,204);"
