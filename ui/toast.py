@@ -25,7 +25,12 @@ class Toast(QLabel):
         self._fade.setEndValue(0.0)
         self._fade.finished.connect(self.hide)
 
-    def show_toast(self, text, duration_ms=1300):
+    def show_toast(self, text, danger=False, duration_ms=1300):
+        name = "ToastLocked" if danger else "Toast"
+        if self.objectName() != name:
+            self.setObjectName(name)
+            self.style().unpolish(self)
+            self.style().polish(self)
         self.setText(text)
         self.setWindowOpacity(1.0)
         if self.parent():

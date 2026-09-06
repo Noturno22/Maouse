@@ -75,6 +75,9 @@ QWidget#MainWindow {
     border: 1px solid #2A2A45;
     border-radius: 18px;
 }
+QWidget#MainWindow[locked="true"] {
+    border: 2px solid #FF4D4D;
+}
 QLabel#GestureBadge {
     background-color: rgba(0, 0, 0, 204);
     border: 2px solid #50C8FF;
@@ -252,6 +255,15 @@ QPushButton#MenuBtn:checked {
     background-color: #50C8FF;
     color: #0A0A12;
     border-color: #7DD4FF;
+}
+QPushButton#MenuBtn[locked="true"],
+QPushButton#MenuBtn[locked="true"]:hover,
+QPushButton#MenuBtn[locked="true"]:pressed,
+QPushButton#MenuBtn[locked="true"]:checked {
+    background-color: #14141F;
+    color: #6B7280;
+    border-color: #1A1A2E;
+    border-left-color: #3A3F4B;
 }
 QPushButton#MenuBtnUpgrade {
     background-color: #C0392B;
@@ -536,6 +548,73 @@ QGroupBox::title {
     subcontrol-origin: margin;
     left: 12px;
     padding: 0 6px;
+}
+QScrollArea#SettingsScroll {
+    background: transparent;
+    border: none;
+}
+QScrollArea#SettingsScroll > QWidget > QWidget {
+    background: transparent;
+}
+QWidget#SettingsScrollContent {
+    background: transparent;
+}
+QLabel#SliderValue {
+    color: #7DD4FF;
+    font-family: 'Cascadia Code', 'Consolas';
+    font-size: 13px;
+    font-weight: bold;
+    background: #12121E;
+    border: 1px solid #1A1A2E;
+    border-radius: 6px;
+    padding: 2px 10px;
+}
+QPushButton#SettingsButtonGhost {
+    background-color: transparent;
+    color: #969696;
+    border: 1px solid #1A1A2E;
+    border-radius: 6px;
+    padding: 8px 20px;
+    font-family: 'Segoe UI';
+    font-size: 13px;
+    font-weight: bold;
+}
+QPushButton#SettingsButtonGhost:hover {
+    background-color: #12121E;
+    color: #F0F4F8;
+    border-color: #2A3B4A;
+}
+QPushButton#SettingsButtonGhost:pressed {
+    background-color: #1A1A2E;
+}
+QSpinBox {
+    background-color: #12121E;
+    color: #F0F4F8;
+    border: 1px solid #1A1A2E;
+    border-radius: 8px;
+    padding: 5px 10px;
+    font-family: 'Cascadia Code', 'Consolas';
+    font-size: 12px;
+}
+QSpinBox:focus {
+    border-color: #50C8FF;
+}
+QSpinBox::up-button, QSpinBox::down-button {
+    border: none;
+    width: 22px;
+    background: transparent;
+}
+QCheckBox:disabled {
+    color: #6B7280;
+}
+QCheckBox::indicator:disabled {
+    border-color: #2A2A45;
+    background: #12121E;
+}
+QLabel#MicHint {
+    color: #8A9AA6;
+    font-family: 'Segoe UI';
+    font-size: 11px;
 }
 """
 

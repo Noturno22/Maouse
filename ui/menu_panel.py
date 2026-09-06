@@ -2,12 +2,13 @@
 language switcher. Uses SVG icons from assets/brand/icons.
 """
 from PySide6.QtCore import QEasingCurve, QSize, QVariantAnimation
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QAction, QColor, QIcon
 from PySide6.QtWidgets import (
     QFrame,
     QGraphicsOpacityEffect,
     QHBoxLayout,
     QLabel,
+    QMenu,
     QPushButton,
     QVBoxLayout,
     QWidget,
@@ -26,39 +27,68 @@ class MenuButton(QPushButton):
     def __init__(self, key, icon, checkable=False, parent=None):
         super().__init__(parent)
         self._key = key
+        self._icon = menu_icon(icon)
+        self._locked = False
         self.setObjectName("MenuBtn")
         self.setCheckable(checkable)
-        self.setIcon(menu_icon(icon))
+        self.setIcon(self._icon)
         self.setIconSize(self.ICON_SIZE)
         self.update_text()
         I18N.language_changed.connect(lambda *_: self.update_text())
 
     def update_text(self):
-        self.setText("  " + tr(self._key))
+        prefix = "  " if not self.icon().isNull() else ""
+        self.setText(prefix + tr(self._key))
 
     def set_key(self, key):
         self._key = key
         self.update_text()
 
+    def set_locked(self, locked: bool):
+        """Aspeto 'bloqueado' (cinzento, Pro) mantendo o botão clicável: o clique
+        continua a disparar o gate/paywall no handler da janela."""
+        locked = bool(locked)
+        if locked == self._locked:
+            return
+        self._locked = locked
+        self.setProperty("locked", locked)
+        if locked:
+            pm = self._icon.pixmap(self.ICON_SIZE, QIcon.Mode.Disabled, QIcon.State.Off)
+            self.setIcon(QIcon(pm))
+            self.setToolTip("Disponível no Mãouse Pro — upgrade no menu")
+        else:
+            self.setIcon(self._icon)
+            self.setToolTip("")
+        self.style().unpolish(self)
+        self.style().polish(self)
+
 
 class LanguageButton(QPushButton):
-    """Globe icon that toggles the UI language and emits a signal."""
+    """Globe button that opens a menu with the six available languages."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("MenuLangBtn")
-        self._init_done = False
         self.setIcon(menu_icon("menu-language"))
         self.setIconSize(QSize(16, 16))
-        self.clicked.connect(self._toggle)
         self.update_text()
         I18N.language_changed.connect(lambda *_: self.update_text())
+        I18N.language_changed.connect(lambda *_: self._rebuild_menu())
+        self._rebuild_menu()
 
-    def _toggle(self):
-        I18N.toggle()
+    def _rebuild_menu(self):
+        menu = QMenu(self)
+        menu.setObjectName("MenuLangMenu")
+        for code in I18N.LANGS:
+            act = QAction(I18N.native(code), menu)
+            act.setCheckable(True)
+            act.setChecked(code == I18N.lang)
+            act.triggered.connect(lambda _=False, c=code: I18N.set_lang(c))
+            menu.addAction(act)
+        self.setMenu(menu)
 
     def update_text(self):
-        self.setText(" EN" if I18N.lang == "pt" else " PT")
+        self.setText(" " + I18N.native(I18N.lang))
 
 
 class SectionLabel(QLabel):
@@ -126,9 +156,10 @@ class MenuPanel(QWidget):
 
         root.addStretch(1)
 
-        # Upgrade Pro — destaque visual quando em modo Free.
+        # Upgrade Pro — destaque visual quando em modo Free (sem ícone: texto só).
         self.btn_upgrade = MenuButton("btn.upgrade", "menu-upgrade")
         self.btn_upgrade.setObjectName("MenuBtnUpgrade")
+        self.btn_upgrade.setIcon(QIcon())
         self.btn_upgrade.setFixedHeight(34)
         root.addWidget(self.btn_upgrade)
         self._upgrade_pulse = None
@@ -139,7 +170,7 @@ class MenuPanel(QWidget):
         """Liga/desliga o brilho pulsante do botão de upgrade (Free: ativo)."""
         if active and self._upgrade_pulse is None:
             self._upgrade_pulse = breathe_glow(
-                self.btn_upgrade, QColor(255, 200, 80),
+                self.btn_upgrade, QColor(231, 76, 60),
                 min_alpha=70, max_alpha=200, min_blur=4, max_blur=18, ms=800,
             )
         elif not active and self._upgrade_pulse is not None:
