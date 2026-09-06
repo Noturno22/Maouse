@@ -32,3 +32,26 @@ def test_ready_shows_backend(_qapp):
     vb = VoiceBar()
     vb.update_state("ready", wake_word="jarvis", backend="cloud")
     assert tr("voice.backend.cloud") in vb.text()
+
+
+def test_error_without_mic_error_uses_tip(_qapp):
+    vb = VoiceBar()
+    vb.update_state("error", backend="cloud")
+    assert vb.toolTip() == tr("voice.mic_error_tip")
+
+
+def test_tooltip_clears_when_leaving_error(_qapp):
+    vb = VoiceBar()
+    vb.update_state("error", mic_error="sem audio")
+    assert vb.toolTip() == "sem audio"
+    vb.update_state("ready", wake_word="", backend="local")
+    assert vb.toolTip() == ""
+
+
+def test_tooltip_update_in_error_retriggers_render(_qapp):
+    vb = VoiceBar()
+    vb.update_state("error", mic_error="erro A")
+    assert vb.toolTip() == "erro A"
+    vb.update_state("error", mic_error="erro B")
+    assert vb.text() == tr("voice.mic_error_status")
+    assert vb.toolTip() == "erro B"

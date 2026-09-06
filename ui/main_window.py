@@ -362,7 +362,7 @@ class MainWindow(QMainWindow):
     def _sync_toolbar(self):
         self._menu.btn_pause.set_key("btn.resume" if self._paused else "btn.pause")
         self._menu_checkable(
-            self._menu.btn_voice, bool(self._voice) and self._voice.status != "off",
+            self._menu.btn_voice, bool(self._voice) and self._voice.status not in ("off", "error"),
         )
         self._menu_checkable(self._menu.btn_snap, bool(self._cfg.snap_enabled))
 
