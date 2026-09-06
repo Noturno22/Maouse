@@ -1,4 +1,5 @@
 import queue
+import time
 import types
 
 import numpy as np
@@ -117,6 +118,10 @@ def test_toggle_off_then_on_resumes():
     ve.status = "off"
     ve._warmup_stt = lambda: setattr(ve, "status", "ready")
     assert ve.start() is True
+    for _ in range(50):
+        if ve.status == "ready":
+            break
+        time.sleep(0.01)
     assert ve.status == "ready"
 
 
