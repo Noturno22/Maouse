@@ -96,19 +96,15 @@ export function SectionHeader({
 
 export function Wordmark({ compact = false }: { compact?: boolean }) {
   return (
-    <span className="inline-flex items-center gap-2">
+    <span className="inline-flex items-center">
       <Image
         src="/icon.png"
         alt="Mãouse"
-        width={compact ? 44 : 56}
-        height={compact ? 44 : 56}
+        width={compact ? 56 : 96}
+        height={compact ? 56 : 96}
         className="rounded-lg"
         unoptimized
       />
-      <span className="font-display text-2xl font-bold tracking-tight">
-        <span className="text-neon">Mã</span>
-        <span className="text-ice">ouse</span>
-      </span>
     </span>
   );
 }
