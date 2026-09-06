@@ -97,3 +97,21 @@ def test_save_load_voice_settings(monkeypatch, tmp_path):
     config.load_settings(cfg2)
     assert cfg2.voice_always_on is False
     assert cfg2.stt_provider == "local"
+
+
+def test_voice_robustez_config_defaults():
+    cfg = config.Config()
+    assert cfg.mic_device == ""
+    assert cfg.whisper_vad_filter is True
+    assert cfg.whisper_beam_size == 3
+    assert cfg.whisper_language == "pt"
+
+
+def test_mic_device_roundtrip(monkeypatch, tmp_path):
+    monkeypatch.setattr(config, "SETTINGS_FILE", str(tmp_path / "settings.json"))
+    cfg = config.Config()
+    cfg.mic_device = "Microfone Realtek"
+    config.save_settings(cfg, "NORMAL")
+    cfg2 = config.Config()
+    config.load_settings(cfg2)
+    assert cfg2.mic_device == "Microfone Realtek"

@@ -152,6 +152,10 @@ class Config:
     stt_model: str = "whisper-large-v3-turbo"
     stt_base_url: str = "https://api.groq.com/openai/v1"
     stt_api_key_env: str = "GROQ_API_KEY"
+    mic_device: str = ""
+    whisper_vad_filter: bool = True
+    whisper_beam_size: int = 3
+    whisper_language: str = "pt"
 
     llm_enabled: bool = True
     llm_model: str = "llama3.2:3b"
@@ -212,6 +216,8 @@ def load_settings(cfg):
             cfg.voice_always_on = bool(data["voice_always_on"])
         if "stt_provider" in data:
             cfg.stt_provider = str(data["stt_provider"])
+        if "mic_device" in data:
+            cfg.mic_device = str(data["mic_device"])
         if "tts_enabled" in data:
             cfg.tts_enabled = bool(data["tts_enabled"])
         if "ai_enabled" in data:
@@ -263,6 +269,7 @@ def save_settings(cfg, smooth_name):
                     "voice_enabled": bool(cfg.voice_enabled),
                     "voice_always_on": bool(cfg.voice_always_on),
                     "stt_provider": str(cfg.stt_provider),
+                    "mic_device": str(cfg.mic_device),
                     "tts_enabled": bool(cfg.tts_enabled),
                     "ai_enabled": bool(cfg.ai_enabled),
                     "autotune_enabled": bool(cfg.autotune_enabled),
