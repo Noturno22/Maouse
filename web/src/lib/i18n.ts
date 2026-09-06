@@ -118,7 +118,7 @@ export interface MatrixRow {
 
 const pt: Copy = {
   meta: {
-    title: "Mãouse — A mão é o novo mouse",
+    title: "Mãouse — Sem cauda. Sem fios. Sem limites.",
     description:
       "Controle o computador com a mão e a voz, direto pela webcam. Sem hardware extra, sem fios, 100% privado. Windows 10/11.",
   },
@@ -136,8 +136,8 @@ const pt: Copy = {
   },
   hero: {
     badge: "Windows 10/11 · beta fechado #Maouse",
-    titleA: "A mão é o",
-    titleB: "novo mouse.",
+    titleA: "Sem cauda. Sem fios.",
+    titleB: "Sem limites.",
     sub: "Mãouse transforma a tua webcam num rato completo: ponteiro, cliques, scroll, arrastar e comandos de voz — só com a mão. Sem hardware extra, sem fios, sem rato. 100% local e privado.",
     bullets: [
       "Sem hardware — só precisas da tua webcam",
@@ -349,7 +349,7 @@ const pt: Copy = {
     ],
   },
   footer: {
-    tagline: "Sem cauda. Sem fio. Sem limites.",
+    tagline: "Sem cauda. Sem fios. Sem limites.",
     columns: [
       {
         title: "Produto",
@@ -376,13 +376,13 @@ const pt: Copy = {
     ],
     rights: "© 2026 Luar Studio Angola. Mãouse® é uma marca registada.",
     made: "Feito em português, com a mão.",
-    hashtags: ["#Maouse", "#AmaoEoNovoMouse"],
+    hashtags: ["#Maouse", "#SemCauda"],
   },
 };
 
 const en: Copy = {
   meta: {
-    title: "Mãouse — Your hand is the new mouse",
+    title: "Mãouse — No tail. No wires. No limits.",
     description:
       "Control your computer with your hand and voice, straight from your webcam. No extra hardware, no wires, 100% private. Windows 10/11.",
   },
@@ -400,8 +400,8 @@ const en: Copy = {
   },
   hero: {
     badge: "Windows 10/11 · closed beta #Maouse",
-    titleA: "Your hand is the",
-    titleB: "new mouse.",
+    titleA: "No tail. No wires.",
+    titleB: "No limits.",
     sub: "Mãouse turns your webcam into a full mouse: pointer, clicks, scroll, drag and voice commands — using only your hand. No extra hardware, no wires, no mouse. 100% local and private.",
     bullets: [
       "No hardware — just your webcam",
@@ -613,7 +613,7 @@ const en: Copy = {
     ],
   },
   footer: {
-    tagline: "No tail. No wire. No limits.",
+    tagline: "No tail. No wires. No limits.",
     columns: [
       {
         title: "Product",
@@ -638,7 +638,7 @@ const en: Copy = {
     ],
     rights: "© 2026 Luar Studio Angola. Mãouse® is a registered trademark.",
     made: "Made in Portuguese, by hand.",
-    hashtags: ["#Maouse", "#AmaoEoNovoMouse"],
+    hashtags: ["#Maouse", "#SemCauda"],
   },
 };
 

@@ -30,7 +30,7 @@
 | **Plataformas** | Windows 10/11 (desktop) · Android/iOS (mobile, controlo total em Android; iOS = modo remoto) |
 | **Preço** | Free (com watermark) · Pro €39,90 vitalício ou €4,99/mês · Business €9,90/user/mês |
 | **Acessibilidade** | Desconto 50% mediante comprovativo (D3) |
-| **Lema** | "A mão é o novo mouse." / "Your hand is the new mouse." |
+| **Lema** | "Sem cauda. Sem fios. Sem limites." / "No tail. No wires. No limits." |
 | **Privacidade** | 100% offline — câmara e voz nunca saem do dispositivo (D6) |
 | **Diferencial técnico** | Motor de precisão a 180 Hz (filtros One Euro + aceleração exponencial) · snap magnético via UI Automation · IA de gestos embarcada · voz híbrida offline (Vosk + Whisper + TTS neural) · duas mãos |
 | **Hardware obrigatório** | Nenhum — usa a webcam/çâmara frontal existente |

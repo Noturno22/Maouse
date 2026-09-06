@@ -1,6 +1,6 @@
 # Modelo de Negócio — Mãouse (AirMouse)
 
-> **Nome comercial:** Mãouse ("a mão é o novo mouse")
+> **Nome comercial:** Mãouse (mão + mouse)
 > **Nome técnico/repositório:** AirMouse
 > **Autor:** Luar Studio Angola · 2026
 > **Plataformas:** Desktop (Windows) + Mobile (Android/iOS)
@@ -93,7 +93,7 @@ O mesmo cérebro emocional (MediaPipe HandLandmarker + One Euro + curvas + gesto
 
 > **Categoria:** Software de interação humano-computador (IHC) sem toque.
 > **Diferencial:** precisão profissional + IA embarcada + voz offline + zero hardware + privacidade total (tudo processado no dispositivo).
-> **Marca:** Mãouse, por lema "a mão é o novo mouse" (mão + mouse; a til ~ é o elemento identitário).
+> **Marca:** Mãouse, por lema "Sem cauda. Sem fios. Sem limites." (mão + mouse; a til ~ é o elemento identitário).
 
 ---
 
@@ -655,7 +655,7 @@ O Mãouse é, simultaneamente:
 4. **Arrancar o funil: página + 3 vídeos demo + open-core GitHub** (semana 2–4) + 10 contactos institucionais.
 5. **Fechar o produto instalável desktop** (EV signing + licenciamento) e o **mobile Android** para Play Store.
 
-> *"A mão é o novo mouse." — o mercado estava à espera que alguém o fizesse por software, em português, com IA, e que o vendesse por valor — não por hardware.*
+> *"Sem cauda. Sem fios. Sem limites." — o mercado estava à espera que alguém o fizesse por software, em português, com IA, e que o vendesse por valor — não por hardware.*
 
 ---
 

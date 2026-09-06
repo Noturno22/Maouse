@@ -148,7 +148,7 @@ A genialidade deste produto é que **o próprio produto gera o conteúdo de mark
 
 ```
 Utilizador instala Free → webcam ligada → grava o ecrã com a mão a mover o cursor
-→ publica "olhem o que fiz" → o watermark "Mãouse — a mão é o novo mouse" publicita
+→ publica "olhem o que fiz" → o watermark "Mãouse — Sem cauda. Sem fios. Sem limites." publicita
 → novo utilizador instala → (repete)
 ```
 
@@ -457,7 +457,7 @@ decisão pré-escrita + verificação da decisão. É essa arquitetura — não 
 torna o marketing "infalível": **não porque nunca erra, mas porque nenhum erro sobrevive
 mais de uma semana sem correção**.
 
-> *"A mão é o novo mouse." — E o marketing é o sistema que nunca esquece de verificar as mãos.*
+> *"Sem cauda. Sem fios. Sem limites." — E o marketing é o sistema que nunca esquece de verificar as mãos.*
 
 ---
 

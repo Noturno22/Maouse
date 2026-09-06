@@ -29,7 +29,7 @@ Os **3 riscos bloqueadores de receita** (prioridade total, antes de qualquer fea
 
 | Ação | Detalhe | Quem/Como | ✅ |
 |---|---|---|---|
-| Registo da marca `Mãouse` | EUIPO (CTM) + USPTO + PT/BR; depositar logótipo + slogan "a mão é o novo mouse" | Advogado de PI / Agente oficial | |
+| Registo da marca `Mãouse` | EUIPO (CTM) + USPTO + PT/BR; depositar logótipo + slogan "Sem cauda. Sem fios. Sem limites." | Advogado de PI / Agente oficial | |
 | Registo de domínios | `maouse.app / .io / .pt / .com` + variantes anti-typosquatting | Registo imediato (barato, fecha a porta) | |
 | Contas oficiais | GitHub org, e-mail institucional, redes sociais com handle `maouse` | Fundador | |
 | Primeiro `AGENTS.md` de marca | Tom de voz, linguagem, regras de comunicação | Escrever nesta repo | |

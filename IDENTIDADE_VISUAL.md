@@ -20,7 +20,7 @@ um dispositivo de apontamento, cliques, scroll, arrasto e comandos de voz.
 
 O mouse chama-se "mouse" porque o cabo original parecia uma cauda de rato.
 Agora a mao substitui o rato — e o nome reflete exatamente isso.
-E uma piada visual que funciona em portugues: a mao **e** o novo mouse.
+E uma piada visual que funciona em portugues: a mao esta dentro de "mouse" — e a til (~) e a mao que o substitui.
 
 - **Pronuncia**: mao-úus (rima com "house")
 - **Abreviacoes**: mM, M Mãouse
@@ -30,11 +30,10 @@ E uma piada visual que funciona em portugues: a mao **e** o novo mouse.
 
 - **Categoria**: Software de interacao humano-computador (IHC)
 - **Diferencial**: Profissional, preciso, sem hardware extra, com IA embarcada
-- **Lema principal**: *"A mao e o novo mouse."*
+- **Lema principal**: *"Sem cauda. Sem fios. Sem limites."*
 - **Lemas alternativos**:
   - *"Dedos no ar, cursor na tela."*
-  - *"Sem cauda. Sem fio. Sem limites."*
-  - *"A mao e o rato."*
+  - *"No tail. No wires. No limits."* (EN)
 - **Publico-alvo**: Usuarios Windows em Portugal e Brasil, profissionais de
   apresentacao, pessoas com necessidades de acessibilidade, entusiastas de tech
 
@@ -431,8 +430,8 @@ assets/brand/
 ├── logo-symbol.svg       # Apenas o simbolo (mao + cursor)
 ├── favicon.svg           # Favicon 32x32
 ├── maouse.ico            # Icone desktop (gerar com tools/generate_ico.py)
-├── slogan-mao.svg        # Badge "A mao e o novo mouse"
-├── slogan-semcauda.svg   # Badge "Sem cauda. Sem fio."
+├── slogan-mao.svg        # Badge lema "Sem cauda. Sem fios. Sem limites."
+├── slogan-semcauda.svg   # Badge "Sem cauda. Sem fios."
 ├── icons/
 │   ├── gesture-none.svg
 │   ├── gesture-move.svg

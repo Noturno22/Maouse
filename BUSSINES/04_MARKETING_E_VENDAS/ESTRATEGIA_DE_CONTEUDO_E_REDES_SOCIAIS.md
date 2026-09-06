@@ -256,8 +256,7 @@ Download grátis → [link maouse.app]
 | PT-BR | EN |
 |---|---|
 | "A tua webcam já é um rato." | "Your webcam is already a mouse." |
-| "A mão é o novo mouse." | "Your hand is the new mouse." |
-| "Sem cauda. Sem fio. Sem limites." | "No wires. No dongle. No limits." |
+| "Sem cauda. Sem fios. Sem limites." | "No tail. No wires. No limits." |
 | "Controla sem tocar." | "Control without touching." |
 | "Feito em Angola, para o mundo." | "Made in Angola, for the world." |
 
@@ -362,7 +361,7 @@ vaidade; o painel de métricas (§9) distingue as duas coisas a cada sexta-feira
 vierar sem converter na landing, **corrige-se a landing primeiro** (regra §9). Conteúdo é a
 voz do Mãouse; a verificação é o que impede a voz de prometer o que o produto não é.
 
-> *"A mão é o novo mouse." — E cada post é uma demo do que as tuas mãos já sabem fazer.*
+> *"Sem cauda. Sem fios. Sem limites." — E cada post é uma demo do que as tuas mãos já sabem fazer.*
 
 ---
 

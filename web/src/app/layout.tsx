@@ -18,7 +18,7 @@ const jetBrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Mãouse — A mão é o novo mouse",
+  title: "Mãouse — Sem cauda. Sem fios. Sem limites.",
   description:
     "Controle o computador com a mão e a voz, direto pela webcam. Sem hardware extra, sem fios, 100% privado. Windows 10/11.",
   keywords: [
@@ -31,7 +31,7 @@ export const metadata: Metadata = {
     "hand tracking",
   ],
   openGraph: {
-    title: "Mãouse — A mão é o novo mouse",
+title: "Mãouse — Sem cauda. Sem fios. Sem limites.",
     description:
       "Controle o computador com a mão e a voz, direto pela webcam. Sem hardware extra, 100% privado.",
     type: "website",

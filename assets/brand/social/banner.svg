@@ -41,7 +41,7 @@
   </g>
 
   <!-- Tagline -->
-  <text x="550" y="330" font-family="'Inter', sans-serif" font-weight="400" font-size="28" fill="#969696">A mao e o novo mouse.</text>
+  <text x="550" y="330" font-family="'Inter', sans-serif" font-weight="400" font-size="26" fill="#969696">Sem cauda. Sem fios. Sem limites.</text>
 
   <!-- Gesture dots decoration -->
   <circle cx="1300" cy="120" r="4" fill="#50C8FF" opacity="0.6"/>
