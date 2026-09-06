@@ -203,3 +203,16 @@ def test_speech_capture_passes_gate_to_stt():
     while not ve.cmd_queue.empty():
         q.append(ve.cmd_queue.get_nowait())
     assert q and q[0]["action"] == "left_click"
+
+
+def test_start_mic_error_sets_status_error(monkeypatch):
+    import core.audio_devices as ad
+    ve, _ = make_ve()
+
+    def boom(pref):
+        raise ad.DeviceError("Microfone 'x' nao encontrado")
+
+    monkeypatch.setattr(ad, "select_device", boom)
+    assert ve.start() is False
+    assert ve.status == "error"
+    assert "x" in (ve.mic_error or "")

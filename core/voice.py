@@ -135,6 +135,8 @@ class VoiceEngine:
         self._noise = _NoiseFloor()
         self._gate = CaptureQualityGate()
         self._deaf_until = 0.0
+        self.mic_error = None
+        self._mic_device = getattr(cfg, "mic_device", "")
 
     def set_speaker(self, speaker):
         self.speaker = speaker
@@ -161,10 +163,16 @@ class VoiceEngine:
             return False
 
         try:
-            sd.default.device = (sd.default.device[0], None)
-            test = sd.query_devices(device=sd.default.device[0])
-            print(f"Mic: {test['name']}")
+            from core.audio_devices import DeviceError, select_device
+            dev_idx = select_device(self._mic_device)
+            if dev_idx is None:
+                sd.default.device = (sd.default.device[0], None)
+                dev_idx = sd.default.device[0]
+            probe = sd.query_devices(device=dev_idx)
+            print(f"Mic: {probe['name']}")
         except Exception as exc:
+            self.mic_error = str(exc)
+            self.status = "error"
             print(f"Aviso: nenhum microfone encontrado ({exc}); voz desativada.")
             return False
 
@@ -183,6 +191,7 @@ class VoiceEngine:
 
         try:
             self._stream = sd.RawInputStream(
+                device=dev_idx,
                 samplerate=16000,
                 blocksize=4000,
                 dtype="int16",
@@ -190,8 +199,11 @@ class VoiceEngine:
                 callback=_callback,
             )
             self._stream.start()
+            self.mic_error = None
         except Exception as exc:
-            print(f"Aviso: falha ao abrir o microfone ({exc}); voz desativada.")
+            self.mic_error = f"Falha ao abrir o microfone ({exc})"
+            self.status = "error"
+            print(f"Aviso: {self.mic_error}")
             return False
 
         self._running = True
@@ -307,7 +319,7 @@ class VoiceEngine:
                 data = self._audio_q.get(timeout=0.25)
             except queue.Empty:
                 continue
-            if self.status == "off":
+            if self.status in ("off", "error"):
                 continue
             if self._self_deaf():
                 continue
