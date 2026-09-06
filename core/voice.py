@@ -162,7 +162,7 @@ class VoiceEngine:
             return False
 
         try:
-            from core.audio_devices import DeviceError, select_device
+            from core.audio_devices import select_device
             dev_idx = select_device(getattr(self.cfg, "mic_device", ""))
             if dev_idx is None:
                 sd.default.device = (sd.default.device[0], None)
