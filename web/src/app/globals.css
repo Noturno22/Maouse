@@ -68,3 +68,28 @@ body {
 .demo-scan {
   animation: scanline 7s linear infinite;
 }
+
+@keyframes splash-pop {
+  0% {
+    transform: scale(0.82);
+    opacity: 0;
+  }
+  55% {
+    transform: scale(1.05);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.splash-logo {
+  animation: splash-pop 0.9s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .splash-logo {
+    animation: none;
+  }
+}
