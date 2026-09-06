@@ -1,4 +1,4 @@
-"""Licenciamento AirMouse — trial 30min server-auth + ativacao online + lease ES256 + gate."""
+"""Licenciamento AirMouse — trial 5min server-auth + ativacao online + lease ES256 + gate."""
 import base64
 import json
 import os
@@ -15,7 +15,7 @@ from core.log import get_logger
 
 log = get_logger("licensing")
 
-TRIAL_DEFAULT_SECONDS = 30 * 60
+TRIAL_DEFAULT_SECONDS = 5 * 60
 LEASE_DEFAULT_DAYS = 7
 
 # URL do license-server de PRODUÇÃO. É o ÚNICO ponto a preencher quando o servidor
@@ -41,6 +41,7 @@ PADDLE_PRODUCT_URLS = {
     "subscription": os.environ.get("AIRMOUSE_PADDLE_SUBSCRIPTION_URL", ""),
     "family": os.environ.get("AIRMOUSE_PADDLE_FAMILY_URL", ""),
     "access": os.environ.get("AIRMOUSE_PADDLE_ACCESS_URL", ""),
+    "trading_master": os.environ.get("AIRMOUSE_PADDLE_TRADING_MASTER_URL", ""),
 }
 
 
@@ -104,7 +105,7 @@ class LicenseManager:
 
         Regra anti-reset: se não há registo local do trial (ex.: ficheiro apagado)
         e o servidor não está alcançável, este aparece como "primeira vez" sem prova
-        — bloqueia com pedido de ligação em vez de conceder 30 min novos.
+        — bloqueia com pedido de ligação em vez de conceder 5 min novos.
         """
         if self.is_pro:
             return
@@ -314,11 +315,13 @@ class LicenseManager:
         payment = PADDLE_PRODUCT_URLS.get("subscription")
         family = PADDLE_PRODUCT_URLS.get("family")
         access = PADDLE_PRODUCT_URLS.get("access")
+        trading = PADDLE_PRODUCT_URLS.get("trading_master")
         return {
             "lifetime": url or f"https://checkout.paddle.com/{vendor_id}?product=maouse-pro-lifetime",
             "subscription": payment or f"https://checkout.paddle.com/{vendor_id}?product=maouse-pro-subscription",
             "family": family or f"https://checkout.paddle.com/{vendor_id}?product=maouse-family",
             "access": access or f"https://checkout.paddle.com/{vendor_id}?product=maouse-pro-access",
+            "trading_master": trading or f"https://checkout.paddle.com/{vendor_id}?product=maouse-trading-master",
         }
 
     def open_checkout(self, product: str, vendor_id: int) -> bool:

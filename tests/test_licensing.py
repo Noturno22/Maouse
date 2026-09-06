@@ -56,6 +56,13 @@ def test_checkout_urls_built_from_config(monkeypatch):
     assert "checkout.paddle.com" in urls["lifetime"]
 
 
+def test_checkout_urls_include_trading_master(monkeypatch):
+    lm = lic.LicenseManager(store_path=":memory:")
+    urls = lm.checkout_urls(vendor_id=12345)
+    assert "checkout.paddle.com" in urls["trading_master"]
+    assert "maouse-trading-master" in urls["trading_master"]
+
+
 def test_open_checkout_calls_browser(monkeypatch):
     lm = lic.LicenseManager(store_path=":memory:")
     monkeypatch.setattr(lic.webbrowser, "open", lambda url, new=0: True)

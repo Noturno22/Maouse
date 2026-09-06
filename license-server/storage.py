@@ -179,7 +179,7 @@ def mobile_purchase_for_token(conn, purchase_token: str):
 
 
 # --- trial (fonte de verdade) ---
-TRIAL_MAX_SECONDS = 30 * 60
+TRIAL_MAX_SECONDS = 5 * 60
 
 
 def get_trial(conn, machine_id: str):
