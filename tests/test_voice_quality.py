@@ -49,8 +49,31 @@ def test_rejects_tonal_noise():
 
 def test_high_trip_level_rejects_by_energy():
     g = CaptureQualityGate()
-    assert g.evaluate(sine(5000), 10000.0) is False
+    assert g.evaluate(sine(4500), 10000.0) is False
     assert g.reject_reason() == "energy"
+
+
+def test_accepts_quiet_speech_near_trip():
+    g = CaptureQualityGate()
+    sr = 16000
+    frame = int(sr * 0.03)
+    rng = np.random.default_rng(11)
+    out = np.empty(sr, dtype=np.int16)
+    for start in range(0, sr - frame + 1, frame):
+        seg = out[start:start + frame]
+        if (start // frame) % 2 == 0:
+            tt = np.arange(seg.size) / sr
+            seg[:] = (np.sin(2 * np.pi * 200 * tt) * 481).astype(np.int16)
+        else:
+            seg[:] = rng.integers(-589, 589, size=seg.size, dtype=np.int16)
+    assert g.evaluate(out, 300.0) is True
+    assert g.reject_reason() is None
+
+
+def test_rejects_short_under_200ms():
+    g = CaptureQualityGate()
+    assert g.evaluate(np.zeros(1600, dtype=np.int16), 300.0) is False
+    assert g.reject_reason() == "short"
 
 
 def test_rms_min_parameter():

@@ -136,7 +136,6 @@ class VoiceEngine:
         self._gate = CaptureQualityGate()
         self._deaf_until = 0.0
         self.mic_error = None
-        self._mic_device = getattr(cfg, "mic_device", "")
 
     def set_speaker(self, speaker):
         self.speaker = speaker
@@ -164,7 +163,7 @@ class VoiceEngine:
 
         try:
             from core.audio_devices import DeviceError, select_device
-            dev_idx = select_device(self._mic_device)
+            dev_idx = select_device(getattr(self.cfg, "mic_device", ""))
             if dev_idx is None:
                 sd.default.device = (sd.default.device[0], None)
                 dev_idx = sd.default.device[0]
@@ -201,6 +200,12 @@ class VoiceEngine:
             self._stream.start()
             self.mic_error = None
         except Exception as exc:
+            if self._stream is not None:
+                try:
+                    self._stream.close()
+                except Exception:
+                    pass
+                self._stream = None
             self.mic_error = f"Falha ao abrir o microfone ({exc})"
             self.status = "error"
             print(f"Aviso: {self.mic_error}")
@@ -222,9 +227,10 @@ class VoiceEngine:
             self.status = "ready"
 
     def toggle(self):
-        if self.status == "off":
+        if self.status in ("off", "error"):
             return self.start()
         self.status = "off"
+        self.mic_error = None
         print("Voz em pausa (tecla v liga de novo).")
         return True
 

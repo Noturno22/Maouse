@@ -216,3 +216,29 @@ def test_start_mic_error_sets_status_error(monkeypatch):
     assert ve.start() is False
     assert ve.status == "error"
     assert "x" in (ve.mic_error or "")
+
+
+def test_toggle_from_error_retries_start(monkeypatch):
+    ve, _ = make_ve()
+    ve.status = "error"
+    ve.mic_error = "Microfone 'x' nao encontrado"
+    calls = {"n": 0}
+
+    def fail_start():
+        calls["n"] += 1
+        return False
+
+    monkeypatch.setattr(ve, "start", fail_start)
+    assert ve.toggle() is False
+    assert calls["n"] == 1
+    assert ve.status == "error"
+    assert ve.mic_error == "Microfone 'x' nao encontrado"
+
+
+def test_toggle_pause_clears_mic_error():
+    ve, _ = make_ve()
+    ve.status = "listening"
+    ve.mic_error = "Falha ao abrir o microfone (x)"
+    assert ve.toggle() is True
+    assert ve.status == "off"
+    assert ve.mic_error is None

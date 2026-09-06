@@ -7,6 +7,22 @@ class DeviceError(Exception):
     pass
 
 
+def _normalize(devices):
+    out = []
+    for i, d in enumerate(devices):
+        if not isinstance(d, dict):
+            continue
+        ch = d.get("max_input_channels", 0)
+        if not isinstance(ch, (int, float)):
+            continue
+        name = d.get("name", "")
+        if not isinstance(name, str) or not name:
+            name = f"Dispositivo {i}"
+        if int(ch) > 0:
+            out.append((i, name))
+    return out
+
+
 def list_input_devices(query=None):
     """Lista de (indice, nome) dos dispositivos com canais de entrada."""
     if query is None:
@@ -17,11 +33,7 @@ def list_input_devices(query=None):
         devices = query()
     except Exception:
         return []
-    return [
-        (i, (d.get("name", "") or f"Dispositivo {i}"))
-        for i, d in enumerate(devices)
-        if d.get("max_input_channels", 0) > 0
-    ]
+    return _normalize(devices)
 
 
 def select_device(pref, query=None):
@@ -31,7 +43,7 @@ def select_device(pref, query=None):
     (case-insensitive); senao interpreta o pref como indice numerico.
     Falha -> DeviceError com a lista dos microfones disponiveis.
     """
-    if not pref:
+    if pref is None or pref == "":
         return None
     if query is None:
         import sounddevice as sd
@@ -41,11 +53,7 @@ def select_device(pref, query=None):
         devices = query()
     except Exception as exc:
         raise DeviceError(f"Sem microfones: {exc}") from exc
-    inputs = [
-        (i, d.get("name", "") or f"Dispositivo {i}")
-        for i, d in enumerate(devices)
-        if d.get("max_input_channels", 0) > 0
-    ]
+    inputs = _normalize(devices)
     low = str(pref).lower()
     for idx, name in inputs:
         if low in name.lower():

@@ -44,15 +44,15 @@ class CaptureQualityGate:
         pcm = np.asarray(pcm_int16)
         frame_sz = int(16000 * self.frame_ms / 1000.0)
         n_frames = len(pcm) // frame_sz
-        if n_frames < 1:
+        if n_frames < 1 or len(pcm) < int(16000 * 0.2):
             self._reason = "short"
             return False
-        if _rms(pcm) < max(float(trip_level) * 0.75, self.rms_min):
+        if _rms(pcm) < max(float(trip_level) * 0.5, self.rms_min):
             self._reason = "energy"
             return False
         frames = pcm[: n_frames * frame_sz].reshape(n_frames, frame_sz)
         rms_f = np.sqrt(np.mean(np.square(frames.astype(np.float64)), axis=1))
-        speech = rms_f >= float(trip_level) * 1.2
+        speech = rms_f >= float(trip_level)
         n_speech = int(np.count_nonzero(speech))
         if n_speech < max(3, self.voicing_coverage * n_frames):
             self._reason = "voicing"

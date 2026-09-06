@@ -41,3 +41,19 @@ def test_select_unknown_raises():
 
     with pytest.raises(ad.DeviceError):
         ad.select_device("9", query=fake_query)
+
+
+def test_select_int_zero_means_device_zero():
+    assert ad.select_device(0, query=fake_query) == 0
+
+
+def test_list_ignores_malformed_entries():
+    def q():
+        return [
+            {"name": "Mic A", "max_input_channels": 1},
+            {"name": "Speaker", "max_input_channels": 0},
+            {"name": "Weird", "max_input_channels": "2"},
+            "not-a-dict",
+        ]
+
+    assert ad.list_input_devices(query=q) == [(0, "Mic A")]
