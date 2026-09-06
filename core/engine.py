@@ -31,6 +31,7 @@ from core.twohand import (
     BrightnessCtl,
     ClapDetector,
     FistCycleDetector,
+    FistHoldDetector,
     HandPool,
     LeftHandDetector,
     WaveDetector,
@@ -131,6 +132,12 @@ def make_engine_ctx(cfg, smooth_idx, gesture_ai, tuner, ctx):
         min_reversals=cfg.wave_min_reversals, window_s=cfg.wave_window_s,
         min_amplitude_px=cfg.wave_min_amplitude_px,
     )
+    # Fechar a janela (Alt+F4) exige um HOLD continuo do punho (classe em
+    # twohand.py) para nao disparar por um punho transitorio.
+    fist_close = FistHoldDetector(
+        hold_s=cfg.left_hand_fist_close_hold_s,
+        cooldown_s=cfg.left_hand_fist_close_cooldown_s,
+    )
     # Semantic: a LeftHandDetector instancia-se SEMPRE, para que o gesto PEACE da
     # mao esquerda possa mostrar/ocultar a interface mesmo no Free; os comandos
     # (swipe/alternador/scroll) são desligados por allow_commands=left_hand_commands
@@ -160,7 +167,7 @@ def make_engine_ctx(cfg, smooth_idx, gesture_ai, tuner, ctx):
     return SimpleNamespace(
         pool=pool, filters=filters, curve=curve, emitter=emitter,
         clap=clap, magnifier=magnifier, brightness=brightness,
-        fist_cycle=fist_cycle, wave=wave,
+        fist_cycle=fist_cycle, wave=wave, fist_close=fist_close,
         left_hand=left_hand, light=light, clahe=clahe, ui=ui, toast=toast,
         smooth_name=(SMOOTH_PRESETS[smooth_idx][0] if smooth_idx >= 0 else "CUSTOM"),
         last_palm=None, prev_filtered=None, jump_streak=0, fast_until=0.0,
@@ -177,7 +184,7 @@ def make_engine_ctx(cfg, smooth_idx, gesture_ai, tuner, ctx):
         active_side=("Right" if not cfg.mirror else "Left"),
         last_accept_t=None, last_hand_t=None, dt_ema=0.05,
         exposure_tried=False, gray_check=0,
-        right_peace_prev=False, cmd_fist_prev=False,
+        right_peace_prev=False,
     )
 
 
@@ -304,7 +311,10 @@ def process_frame(cfg, cam, tracker, mouse, gesture_ai, voice, tuner, ctx, state
         lhf = lhf[0] if lhf is not None else None
         lpalm = lhf.palm_center if lhf is not None else None
         lgesture = lhf.gesture if lhf is not None else None
-        left_cmd, left_cmd_val = E.left_hand.update(lpalm, now, lgesture)
+        left_cmd, left_cmd_val = E.left_hand.update(
+            lpalm, now, lgesture,
+            fully_open=bool(lhf is not None and lhf.fully_open),
+        )
 
         # Pick mode: manter o Alt segurado enquanto a mao continua aberta;
         # quando deixar de estar aberta (ou desaparecer) confirma e solta.
@@ -361,10 +371,9 @@ def process_frame(cfg, cam, tracker, mouse, gesture_ai, voice, tuner, ctx, state
             left_x = palm[0] < (w / 2.0) if cfg.mirror else palm[0] >= (w / 2.0)
             if left_x and only.gesture == Gesture.FIST:
                 cmd_fist = True
-    if cmd_fist and not E.cmd_fist_prev:
+    if E.fist_close.update(cmd_fist, now):
         _keyboard_shortcut("alt+f4")
         E.toast("FECHAR JANELA (Alt+F4)")
-    E.cmd_fist_prev = cmd_fist
 
     # Luminosidade com Dois Dedos (PEACE) na mao DIREITA: aumenta o brilho.
     # (PEACE na mao esquerda agora liga/desliga a interface GUI.)

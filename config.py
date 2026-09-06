@@ -98,6 +98,12 @@ class Config:
     # mais que isto durante o hold, e a mao do CURSOR (direita) a atravessar a
     # metade esquerda do ecra, nao um hold intencional -> nao abre o alternador.
     left_hand_open_switch_max_move_px: float = 45.0
+    # Hold para abrir o alternador quando a mao esquerda esta TOTALMENTE aberta
+    # (todos os dedos esticados): quase de imediato. So uma palma PRATICAMENTE
+    # PARADA abre (deriva <= fast_max_move_px durante a janela); a mao do cursor
+    # a mover o rato deriva muito mais e reprova, nunca abrindo por engano.
+    left_hand_open_fast_s: float = 0.6
+    left_hand_open_fast_max_move_px: float = 15.0
     # FECHAR JANELA (Alt+F4) com o punho da mao esquerda e uma acao DESTRUTIVA.
     # So dispara depois de segurar o punho continuamente durante este tempo (s),
     # para nao fechar janelas com um punho transitorio (ex.: pinca/clique que

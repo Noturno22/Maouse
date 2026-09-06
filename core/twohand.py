@@ -316,6 +316,44 @@ class FistCycleDetector:
         return False
 
 
+class FistHoldDetector:
+    """Permite acoes DESTRUTIVAS (ex.: fechar janela = Alt+F4) apenas apos
+    um hold continuo do punho, e nunca em rajadas.
+
+    Recebe `active` (True quando o punho da mao de comandos estiver presente)
+    e devolve True UMA vez quando o hold atinge `hold_s`. Qualquer interrupcao
+    reinicia a conta. Apos disparar, aplica `cooldown_s` para nao fechar varias
+    janelas seguidas por manter o punho fechado.
+    """
+
+    def __init__(self, hold_s=0.8, cooldown_s=2.5):
+        self.hold_s = float(hold_s)
+        self.cooldown_s = float(cooldown_s)
+        self._since = None
+        self._until = 0.0
+        self._wants_release = False
+
+    def update(self, active, now):
+        if active:
+            # depois de disparar, e preciso SOLTAR o punho para re-armar;
+            # manter fechado durante minutos nao fecha varias janelas.
+            if self._since is None and not self._wants_release:
+                self._since = now
+            if (
+                self._since is not None
+                and now - self._since >= self.hold_s
+                and now >= self._until
+            ):
+                self._until = now + self.cooldown_s
+                self._since = None
+                self._wants_release = True
+                return True
+        else:
+            self._since = None
+            self._wants_release = False
+        return False
+
+
 class WaveDetector:
     """Deteta gesto de "bye bye" (onda lateral) para atalhos (ex: Ctrl+E).
 
@@ -516,15 +554,25 @@ class LeftHandDetector:
         # estiver ativo, os swipes navegam sem soltar o Alt.
         self._open_since = None
         self._switcher_open = False
+        # Intervalo min/max da palma durante o hold aberta: se derivar mais que
+        # cfg.left_hand_open_switch_max_move_px, e a mao do cursor a atravessar
+        # a metade esquerda, nao um hold intencional (falso alternador).
+        self._open_min_px = self._open_max_px = 0.0
+        self._open_min_py = self._open_max_py = 0.0
         # Grace de perda: se a mao esquerda sumir so por 1-2 frames, nao
         # reiniciamos o estado (evita reinicios que anulam hold/PEACE/swipe).
         self._lost_since = None
 
-    def update(self, palm, now, gesture=None):
+    def update(self, palm, now, gesture=None, commands_ok=None, fully_open=False):
         """palm: (x, y) em px, ou None se a mao esquerda nao estiver visivel.
         gesture: opcional (Gesture) da mao esquerda, usado para o gesto de
-        paz (PEACE) que mostra/oculta a interface."""
+        paz (PEACE) que mostra/oculta a interface.
+        commands_ok: gate dinamico extra. Se False, os COMANDOS (swipe/
+        alternador/scroll) ficam desligados mesmo em Pro; so o PEACE continua.
+        fully_open: True se a mao esta totalmente aberta (dedos todos esticados);
+        nesse caso o alternador abre quase de imediato (hold muito curto)."""
         cfg = self.cfg
+        cmds = self.allow_commands if commands_ok is None else commands_ok
         if palm is None:
             if self._lost_since is None:
                 self._lost_since = now
@@ -563,13 +611,39 @@ class LeftHandDetector:
                 self._peace_streak = 0
 
         # Pick mode: segurar a mao ABERTA durante N segundos abre o alternador.
-        # Apos disparar, mantem-se ativo enquanto a mao continuar aberta; os
-        # swipes seguintes navegam no alternador sem soltar (handled em main).
+        # A palma nao pode derivar mais que left_hand_open_switch_max_move_px
+        # durante o hold, senao reprova-se como hold (mao do cursor a cruzar).
+        # Mão TOTALMENTE aberta (fully_open) abre quase de imediato: o gesto é
+        # claro e intencional, e a palma ainda precisa de estar estável.
         # (Pro-locked: no Free, allow_commands=False desliga swipe/alternador/scroll.)
-        if self.allow_commands and gesture == Gesture.OPEN:
+        if cmds and gesture == Gesture.OPEN:
+            hold_s = cfg.left_hand_open_fast_s if fully_open else cfg.left_hand_open_switch_s
             if self._open_since is None:
                 self._open_since = now
-            elif not self._switcher_open and now - self._open_since >= cfg.left_hand_open_switch_s:
+                self._open_min_px = self._open_max_px = px
+                self._open_min_py = self._open_max_py = py
+            else:
+                self._open_min_px = min(self._open_min_px, px)
+                self._open_max_px = max(self._open_max_px, px)
+                self._open_min_py = min(self._open_min_py, py)
+                self._open_max_py = max(self._open_max_py, py)
+                moved = max(
+                    self._open_max_px - self._open_min_px,
+                    self._open_max_py - self._open_min_py,
+                )
+                max_move = (
+                    cfg.left_hand_open_fast_max_move_px
+                    if fully_open
+                    else cfg.left_hand_open_switch_max_move_px
+                )
+                if moved > max_move:
+                    self._open_since = None
+                    self._switcher_open = False
+            if (
+                not self._switcher_open
+                and self._open_since is not None
+                and now - self._open_since >= hold_s
+            ):
                 self._switcher_open = True
                 self._swipe_until = now + cfg.left_hand_cooldown_s
                 return "alt_switch_open", None
@@ -578,7 +652,7 @@ class LeftHandDetector:
             self._switcher_open = False
 
         # SWIPE horizontal + Scroll continuo (Pro-locked: no Free ficam desligados).
-        if self.allow_commands:
+        if cmds:
             # SWIPE horizontal: deslocamento X dominante, rapido e PROPOSITADO
             # dentro da janela. Exige dominancia horizontal (dom) E velocidade
             # minima para nao disparar por deriva lenta ou movimento diagonal.

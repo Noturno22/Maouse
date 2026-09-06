@@ -57,7 +57,10 @@ A mao de comandos nunca move o cursor; so dispara acoes.
 > segure a mao esquerda **aberta** durante ~2s: abre o alternador do Windows;
 > enquanto a mao continua aberta pode deslizar para a esquerda/direita para
 > navegar entre as janelas, e ao soltar (fechar ou tirar a mao) confirma a janela
-> selecionada. O punho fecha a janela **apenas quando e a unica mao presente**.
+> selecionada. O punho fecha a janela **apenas quando e a unica mao presente**,
+> e tem de ficar **segurado ~0.8s** (hold) — um punho/transição rápida nunca
+> fecha a janela, e depois de fechar há um cooldown curto para não fechar várias
+> janelas de rajada.
 > O gesto de paz (PEACE) com a mao esquerda mostra/oculta a interface (GUI) de
 > configuracao.
 

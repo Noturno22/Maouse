@@ -36,6 +36,9 @@ class HandFrame:
     index_tip: tuple
     palm_center: tuple
     ai_conf: float = 0.0
+    # True se a mao abriu totalmente (todos os dedos bem esticados). Usado para
+    # abrir o alternador de janelas quase de imediato (gesto claro e intencional).
+    fully_open: bool = False
 
 
 def _dist(a, b):
@@ -253,6 +256,13 @@ class GestureEngine:
             geo = Gesture.OPEN
 
         raw = geo
+        # Totalmente aberta: dedos bem esticados (racio tip/pip folgado), sem
+        # estar em pinca. Tambem precisa de nao classificar como ONE/PEACE/etc.
+        fully_open = (
+            geo == Gesture.OPEN
+            and not self._pinch_index_on
+            and not self._pinch_mid_on
+        )
         self.ai_conf = 0.0
         if self.ai is not None and not too_far and self._ai_window:
             ml_g, conf = self.ai.classify(list(self._ai_window))
@@ -363,6 +373,7 @@ class GestureEngine:
             index_tip=pts[INDEX_TIP],
             palm_center=palm_center,
             ai_conf=self.ai_conf,
+            fully_open=fully_open,
         )
         return frame, event, value
 
