@@ -46,6 +46,16 @@ def test_cloud_transcribe_sends_multipart(monkeypatch):
     assert b'filename="comando.wav"\r\nContent-Type: audio/wav\r\n\r\nRIFF' in body
 
 
+def test_cloud_request_sends_user_agent(monkeypatch):
+    monkeypatch.setenv("MAOUSE_STT_TEST_KEY", "gsk_x")
+    net = FakeNet({"text": ""})
+    cs = stt.CloudSTT(make_cfg(), transport=net)
+    cs.transcribe(pcm())
+    _url, _body, headers, _t = net.calls[0]
+    assert headers.get("User-Agent")
+    assert "Maoise" in headers["User-Agent"]
+
+
 def test_cloud_returns_empty_without_key(monkeypatch):
     monkeypatch.delenv("MAOUSE_STT_TEST_KEY", raising=False)
     net = FakeNet({"text": "x"})

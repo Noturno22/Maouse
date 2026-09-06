@@ -94,6 +94,7 @@ class CloudSTT:
     def _transcribe(self, pcm_int16, timeout):
         headers = {
             "Authorization": f"Bearer {self._key}",
+            "User-Agent": "MaoiseSTT/1.0",
             "Content-Type": None,  # preenche-se abaixo
         }
         body, ctype = _multipart(
