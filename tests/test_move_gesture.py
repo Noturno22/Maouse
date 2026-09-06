@@ -10,7 +10,6 @@ Cobre as invariantes nucleares do fluxo de movimento sem depender de câmara:
 import time
 
 import numpy as np
-import pytest
 
 from config import Config
 from core.gestures import Gesture, GestureEngine
@@ -21,7 +20,6 @@ from tools.train_gesture_ai import (
     FINGER_LEN,
     MAX_ANGLES,
     OPEN_SKELETON,
-    THUMB_MAX,
     _chain,
     _thumb,
     synthesize,

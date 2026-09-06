@@ -66,7 +66,7 @@ def test_peace_toggle_so_com_uma_mao_continua_a_funcionar():
     det = LeftHandDetector(cfg)
     fired = []
     now = 0.0
-    for i in range(int(cfg.left_hand_gesture_stable_frames + 2)):
+    for _i in range(int(cfg.left_hand_gesture_stable_frames + 2)):
         now += 0.1
         ev, _ = det.update((200.0, 200.0), now, Gesture.PEACE, commands_ok=False)
         if ev == "gui_toggle":
