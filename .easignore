@@ -27,8 +27,13 @@ __pycache__/
 
 # ---- Artefactos que o EAS não precisa (gerados localmente) ---------------
 # pastas nativas do projeto mobile (geradas por `expo prebuild`; o EAS regenera)
-/ios/
-/android/
+# IMPORTANTE: como o mobile vive em mobile/airmouse-mobile, os padrões têm de
+# apontar para esse caminho — padrões /ios/ e /android/ ancorados à raiz do repo
+# NÃO excluem as pastas reais, e o EAS deixa de correr `expo prebuild`
+# ("Skipped ... because the android directory already exists"), compilando
+# código nativo desatualizado. Sem trailing slash para também apanhar subpastas.
+mobile/airmouse-mobile/ios
+mobile/airmouse-mobile/android
 # caches / build locales
 node_modules/
 .expo/

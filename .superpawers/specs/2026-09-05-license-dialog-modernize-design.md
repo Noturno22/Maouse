@@ -33,8 +33,9 @@ Diálogo com largura fixa de **620px** (antes 700px). Ordem vertical:
 3. **Benefícios**: mantém o rótulo de secção `SectionTitle` («O QUE DESBLOQUEIA») em estilo slim
    (pequeno, espaçado) seguido de 4 linhas compactas (check verde + nome em bold + descrição curta
    em cinza), com espaçamento menor entre linhas.
-4. **Planos**: grelha 2×2, cartões mais pequenos (~76px de altura mínima), seleção por estado
-   discreto (borda fina + fundo subtil), badge «POPULAR» apenas no Lifetime.
+4. **Planos**: grelha de 2 colunas com um cartão por produto em `_PRODUCTS` (cartões pequenos,
+   ~84px de altura mínima), seleção por estado discreto (borda fina + fundo subtil, via property
+   QSS `[selected="true"]`), badge «POPULAR» apenas no produto destacado (primeiro de `_PRODUCTS`).
 5. **CTA único sem pulse**: «ATIVAR PRO · €39,90» (mantém o estilo `ProCta` dourado, sem `breathe_glow`).
 6. **Chave em modo secundário**: divisor + legenda pequena «Já tem uma chave Pro?» + campo + botão,
    visualmente discretos (menos contraste que o resto).
@@ -79,6 +80,7 @@ Estilos removidos: `FreeBanner`, `FreeBadge` (substituídos por `StatusChip`).
 | `license.cta` | «ATIVAR PRO» | encurtar (o CTA junta o preço) |
 | `license.pro_active_sub` | «Obrigado por apoiar o Mãouse.» (concisa) | menos floreado |
 | `license.remove` | «Remover licença» | encurtar |
+| `license.key_hint` (nova) | «Cole a chave aqui» | placeholder do campo de chave (sem duplicar o botão) |
 
 Restantes chaves (trial_remaining, trial_ended, activate_now, has_key, activate_key, enter_key,
 activate_failed, needs_connection) mantêm-se como estão.
