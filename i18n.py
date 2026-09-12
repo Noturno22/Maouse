@@ -163,13 +163,13 @@ _STRINGS = {
         "pt_br": "MODO FREE — 5 MIN DE TESTE",
     },
     "license.free_sub": {
-        "pt": "Estás em teste gratuito: 5 minutos de uso. Quando esgota, o Mãouse bloqueia até ativares o Pro.",
-        "en": "You're on a free trial: 5 minutes of use. When it runs out, Mãouse locks until you activate Pro.",
-        "es": "Estás en prueba gratuita: 5 minutos de uso. Cuando se agota, Mãouse se bloquea hasta que actives Pro.",
-        "fr": "Tu es en essai gratuit : 5 minutes d'utilisation. Quand il expire, Mãouse se bloque jusqu'à l'activation de Pro.",
-        "de": "Du bist in der kostenlosen Testphase: 5 Minuten Nutzung. Danach sperrt sich Mãouse, bis du Pro aktivierst.",
-        "it": "Sei in prova gratuita: 5 minuti di utilizzo. Quando scade, Mãouse si blocca finché non attivi Pro.",
-        "pt_br": "Você está em teste gratuito: 5 minutos de uso. Quando esgotar, o Mãouse bloqueia até você ativar o Pro.",
+        "pt": "Estás em teste gratuito: 5 minutos de uso. Quando esgota, o Mãouse bloqueia até ativares o Pro.",  # noqa: E501
+        "en": "You're on a free trial: 5 minutes of use. When it runs out, Mãouse locks until you activate Pro.",  # noqa: E501
+        "es": "Estás en prueba gratuita: 5 minutos de uso. Cuando se agota, Mãouse se bloquea hasta que actives Pro.",  # noqa: E501
+        "fr": "Tu es en essai gratuit : 5 minutes d'utilisation. Quand il expire, Mãouse se bloque jusqu'à l'activation de Pro.",  # noqa: E501
+        "de": "Du bist in der kostenlosen Testphase: 5 Minuten Nutzung. Danach sperrt sich Mãouse, bis du Pro aktivierst.",  # noqa: E501
+        "it": "Sei in prova gratuita: 5 minuti di utilizzo. Quando scade, Mãouse si blocca finché non attivi Pro.",  # noqa: E501
+        "pt_br": "Você está em teste gratuito: 5 minutos de uso. Quando esgotar, o Mãouse bloqueia até você ativar o Pro.",  # noqa: E501
     },
     "license.hero": {
         "pt": "Uma nova forma de trabalhar com a mão",
@@ -1181,13 +1181,13 @@ _STRINGS = {
         "pt_br": "Desconto de Acessibilidade (50%)",
     },
     "access.sub": {
-        "pt": "Mãouse Pro a metade do preço para quem precisa de tecnologia assistiva. Preenche o formulário e anexa o comprovativo. A verificação é manual e gera um cupão.",
-        "en": "Mãouse Pro at half price for those who need assistive technology. Fill the form and attach your proof. Verification is manual and generates a coupon.",
-        "es": "Mãouse Pro a mitad de precio para quienes necesitan tecnología de asistencia. Rellena el formulario y adjunta el justificante. La verificación es manual y genera un cupón.",
-        "fr": "Mãouse Pro à moitié prix pour ceux qui ont besoin de technologies d'assistance. Remplissez le formulaire et joignez votre justificatif. La vérification est manuelle et génère un bon.",
-        "de": "Mãouse Pro zum halben Preis für alle, die assistive Technologie brauchen. Fülle das Formular aus und hänge deinen Nachweis an. Die Prüfung ist manuell und erzeugt einen Gutschein.",
-        "it": "Mãouse Pro a metà prezzo per chi ha bisogno di tecnologia assistiva. Compila il modulo e allega la documentazione. La verifica è manuale e genera un coupon.",
-        "pt_br": "Mãouse Pro pela metade do preço para quem precisa de tecnologia assistiva. Preencha o formulário e anexe o comprovante. A verificação é manual e gera um cupom.",
+        "pt": "Mãouse Pro a metade do preço para quem precisa de tecnologia assistiva. Preenche o formulário e anexa o comprovativo. A verificação é manual e gera um cupão.",  # noqa: E501
+        "en": "Mãouse Pro at half price for those who need assistive technology. Fill the form and attach your proof. Verification is manual and generates a coupon.",  # noqa: E501
+        "es": "Mãouse Pro a mitad de precio para quienes necesitan tecnología de asistencia. Rellena el formulario y adjunta el justificante. La verificación es manual y genera un cupón.",  # noqa: E501
+        "fr": "Mãouse Pro à moitié prix pour ceux qui ont besoin de technologies d'assistance. Remplissez le formulaire et joignez votre justificatif. La vérification est manuelle et génère un bon.",  # noqa: E501
+        "de": "Mãouse Pro zum halben Preis für alle, die assistive Technologie brauchen. Fülle das Formular aus und hänge deinen Nachweis an. Die Prüfung ist manuell und erzeugt einen Gutschein.",  # noqa: E501
+        "it": "Mãouse Pro a metà prezzo per chi ha bisogno di tecnologia assistiva. Compila il modulo e allega la documentazione. La verifica è manuale e genera un coupon.",  # noqa: E501
+        "pt_br": "Mãouse Pro pela metade do preço para quem precisa de tecnologia assistiva. Preencha o formulário e anexe o comprovante. A verificação é manual e gera um cupom.",  # noqa: E501
     },
     "access.name": {
         "pt": "Nome completo",
@@ -1289,13 +1289,13 @@ _STRINGS = {
         "pt_br": "Preencha nome, um email válido e anexe o comprovante.",
     },
     "access.submitted": {
-        "pt": "Pedido registado com a referência {ref}. Foi aberto um email para suporte@maouse.app — anexa o comprovativo e envia. A verificação é manual (≤ 2 dias úteis) e gera um cupão de 50%.",
-        "en": "Request registered with reference {ref}. An email to support@maouse.app was opened — attach your proof and send it. Verification is manual (≤ 2 business days) and generates a 50% coupon.",
-        "es": "Solicitud registrada con la referencia {ref}. Se abrió un email a support@maouse.app: adjunta el justificante y envíalo. La verificación es manual (≤ 2 días hábiles) y genera un cupón del 50%.",
-        "fr": "Demande enregistrée avec la référence {ref}. Un email vers support@maouse.app a été ouvert — joignez votre justificatif et envoyez-le. La vérification est manuelle (≤ 2 jours ouvrés) et génère un bon de 50 %.",
-        "de": "Antrag mit Referenz {ref} registriert. Eine E-Mail an support@maouse.app wurde geöffnet — hänge deinen Nachweis an und sende sie. Die Prüfung ist manuell (≤ 2 Werktage) und erzeugt einen Gutschein von 50 %.",
-        "it": "Richiesta registrata con riferimento {ref}. È stata aperta un'email a support@maouse.app: allega il documento e inviala. La verifica è manuale (≤ 2 giorni lavorativi) e genera un coupon del 50%.",
-        "pt_br": "Pedido registrado com a referência {ref}. Foi aberto um email para suporte@maouse.app — anexe o comprovante e envie. A verificação é manual (≤ 2 dias úteis) e gera um cupom de 50%.",
+        "pt": "Pedido registado com a referência {ref}. Foi aberto um email para suporte@maouse.app — anexa o comprovativo e envia. A verificação é manual (≤ 2 dias úteis) e gera um cupão de 50%.",  # noqa: E501
+        "en": "Request registered with reference {ref}. An email to support@maouse.app was opened — attach your proof and send it. Verification is manual (≤ 2 business days) and generates a 50% coupon.",  # noqa: E501
+        "es": "Solicitud registrada con la referencia {ref}. Se abrió un email a support@maouse.app: adjunta el justificante y envíalo. La verificación es manual (≤ 2 días hábiles) y genera un cupón del 50%.",  # noqa: E501
+        "fr": "Demande enregistrée avec la référence {ref}. Un email vers support@maouse.app a été ouvert — joignez votre justificatif et envoyez-le. La vérification est manuelle (≤ 2 jours ouvrés) et génère un bon de 50 %.",  # noqa: E501
+        "de": "Antrag mit Referenz {ref} registriert. Eine E-Mail an support@maouse.app wurde geöffnet — hänge deinen Nachweis an und sende sie. Die Prüfung ist manuell (≤ 2 Werktage) und erzeugt einen Gutschein von 50 %.",  # noqa: E501
+        "it": "Richiesta registrata con riferimento {ref}. È stata aperta un'email a support@maouse.app: allega il documento e inviala. La verifica è manuale (≤ 2 giorni lavorativi) e genera un coupon del 50%.",  # noqa: E501
+        "pt_br": "Pedido registrado com a referência {ref}. Foi aberto um email para suporte@maouse.app — anexe o comprovante e envie. A verificação é manual (≤ 2 dias úteis) e gera um cupom de 50%.",  # noqa: E501
     },
     "voice.prompt": {
         "pt": "Sim?",

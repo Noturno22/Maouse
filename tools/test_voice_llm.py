@@ -13,6 +13,25 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from core import llm  # noqa: E402
 
 
+def _env_only_key(name, env_files=(".env",)):
+    """Chave apenas de os.environ — ignora o .env do disco.
+
+    Sem isto, os testes que simulam "sem chave cloud" apanham a chave real
+    do .env de desenvolvimento (leak) e passam a depender da maquina.
+    """
+    return os.environ.get(name)
+
+
+def _install_env_only():
+    global _orig_load_api_key
+    _orig_load_api_key = llm._load_api_key
+    llm._load_api_key = _env_only_key
+
+
+def _restore_env_only():
+    llm._load_api_key = _orig_load_api_key
+
+
 def make_cfg(**kw):
     cfg = types.SimpleNamespace(
         llm_enabled=True,
@@ -241,16 +260,20 @@ def test_reply_conversation_fallback_no_chat():
 
 
 if __name__ == "__main__":
-    test_classify_cmd_via_cloud()
-    test_classify_chat_via_cloud()
-    test_classify_cmd_ollama_fallback()
-    test_respond_cloud_and_history()
-    test_respond_fallback_ollama()
-    test_respond_no_key_no_network()
-    test_classify_cmd_local_regex_no_network()
-    test_dispatch_regex_command_to_queue()
-    test_dispatch_llm_command_to_queue()
-    test_dispatch_conversation_spoken()
-    test_dispatch_conversation_unknown_phrase()
-    test_reply_conversation_fallback_no_chat()
+    _install_env_only()
+    try:
+        test_classify_cmd_via_cloud()
+        test_classify_chat_via_cloud()
+        test_classify_cmd_ollama_fallback()
+        test_respond_cloud_and_history()
+        test_respond_fallback_ollama()
+        test_respond_no_key_no_network()
+        test_classify_cmd_local_regex_no_network()
+        test_dispatch_regex_command_to_queue()
+        test_dispatch_llm_command_to_queue()
+        test_dispatch_conversation_spoken()
+        test_dispatch_conversation_unknown_phrase()
+        test_reply_conversation_fallback_no_chat()
+    finally:
+        _restore_env_only()
     print("\nTODOS OS TESTES DE IA DE CONVERSA PASSARAM")
