@@ -24,11 +24,13 @@ HELP_BORDER = "#2A2A45"
 
 # Ícones Unicode por secção de gestos
 _SECTION_ICONS = {
-    "help.sec.move": "🖐️",
-    "help.sec.scroll": "🔄",
-    "help.sec.bright": "💡",
-    "help.sec.media": "🎵",
-    "help.sec.window": "🪟",
+    "help.sec.move": "help-move",
+    "help.sec.scroll": "help-scroll",
+    "help.sec.bright": "help-brightness",
+    "help.sec.media": "help-media",
+    "help.sec.window": "help-windows",
+    "help.sec.kb": "menu-gear",
+    "help.sec.voice": "menu-voice",
 }
 
 
@@ -39,6 +41,15 @@ def _dot(gesture):
 
 def _icon(name, size):
     return menu_icon(name, size=size)
+
+
+def _icon_label(icon_name, text, size=16):
+    """QLabel com ícone SVG à esquerda + texto."""
+    lbl = QLabel()
+    pm = menu_icon(icon_name, size=size).pixmap(size, size)
+    lbl.setPixmap(pm)
+    lbl.setText(f"  {text}")
+    return lbl
 
 
 def _val(key):
@@ -179,8 +190,11 @@ class HelpPanel(QWidget):
             card_lay.setContentsMargins(10, 8, 10, 8)
             card_lay.setSpacing(2)
 
-            icon = _SECTION_ICONS.get(sec_key, "")
-            sec = QLabel(f"{icon}  {tr(sec_key)}")
+            icon_key = _SECTION_ICONS.get(sec_key)
+            if icon_key:
+                sec = _icon_label(icon_key, tr(sec_key))
+            else:
+                sec = QLabel(tr(sec_key))
             sec.setObjectName("HelpCardTitle")
             card_lay.addWidget(sec)
 
@@ -209,7 +223,7 @@ class HelpPanel(QWidget):
         kb_lay.setContentsMargins(10, 8, 10, 8)
         kb_lay.setSpacing(4)
 
-        kb_title = QLabel(f"⌨  {tr('help.sec.kb')}")
+        kb_title = _icon_label("menu-gear", tr("help.sec.kb"))
         kb_title.setObjectName("HelpCardTitle")
         kb_lay.addWidget(kb_title)
 
@@ -237,7 +251,7 @@ class HelpPanel(QWidget):
         vc_lay = QVBoxLayout(voice_card)
         vc_lay.setContentsMargins(10, 8, 10, 8)
         vc_lay.setSpacing(4)
-        voice_title = QLabel(f"🎤  {tr('help.sec.voice')}")
+        voice_title = _icon_label("menu-voice", tr("help.sec.voice"))
         voice_title.setObjectName("HelpCardTitle")
         vc_lay.addWidget(voice_title)
         voice_row = QLabel(tr("help.voice_tip"))

@@ -21,16 +21,19 @@ from PySide6.QtWidgets import (
 from config import SMOOTH_PRESETS
 from core.licensing import Tier, is_pro_locked
 from i18n import tr
+from ui.icon_kits import menu_icon
 from ui.theme import FONT_MONO, FONT_PRIMARY, MAIN_STYLESHEET
 
 
 # ── Sidebar item (checkable button) ────────────────────────────────
-def _sidebar_button(text, parent=None):
+def _sidebar_button(text, icon_name=None, parent=None):
     btn = QPushButton(text, parent)
     btn.setObjectName("SettingsSidebarItem")
     btn.setCheckable(True)
     btn.setFixedHeight(42)
     btn.setCursor(Qt.PointingHandCursor)
+    if icon_name:
+        btn.setIcon(menu_icon(icon_name))
     return btn
 
 
@@ -137,15 +140,15 @@ class SettingsDialog(QDialog):
 
         self._sidebar_buttons = []
         nav_items = [
-            ("settings.nav.cursor", "⌨"),
-            ("settings.nav.features", "⚡"),
-            ("settings.nav.voice", "🎤"),
-            ("settings.nav.camera", "📷"),
-            ("settings.nav.remote", "📱"),
-            ("settings.nav.trading", "📈"),
+            ("settings.nav.cursor", "nav-cursor"),
+            ("settings.nav.features", "nav-features"),
+            ("settings.nav.voice", "menu-voice"),
+            ("settings.nav.camera", "menu-camera"),
+            ("settings.nav.remote", "nav-remote"),
+            ("settings.nav.trading", "nav-trading"),
         ]
-        for key, icon in nav_items:
-            btn = _sidebar_button(f"  {icon}  {tr(key)}")
+        for key, icon_name in nav_items:
+            btn = _sidebar_button(tr(key), icon_name)
             btn.clicked.connect(lambda checked, b=btn: self._on_nav(b))
             slay.addWidget(btn)
             self._sidebar_buttons.append(btn)
