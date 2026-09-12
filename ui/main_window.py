@@ -232,7 +232,6 @@ class MainWindow(QMainWindow):
         """Painel lateral de marca com botões agrupados (topo-direito)."""
         m = self._menu
         m.btn_pause.clicked.connect(self._toggle_pause)
-        m.btn_save.clicked.connect(self._save_settings)
         m.btn_voice.toggled.connect(self._toggle_voice)
         m.btn_snap.toggled.connect(self._toggle_snap)
         m.btn_camera.toggled.connect(self._toggle_camera)
@@ -241,7 +240,7 @@ class MainWindow(QMainWindow):
         m.btn_quit.clicked.connect(self.close)
         m.btn_upgrade.clicked.connect(self._open_license)
         self._menu_buttons = [
-            m.btn_pause, m.btn_save, m.btn_voice, m.btn_snap,
+            m.btn_pause, m.btn_voice, m.btn_snap,
             m.btn_camera, m.btn_help, m.btn_config, m.btn_quit,
         ]
 
