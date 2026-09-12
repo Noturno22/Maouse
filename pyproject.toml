@@ -18,7 +18,8 @@ packages = ["core", "ui"]
 testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "-q"
-markers = ["slow: testes demorados (não correm no CI por omissão)"]
+markers = ["slow: testes demorados (não correm no CI por omissão)",
+           "websocket: testes que arrancam o servidor WebSocket local"]
 
 [tool.ruff]
 line-length = 100

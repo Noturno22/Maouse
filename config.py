@@ -1,6 +1,17 @@
 import json
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+
+# Atalhos de voz -> teclado do TradingView (modo trading master).
+# A chave é o token devolvido pelo NLU; o valor é o combo emitido.
+DEFAULT_TV_TOOL_COMBOS = {
+    "t": "alt+t",   # linha de tendencia
+    "h": "alt+h",   # linha horizontal
+    "v": "alt+v",   # linha vertical
+    "c": "alt+c",   # cruz
+    "f": "alt+f",   # fibonacci
+    "s": "ctrl+k",  # trocar grafico (pesquisa de simbolo)
+}
 
 
 @dataclass
@@ -82,7 +93,7 @@ class Config:
     left_hand_swipe_min_speed_px_s: float = 220.0
     left_hand_swipe_window_s: float = 0.5
     # Cooldown entre disparos de comandos da mao esquerda (segurar/PEACE/swipe).
-    left_hand_cooldown_s: float = 1.6
+    left_hand_cooldown_s: float = 0.8
     # Deadzone de scroll vertical; quanto maior, menos tremor desloca o scroll.
     left_hand_scroll_deadzone_px: float = 24.0
     # Frames consecutivos que o gesto da mao esquerda tem de manter (ex. PEACE)
@@ -93,7 +104,7 @@ class Config:
     left_hand_lost_grace_s: float = 0.3
     # Segurar a mao esquerda ABERTA durante este tempo (s) abre o alternador
     # de janelas (pick mode) em vez de apenas avancar uma janela de cada vez.
-    left_hand_open_switch_s: float = 2.0
+    left_hand_open_switch_s: float = 1.2
     # Deriva maxima (px) da palma durante o hold "aberta ~2s". Se a mao mexer
     # mais que isto durante o hold, e a mao do CURSOR (direita) a atravessar a
     # metade esquerda do ecra, nao um hold intencional -> nao abre o alternador.
@@ -164,8 +175,14 @@ class Config:
     whisper_language: str = "pt"
 
     llm_enabled: bool = True
-    llm_model: str = "llama3.2:3b"
+    llm_provider: str = "openrouter"  # groq | openai | deepseek | openrouter | ollama-local
+    llm_model: str = "minimax/minimax-m3:free"
     llm_timeout_s: float = 2.5
+    llm_base_url: str = ""
+    llm_api_key_env: str = ""
+    llm_fallback_local: bool = True
+    llm_history: int = 8
+    ollama_model: str = "llama3.2:3b"
 
     autotune_enabled: bool = True
     autotune_interval_s: float = 1.5
@@ -181,6 +198,27 @@ class Config:
 
     # Licenciamento (preenchido em main.py; default = "free")
     license_tier: str = "free"
+
+    # ── Controlo remoto por telemóvel (WebSocket) ────────────────────
+    # Ativa o servidor que permite ao app mobile controlar o rato/teclado
+    # via WiFi (rede local) ou Internet (IP público + encaminhamento de porta).
+    remote_enabled: bool = False
+    remote_port: int = 8765
+    # "0.0.0.0" aceita ligações da rede local e internet; "127.0.0.1" só local.
+    remote_bind: str = "0.0.0.0"
+    # Token de autenticação (gerado automaticamente à primeira execução).
+    remote_token: str = ""
+
+    # ── Modo Trading Master (botão circular tv.png no dashboard) ──────
+    # Modo dedicado a trading (multi-monitor): liga o controlo remoto por
+    # telemóvel para comandar o PC de trading. Ativado pelo botão TV na
+    # janela principal.
+    trading_master_enabled: bool = False
+    # O botão circular (tv.png) só aparece no ecrã principal se for ativado
+    # nas definições.
+    tv_button_enabled: bool = False
+    # Combo de teclado emitido por cada ferramenta de voz do TradingView.
+    tv_tool_combos: dict = field(default_factory=lambda: dict(DEFAULT_TV_TOOL_COMBOS))
 
 
 SMOOTH_PRESETS = (
@@ -230,6 +268,24 @@ def load_settings(cfg):
             cfg.ai_enabled = bool(data["ai_enabled"])
         if "autotune_enabled" in data:
             cfg.autotune_enabled = bool(data["autotune_enabled"])
+        if "remote_enabled" in data:
+            cfg.remote_enabled = bool(data["remote_enabled"])
+        if "remote_port" in data:
+            cfg.remote_port = int(data["remote_port"])
+        if "remote_bind" in data:
+            cfg.remote_bind = str(data["remote_bind"])
+        if "remote_token" in data:
+            cfg.remote_token = str(data["remote_token"])
+        if "trading_master_enabled" in data:
+            cfg.trading_master_enabled = bool(data["trading_master_enabled"])
+        if "tv_button_enabled" in data:
+            cfg.tv_button_enabled = bool(data["tv_button_enabled"])
+        if "tv_tool_combos" in data and isinstance(data["tv_tool_combos"], dict):
+            merged = dict(DEFAULT_TV_TOOL_COMBOS)
+            merged.update(
+                {str(k): str(v) for k, v in data["tv_tool_combos"].items()}
+            )
+            cfg.tv_tool_combos = merged
         name = str(data.get("suavidade", "")).upper()
         found = False
         for i, (pname, cut, beta) in enumerate(SMOOTH_PRESETS):
@@ -279,6 +335,13 @@ def save_settings(cfg, smooth_name):
                     "tts_enabled": bool(cfg.tts_enabled),
                     "ai_enabled": bool(cfg.ai_enabled),
                     "autotune_enabled": bool(cfg.autotune_enabled),
+                    "remote_enabled": bool(cfg.remote_enabled),
+                    "remote_port": int(cfg.remote_port),
+                    "remote_bind": str(cfg.remote_bind),
+                    "remote_token": str(cfg.remote_token),
+                    "trading_master_enabled": bool(cfg.trading_master_enabled),
+                    "tv_button_enabled": bool(cfg.tv_button_enabled),
+                    "tv_tool_combos": dict(cfg.tv_tool_combos),
                 },
                 fh,
                 indent=2,
