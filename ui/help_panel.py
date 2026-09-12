@@ -1,9 +1,11 @@
-"""Toggleable help overlay panel (cartão moderno com seções agrupadas e i18n)."""
+"""Toggleable help overlay panel — cards, grid de atalhos, barra de pesquisa."""
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QScrollArea,
     QVBoxLayout,
     QWidget,
@@ -13,22 +15,26 @@ from i18n import I18N, tr
 from ui.icon_kits import menu_icon
 from ui.theme import (
     ACCENT,
-    FONT_PRIMARY,
     FONT_PRIMARY_BOLD,
     gesture_color,
 )
 
-# Fundo sólido (opaco) para o painel de ajuda — sempre legível, mesmo quando
-# sobreposto ao feed da câmara ou ao dashboard.
 HELP_BG_SOLID = "#0C0C18"
 HELP_BORDER = "#2A2A45"
+
+# Ícones Unicode por secção de gestos
+_SECTION_ICONS = {
+    "help.sec.move": "🖐️",
+    "help.sec.scroll": "🔄",
+    "help.sec.bright": "💡",
+    "help.sec.media": "🎵",
+    "help.sec.window": "🪟",
+}
 
 
 def _dot(gesture):
     color = gesture_color(gesture)
-    return (
-        f'<span style="color:{color.name()};font-size:13px;">&#9679;</span>'
-    )
+    return f'<span style="color:{color.name()};font-size:13px;">&#9679;</span>'
 
 
 def _icon(name, size):
@@ -40,7 +46,6 @@ def _val(key):
 
 
 # Cada secção: (chave_título_i18n, [ (gesture|None, chave_gesto, chave_ação) ])
-# O gesto None significa que não há bolinha colorida associada.
 SECTIONS = [
     ("help.sec.move", [
         (None, "help.g.move", "help.g.one"),
@@ -90,11 +95,11 @@ class HelpPanel(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("HelpPanel")
-        self.setFixedWidth(340)
+        self.setFixedWidth(420)
         self.setAttribute(Qt.WA_StyledBackground, True)
         self.hide()
 
-        # Cabeçalho fixo fora do scroll (sempre visível).
+        # Cabeçalho fixo
         header = QWidget(self)
         header.setObjectName("HelpPanelHeader")
         hlay = QHBoxLayout(header)
@@ -118,7 +123,14 @@ class HelpPanel(QWidget):
         hlay.addStretch()
         self._header = header
 
-        # Corpo com scroll.
+        # Barra de pesquisa
+        self._search = QLineEdit()
+        self._search.setObjectName("HelpSearch")
+        self._search.setPlaceholderText(tr("help.search_placeholder"))
+        self._search.setClearButtonEnabled(True)
+        self._search.textChanged.connect(self._filter)
+
+        # Corpo com scroll
         self._scroll = QScrollArea(self)
         self._scroll.setWidgetResizable(True)
         self._scroll.setFrameShape(QFrame.NoFrame)
@@ -134,18 +146,18 @@ class HelpPanel(QWidget):
         self._body = None
         self._build_body()
 
-        # Layout externo.
+        # Layout externo
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
         outer.addWidget(self._header)
+        outer.addWidget(self._search)
         outer.addWidget(self._scroll, 1)
 
         I18N.language_changed.connect(lambda *_: self._build_body())
 
     # ── Conteúdo ──────────────────────────────────────────────────────
     def _build_body(self):
-        # Remove o corpo anterior (se existir) e reconstrói com o idioma atual.
         if self._body is not None:
             self._scroll.takeWidget()
             self._body.deleteLater()
@@ -156,16 +168,22 @@ class HelpPanel(QWidget):
         lay.setContentsMargins(12, 8, 10, 12)
         lay.setSpacing(0)
 
-        # Cabeçalho.
         self._title.setText(tr("help.title"))
         self._subtitle.setText(tr("help.subtitle"))
 
+        # Secções de gestos em cards
         for sec_key, rows in SECTIONS:
-            sec = QLabel(tr(sec_key))
-            sec.setObjectName("HelpSection")
-            sec.setFont(FONT_PRIMARY)
-            lay.addWidget(sec)
-            lay.addSpacing(3)
+            card = QFrame()
+            card.setObjectName("HelpCard")
+            card_lay = QVBoxLayout(card)
+            card_lay.setContentsMargins(10, 8, 10, 8)
+            card_lay.setSpacing(2)
+
+            icon = _SECTION_ICONS.get(sec_key, "")
+            sec = QLabel(f"{icon}  {tr(sec_key)}")
+            sec.setObjectName("HelpCardTitle")
+            card_lay.addWidget(sec)
+
             for gesture, gk, ak in rows:
                 dot = _dot(gesture) if gesture is not None else (
                     '<span style="color:#3A3A5A;font-size:12px;">&#8226;</span>'
@@ -179,41 +197,81 @@ class HelpPanel(QWidget):
                 row.setObjectName("HelpRow")
                 row.setWordWrap(True)
                 row.setTextFormat(Qt.RichText)
-                lay.addWidget(row)
-                lay.addSpacing(2)
-            lay.addSpacing(8)
+                card_lay.addWidget(row)
 
-        # Atalhos de teclado.
-        kb_sec = QLabel(tr("help.sec.kb"))
-        kb_sec.setObjectName("HelpSection")
-        kb_sec.setFont(FONT_PRIMARY)
-        lay.addWidget(kb_sec)
-        lay.addSpacing(3)
-        for combo, ak in KB_SHORTCUTS:
-            row = QLabel(
-                f'<span style="color:{ACCENT.name()};font-family:\'Consolas\';font-weight:bold;">{combo}</span>'  # noqa: E501
-                f'   {_val(ak)}'
+            lay.addWidget(card)
+            lay.addSpacing(6)
+
+        # Atalhos de teclado em grid 2 colunas
+        kb_card = QFrame()
+        kb_card.setObjectName("HelpCard")
+        kb_lay = QVBoxLayout(kb_card)
+        kb_lay.setContentsMargins(10, 8, 10, 8)
+        kb_lay.setSpacing(4)
+
+        kb_title = QLabel(f"⌨  {tr('help.sec.kb')}")
+        kb_title.setObjectName("HelpCardTitle")
+        kb_lay.addWidget(kb_title)
+
+        kb_grid = QGridLayout()
+        kb_grid.setSpacing(4)
+        for i, (combo, ak) in enumerate(KB_SHORTCUTS):
+            row = i // 2
+            col = (i % 2) * 2
+            key_lbl = QLabel(
+                f'<span style="color:{ACCENT.name()};'
+                f"font-family:'Consolas';font-weight:bold;\">{combo}</span>"
             )
-            row.setObjectName("HelpRow")
-            row.setTextFormat(Qt.RichText)
-            lay.addWidget(row)
-            lay.addSpacing(2)
+            key_lbl.setTextFormat(Qt.RichText)
+            kb_grid.addWidget(key_lbl, row, col)
+            desc_lbl = QLabel(_val(ak))
+            desc_lbl.setObjectName("HelpRow")
+            kb_grid.addWidget(desc_lbl, row, col + 1)
+        kb_lay.addLayout(kb_grid)
+        lay.addWidget(kb_card)
+        lay.addSpacing(6)
 
-        # Voz.
-        lay.addSpacing(8)
-        voice_sec = QLabel(tr("help.sec.voice"))
-        voice_sec.setObjectName("HelpSection")
-        voice_sec.setFont(FONT_PRIMARY)
-        lay.addWidget(voice_sec)
-        lay.addSpacing(3)
+        # Voz
+        voice_card = QFrame()
+        voice_card.setObjectName("HelpCard")
+        vc_lay = QVBoxLayout(voice_card)
+        vc_lay.setContentsMargins(10, 8, 10, 8)
+        vc_lay.setSpacing(4)
+        voice_title = QLabel(f"🎤  {tr('help.sec.voice')}")
+        voice_title.setObjectName("HelpCardTitle")
+        vc_lay.addWidget(voice_title)
         voice_row = QLabel(tr("help.voice_tip"))
         voice_row.setObjectName("HelpRow")
         voice_row.setTextFormat(Qt.RichText)
-        lay.addWidget(voice_row)
+        voice_row.setWordWrap(True)
+        vc_lay.addWidget(voice_row)
+        lay.addWidget(voice_card)
 
         lay.addStretch(1)
         self._scroll.setWidget(body)
 
+    # ── Filtro de pesquisa ────────────────────────────────────────────
+    def _filter(self, text):
+        text = text.strip().lower()
+        if not self._body:
+            return
+        for card in self._body.findChildren(QFrame):
+            if card.objectName() != "HelpCard":
+                continue
+            if not text:
+                card.show()
+                continue
+            visible_rows = 0
+            for row in card.findChildren(QLabel):
+                if row.objectName() == "HelpRow":
+                    if text in row.text().lower():
+                        row.show()
+                        visible_rows += 1
+                    else:
+                        row.hide()
+            card.setVisible(visible_rows > 0)
+
+    # ── Toggle ────────────────────────────────────────────────────────
     def toggle(self):
         if self.isVisible():
             self.hide()

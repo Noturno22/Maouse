@@ -1,4 +1,4 @@
-"""Settings dialog for real-time parameter adjustment."""
+"""Settings dialog — sidebar navigation + painéis agrupados."""
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -11,9 +11,9 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QPlainTextEdit,
     QPushButton,
-    QScrollArea,
     QSlider,
     QSpinBox,
+    QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -24,8 +24,18 @@ from i18n import tr
 from ui.theme import FONT_MONO, FONT_PRIMARY, MAIN_STYLESHEET
 
 
+# ── Sidebar item (checkable button) ────────────────────────────────
+def _sidebar_button(text, parent=None):
+    btn = QPushButton(text, parent)
+    btn.setObjectName("SettingsSidebarItem")
+    btn.setCheckable(True)
+    btn.setFixedHeight(42)
+    btn.setCursor(Qt.PointingHandCursor)
+    return btn
+
+
+# ── Group helpers ───────────────────────────────────────────────────
 def _group(title, caption):
-    """Grupo de configuração com título + descrição curta por cima dos controlos."""
     g = QGroupBox(title)
     g.setFont(FONT_PRIMARY)
     lay = QVBoxLayout()
@@ -40,7 +50,6 @@ def _group(title, caption):
 
 
 def _slider_block(parent_lay, name, value_text, on_change, lo, hi, val):
-    """Linha nome + valor à direita, com o slider por baixo."""
     row = QHBoxLayout()
     name_lbl = QLabel(name)
     name_lbl.setObjectName("SettingsLabel")
@@ -70,13 +79,12 @@ class SettingsDialog(QDialog):
         self.setWindowTitle("Definições — Mãouse")
         self.setObjectName("SettingsDialog")
         self.setStyleSheet(MAIN_STYLESHEET)
-        self.setMinimumSize(500, 360)
-        self.resize(500, 760)
+        self.setMinimumSize(640, 480)
+        self.resize(680, 600)
         self._build()
 
+    # ── PRO checkbox helper ──────────────────────────────────────────
     def _pro_checkbox(self, feature, text, enabled, caption=None):
-        """Cria um QCheckBox que fica DESLIGADO e bloqueado se a funcionalidade
-        for Pro-locked no tier atual (mostra a etiqueta 'PRO')."""
         wrapper = QVBoxLayout()
         ch = QCheckBox(text)
         locked = is_pro_locked(self._tier, feature)
@@ -93,57 +101,120 @@ class SettingsDialog(QDialog):
             wrapper.addWidget(cap)
         return ch, wrapper
 
+    # ── Build ────────────────────────────────────────────────────────
     def _build(self):
         lay = QVBoxLayout(self)
-        lay.setSpacing(10)
-        lay.setContentsMargins(20, 18, 20, 16)
+        lay.setSpacing(0)
+        lay.setContentsMargins(0, 0, 0, 0)
 
-        # ── Cabeçalho ───────────────────────────────────────────────
-        header = QHBoxLayout()
+        # ── Header fixo ──────────────────────────────────────────
+        header = QFrame()
+        header.setObjectName("HelpPanelHeader")
+        hlay = QHBoxLayout(header)
+        hlay.setContentsMargins(20, 14, 20, 14)
         chip = QLabel("AJUSTES")
         chip.setObjectName("HeroChip")
-        header.addWidget(chip)
-        header.addSpacing(10)
+        hlay.addWidget(chip)
+        hlay.addSpacing(10)
         title = QLabel("Definições")
         title.setObjectName("HeroTitle")
-        header.addWidget(title)
-        header.addStretch()
-        lay.addLayout(header)
+        hlay.addWidget(title)
+        hlay.addStretch()
+        lay.addWidget(header)
 
-        sub = QLabel(
-            "Ajusta o cursor, a suavidade, a voz e o controlo remoto em tempo real."
-        )
+        # ── Corpo: sidebar + stacked panels ──────────────────────
+        body = QHBoxLayout()
+        body.setSpacing(0)
+        body.setContentsMargins(0, 0, 0, 0)
+
+        # Sidebar
+        sidebar = QFrame()
+        sidebar.setObjectName("SettingsSidebar")
+        sidebar.setFixedWidth(170)
+        slay = QVBoxLayout(sidebar)
+        slay.setContentsMargins(0, 8, 0, 8)
+        slay.setSpacing(0)
+
+        self._sidebar_buttons = []
+        nav_items = [
+            ("settings.nav.cursor", "⌨"),
+            ("settings.nav.features", "⚡"),
+            ("settings.nav.voice", "🎤"),
+            ("settings.nav.camera", "📷"),
+            ("settings.nav.remote", "📱"),
+            ("settings.nav.trading", "📈"),
+        ]
+        for key, icon in nav_items:
+            btn = _sidebar_button(f"  {icon}  {tr(key)}")
+            btn.clicked.connect(lambda checked, b=btn: self._on_nav(b))
+            slay.addWidget(btn)
+            self._sidebar_buttons.append(btn)
+        slay.addStretch()
+        body.addWidget(sidebar)
+
+        # Stacked panels
+        self._stack = QStackedWidget()
+        self._build_cursor_panel()
+        self._build_features_panel()
+        self._build_voice_panel()
+        self._build_camera_panel()
+        self._build_remote_panel()
+        self._build_trading_panel()
+        body.addWidget(self._stack, 1)
+        lay.addLayout(body, 1)
+
+        # ── Footer ───────────────────────────────────────────────
+        footer = QFrame()
+        footer.setObjectName("HelpPanelHeader")
+        flay = QHBoxLayout(footer)
+        flay.setContentsMargins(20, 10, 20, 10)
+        reset = QPushButton(tr("settings.reset_defaults"))
+        reset.setObjectName("SettingsButtonGhost")
+        reset.clicked.connect(self._reset_defaults)
+        flay.addWidget(reset)
+        flay.addStretch()
+        cancel = QPushButton("Cancelar")
+        cancel.setObjectName("SettingsButtonGhost")
+        cancel.clicked.connect(self.reject)
+        flay.addWidget(cancel)
+        save = QPushButton("Gravar")
+        save.setObjectName("SettingsButton")
+        save.setFixedWidth(120)
+        save.setFixedHeight(36)
+        save.clicked.connect(self._save)
+        flay.addWidget(save)
+        lay.addWidget(footer)
+
+        # Ativa o primeiro painel
+        self._on_nav(self._sidebar_buttons[0])
+
+    # ── Sidebar navigation ──────────────────────────────────────────
+    def _on_nav(self, active_btn):
+        for btn in self._sidebar_buttons:
+            btn.setChecked(btn is active_btn)
+        idx = self._sidebar_buttons.index(active_btn)
+        self._stack.setCurrentIndex(idx)
+
+    # ── Painel 1: Cursor ────────────────────────────────────────────
+    def _build_cursor_panel(self):
+        panel = QWidget()
+        panel.setObjectName("SettingsPanel")
+        pl = QVBoxLayout(panel)
+        pl.setContentsMargins(20, 16, 20, 16)
+        pl.setSpacing(12)
+
+        sub = QLabel("Ajusta o rácio de movimento, suavidade e estabilidade.")
         sub.setObjectName("HeroSubtitle")
         sub.setWordWrap(True)
-        lay.addWidget(sub)
+        pl.addWidget(sub)
 
-        # ── Área rolável (ecrãs pequenos nunca cortam conteúdo) ─────
-        scroll = QScrollArea()
-        scroll.setObjectName("SettingsScroll")
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.NoFrame)
-        content = QWidget()
-        content.setObjectName("SettingsScrollContent")
-        clay = QVBoxLayout(content)
-        clay.setContentsMargins(0, 8, 10, 0)
-        clay.setSpacing(12)
-        scroll.setWidget(content)
-        lay.addWidget(scroll, 1)
-
-        # Gain
         g, gl = _group("Ganho do cursor", "Quão rápido o cursor segue a mão.")
         self._gain_sl, self._gain_lbl = _slider_block(
-            gl,
-            "Rácio de movimento",
-            f"{self._cfg.move_gain:.1f}",
-            lambda v: f"{v / 10:.1f}",
-            6,
-            50,
-            self._cfg.move_gain * 10,
+            gl, "Rácio de movimento", f"{self._cfg.move_gain:.1f}",
+            lambda v: f"{v / 10:.1f}", 6, 50, self._cfg.move_gain * 10,
         )
-        clay.addWidget(g)
+        pl.addWidget(g)
 
-        # Smoothness
         s, sl = _group("Suavidade", "Entre um movimento suave e um reativo.")
         self._smooth_cb = QComboBox()
         self._smooth_cb.setObjectName("SettingsCombo")
@@ -152,10 +223,35 @@ class SettingsDialog(QDialog):
         idx = next((i for i, (n, _, _) in enumerate(SMOOTH_PRESETS) if n == self._smooth_name), 1)
         self._smooth_cb.setCurrentIndex(idx)
         sl.addWidget(self._smooth_cb)
-        clay.addWidget(s)
+        pl.addWidget(s)
 
-        # Toggles
-        t, tl = _group("Funcionalidades", "Liga ou desliga cada capacidade.")
+        p2, p2l = _group("Estabilidade", "Zona morta e estabilidade do gesto.")
+        self._dead_sl, self._dead_lbl = _slider_block(
+            p2l, "Zona morta do cursor", f"{self._cfg.deadzone_px:.0f}px",
+            lambda v: f"{v}px", 0, 20, self._cfg.deadzone_px,
+        )
+        self._stable_sl, self._stable_lbl = _slider_block(
+            p2l, "Estabilidade do gesto", f"{self._cfg.gesture_stable_frames} frames",
+            lambda v: f"{v} frames", 1, 6, self._cfg.gesture_stable_frames,
+        )
+        pl.addWidget(p2)
+        pl.addStretch()
+        self._stack.addWidget(panel)
+
+    # ── Painel 2: Funcionalidades ───────────────────────────────────
+    def _build_features_panel(self):
+        panel = QWidget()
+        panel.setObjectName("SettingsPanel")
+        pl = QVBoxLayout(panel)
+        pl.setContentsMargins(20, 16, 20, 16)
+        pl.setSpacing(12)
+
+        sub = QLabel("Liga ou desliga cada capacidade do Mãouse.")
+        sub.setObjectName("HeroSubtitle")
+        sub.setWordWrap(True)
+        pl.addWidget(sub)
+
+        t, tl = _group("Funcionalidades", None)
         self._snap_ch, snap_lay = self._pro_checkbox(
             "snap", "Snap magnético", self._cfg.snap_enabled
         )
@@ -176,13 +272,24 @@ class SettingsDialog(QDialog):
             "autotune", "Auto-afinação", self._cfg.autotune_enabled
         )
         tl.addLayout(at_lay)
-        clay.addWidget(t)
+        pl.addWidget(t)
+        pl.addStretch()
+        self._stack.addWidget(panel)
 
-        # Voz / reconhecimento
-        v, vl = _group(
-            tr("settings.voice.stt_provider"),
-            "O que usar para entender o que dizes.",
-        )
+    # ── Painel 3: Voz ──────────────────────────────────────────────
+    def _build_voice_panel(self):
+        panel = QWidget()
+        panel.setObjectName("SettingsPanel")
+        pl = QVBoxLayout(panel)
+        pl.setContentsMargins(20, 16, 20, 16)
+        pl.setSpacing(12)
+
+        sub = QLabel("O que usar para entender o que dizes.")
+        sub.setObjectName("HeroSubtitle")
+        sub.setWordWrap(True)
+        pl.addWidget(sub)
+
+        v, vl = _group(tr("settings.voice.stt_provider"), None)
         self._stt_combo = QComboBox()
         self._stt_combo.setObjectName("SettingsCombo")
         self._stt_combo.addItem(tr("settings.voice.provider.auto"), "auto")
@@ -224,45 +331,51 @@ class SettingsDialog(QDialog):
         hint.setObjectName("MicHint")
         hint.setWordWrap(True)
         vl.addWidget(hint)
-        clay.addWidget(v)
+        pl.addWidget(v)
+        pl.addStretch()
+        self._stack.addWidget(panel)
 
-        # Personalizacao
-        p, pl = _group("Personalização", "Preferências pessoais de imagem e gestos.")
+    # ── Painel 4: Imagem ───────────────────────────────────────────
+    def _build_camera_panel(self):
+        panel = QWidget()
+        panel.setObjectName("SettingsPanel")
+        pl = QVBoxLayout(panel)
+        pl.setContentsMargins(20, 16, 20, 16)
+        pl.setSpacing(12)
+
+        sub = QLabel("Preferências pessoais de imagem e gestos.")
+        sub.setObjectName("HeroSubtitle")
+        sub.setWordWrap(True)
+        pl.addWidget(sub)
+
+        p, pl2 = _group("Imagem", None)
         self._mirror_ch = QCheckBox("Espelhar imagem")
         self._mirror_ch.setChecked(self._cfg.mirror)
-        pl.addWidget(self._mirror_ch)
+        pl2.addWidget(self._mirror_ch)
         self._left_hand_ch = QCheckBox("Comandos mão esquerda")
         self._left_hand_ch.setChecked(self._cfg.left_hand_commands)
-        pl.addWidget(self._left_hand_ch)
+        pl2.addWidget(self._left_hand_ch)
         self._lowlight_ch = QCheckBox("Realce em pouca luz")
         self._lowlight_ch.setChecked(self._cfg.low_light_boost)
-        pl.addWidget(self._lowlight_ch)
+        pl2.addWidget(self._lowlight_ch)
+        pl.addWidget(p)
+        pl.addStretch()
+        self._stack.addWidget(panel)
 
-        self._dead_sl, self._dead_lbl = _slider_block(
-            pl,
-            "Zona morta do cursor",
-            f"{self._cfg.deadzone_px:.0f}px",
-            lambda v: f"{v}px",
-            0,
-            20,
-            self._cfg.deadzone_px,
-        )
-        self._stable_sl, self._stable_lbl = _slider_block(
-            pl,
-            "Estabilidade do gesto",
-            f"{self._cfg.gesture_stable_frames} frames",
-            lambda v: f"{v} frames",
-            1,
-            6,
-            self._cfg.gesture_stable_frames,
-        )
-        clay.addWidget(p)
+    # ── Painel 5: Remoto ───────────────────────────────────────────
+    def _build_remote_panel(self):
+        panel = QWidget()
+        panel.setObjectName("SettingsPanel")
+        pl = QVBoxLayout(panel)
+        pl.setContentsMargins(20, 16, 20, 16)
+        pl.setSpacing(12)
 
-        # Controlo remoto por telemovel (rato + teclado via WiFi/Internet)
-        r, rl = _group(
-            "Controlo remoto (mobile)",
-            "Rato e teclado a partir do telemóvel, na rede local ou pela Internet.",
-        )
+        sub = QLabel("Rato e teclado a partir do telemóvel, na rede local ou pela Internet.")
+        sub.setObjectName("HeroSubtitle")
+        sub.setWordWrap(True)
+        pl.addWidget(sub)
+
+        r, rl = _group("Controlo remoto", None)
         self._remote_en_ch = QCheckBox("Ativar controlo por telemóvel (rato + teclado)")
         self._remote_en_ch.setChecked(self._cfg.remote_enabled)
         rl.addWidget(self._remote_en_ch)
@@ -306,14 +419,27 @@ class SettingsDialog(QDialog):
         self._remote_info.setFont(FONT_MONO)
         rl.addWidget(self._remote_info)
         self._refresh_remote_info()
-        clay.addWidget(r)
+        pl.addWidget(r)
+        pl.addStretch()
+        self._stack.addWidget(panel)
 
-        # Modo Trading Master — botão circular (tv.png) no ecrã principal
-        tm, tml = _group(
-            "Modo Trading Master",
+    # ── Painel 6: Trading ──────────────────────────────────────────
+    def _build_trading_panel(self):
+        panel = QWidget()
+        panel.setObjectName("SettingsPanel")
+        pl = QVBoxLayout(panel)
+        pl.setContentsMargins(20, 16, 20, 16)
+        pl.setSpacing(12)
+
+        sub = QLabel(
             "Botão de TV no ecrã principal para ativar o modo dedicado a"
-            " trading (abre o TradingView + comando remoto pelo telemóvel).",
+            " trading (abre o TradingView + comando remoto pelo telemóvel)."
         )
+        sub.setObjectName("HeroSubtitle")
+        sub.setWordWrap(True)
+        pl.addWidget(sub)
+
+        tm, tml = _group("Modo Trading Master", None)
         self._tv_btn_ch = QCheckBox("Mostrar o botão 'Modo Trading Master' no ecrã principal")
         self._tv_btn_ch.setChecked(self._cfg.tv_button_enabled)
         tml.addWidget(self._tv_btn_ch)
@@ -334,25 +460,11 @@ class SettingsDialog(QDialog):
             "\n".join(f"{k} = {v}" for k, v in self._cfg.tv_tool_combos.items())
         )
         tml.addWidget(self._tv_combos_edit)
-        clay.addWidget(tm)
+        pl.addWidget(tm)
+        pl.addStretch()
+        self._stack.addWidget(panel)
 
-        clay.addStretch()
-
-        # ── Rodapé ──────────────────────────────────────────────────
-        bl = QHBoxLayout()
-        bl.addStretch()
-        cancel = QPushButton("Cancelar")
-        cancel.setObjectName("SettingsButtonGhost")
-        cancel.clicked.connect(self.reject)
-        bl.addWidget(cancel)
-        save = QPushButton("Gravar")
-        save.setObjectName("SettingsButton")
-        save.setFixedWidth(120)
-        save.setFixedHeight(36)
-        save.clicked.connect(self._save)
-        bl.addWidget(save)
-        lay.addLayout(bl)
-
+    # ── Ações ───────────────────────────────────────────────────────
     def _gen_token(self):
         from core.remote import generate_token
 
@@ -373,6 +485,26 @@ class SettingsDialog(QDialog):
             f"Telemóvel liga a:\nws://{ips}:{self._cfg.remote_port}\n"
             f"token: {token[:4]}…  ·  {len(token)} caracteres"
         )
+
+    def _reset_defaults(self):
+        from config import Config
+
+        defaults = Config()
+        self._gain_sl.setValue(int(defaults.move_gain * 10))
+        self._smooth_cb.setCurrentIndex(1)
+        self._snap_ch.setChecked(defaults.snap_enabled)
+        self._voice_ch.setChecked(defaults.voice_enabled)
+        self._tts_ch.setChecked(defaults.tts_enabled)
+        self._ai_ch.setChecked(defaults.ai_enabled)
+        self._at_ch.setChecked(defaults.autotune_enabled)
+        self._mirror_ch.setChecked(defaults.mirror)
+        self._left_hand_ch.setChecked(defaults.left_hand_commands)
+        self._lowlight_ch.setChecked(defaults.low_light_boost)
+        self._dead_sl.setValue(int(defaults.deadzone_px))
+        self._stable_sl.setValue(defaults.gesture_stable_frames)
+        self._remote_en_ch.setChecked(defaults.remote_enabled)
+        self._remote_port_spin.setValue(defaults.remote_port)
+        self._tv_btn_ch.setChecked(defaults.tv_button_enabled)
 
     def _save(self):
         self._cfg.move_gain = max(0.6, self._gain_sl.value() / 10.0)
@@ -406,7 +538,6 @@ class SettingsDialog(QDialog):
         self.accept()
 
     def _parse_tv_combos(self):
-        """Lê a lista 'chave = combo' e devolve fundida com os predefinidos."""
         from config import DEFAULT_TV_TOOL_COMBOS
 
         out = dict(DEFAULT_TV_TOOL_COMBOS)

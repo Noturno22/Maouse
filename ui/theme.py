@@ -631,6 +631,76 @@ QLabel#MicHint {
     font-family: 'Segoe UI';
     font-size: 11px;
 }
+/* ── Settings sidebar navigation ───────────────────────────────────── */
+QFrame#SettingsSidebar {
+    background-color: #12121F;
+    border-right: 1px solid #1A1A2E;
+}
+QPushButton#SettingsSidebarItem {
+    background-color: transparent;
+    color: #8A9AA6;
+    border: none;
+    border-left: 3px solid transparent;
+    border-radius: 0px;
+    padding: 10px 14px;
+    font-family: 'Segoe UI';
+    font-size: 13px;
+    text-align: left;
+}
+QPushButton#SettingsSidebarItem:hover {
+    background-color: rgba(80, 200, 255, 0.06);
+    color: #D8E5F0;
+}
+QPushButton#SettingsSidebarItem:checked {
+    background-color: rgba(80, 200, 255, 0.10);
+    color: #50C8FF;
+    border-left: 3px solid #50C8FF;
+    font-weight: bold;
+}
+QFrame#SettingsPanel {
+    background-color: transparent;
+}
+QLabel#SettingsPanelTitle {
+    color: #FFFFFF;
+    font-family: 'Segoe UI Variable Display', 'Segoe UI';
+    font-size: 16px;
+    font-weight: bold;
+}
+QLabel#SettingsPanelSubtitle {
+    color: #8A9AA6;
+    font-family: 'Segoe UI';
+    font-size: 11px;
+}
+/* ── Help panel cards + search ─────────────────────────────────────── */
+QFrame#HelpCard {
+    background-color: #12121F;
+    border: 1px solid #1A1A2E;
+    border-radius: 8px;
+    padding: 10px;
+}
+QFrame#HelpCardHeader {
+    background-color: transparent;
+    border: none;
+}
+QLabel#HelpCardTitle {
+    color: #7DD4FF;
+    font-family: 'Segoe UI';
+    font-size: 12px;
+    font-weight: bold;
+    letter-spacing: 1px;
+}
+QLineEdit#HelpSearch {
+    background-color: #12121F;
+    color: #F0F4F8;
+    border: 1px solid #1A1A2E;
+    border-radius: 8px;
+    padding: 7px 12px;
+    font-family: 'Segoe UI';
+    font-size: 12px;
+}
+QLineEdit#HelpSearch:focus {
+    border-color: #50C8FF;
+}
 """
 
 
