@@ -44,3 +44,7 @@ license_server.db
 
 # Gerado pelo build
 version_info.txt
+
+# Config local do utilizador (calibração, dispositivo de mic, token remoto)
+# O exemplo com defaults de fábrica segue commitado em settings.example.json
+settings.json
