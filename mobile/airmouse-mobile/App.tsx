@@ -19,6 +19,9 @@ import { GestureEngine, GestureResult } from './src/engine/gestures';
 import { FilterPair2D, AccelCurve } from './src/engine/filters';
 import { useProEntitlement } from './src/hooks/useProEntitlement';
 import ProGate from './src/components/ProGate';
+import RemoteScreen from './src/components/RemoteScreen';
+import { useRemoteStore } from './src/store/remote';
+import { remote } from './src/services/remoteClient';
 
 const { TouchController, KeyboardController, SystemController } = NativeModules;
 
@@ -58,6 +61,14 @@ const [landmarks, setLandmarks] = useState<HandLandmarks | null>(null);
 
   const proEntitlement = useProEntitlement();
   const [showPro, setShowPro] = useState(false);
+
+  const [mode, setMode] = useState<'camera' | 'remote'>('camera');
+  const remoteStatus = useRemoteStore((s) => s.status);
+  const forwardGestures = useRemoteStore((s) => s.forwardGestures);
+
+  useEffect(() => {
+    useRemoteStore.getState().hydrate();
+  }, []);
 
   const engineRef = useRef<GestureEngine | null>(null);
   const filtersRef = useRef<FilterPair2D | null>(null);
@@ -129,6 +140,17 @@ const [landmarks, setLandmarks] = useState<HandLandmarks | null>(null);
           setShowPro(true);
           return;
         }
+        if (remoteStatus === 'connected' && forwardGestures) {
+          // Modo "PC remoto": os gestos da câmara comandam o PC via WebSocket.
+          let x: number | undefined;
+          let y: number | undefined;
+          if (landmarks && frameDims) {
+            x = Math.max(0, Math.min(1, landmarks.palmCenterPx[0] / frameDims.w));
+            y = Math.max(0, Math.min(1, landmarks.palmCenterPx[1] / frameDims.h));
+          }
+          remote.gesture(event, x, y, value === null ? undefined : value ?? 0);
+          return;
+        }
         switch (event) {
           case 'tap':
             // Get palm position and tap there
@@ -194,7 +216,7 @@ const [landmarks, setLandmarks] = useState<HandLandmarks | null>(null);
         console.error('Action error:', error);
       }
     },
-    [landmarks, proEntitlement.isPro]
+    [landmarks, frameDims, proEntitlement.isPro, remoteStatus, forwardGestures]
   );
 
   // Update FPS from the worklet via runOnJS (no React functions/refs are shared into the worklet)
@@ -407,6 +429,15 @@ const [landmarks, setLandmarks] = useState<HandLandmarks | null>(null);
     );
   };
 
+  if (mode === 'remote') {
+    return (
+      <View style={styles.container}>
+        <StatusBar barStyle="light-content" />
+        <RemoteScreen onBack={() => setMode('camera')} />
+      </View>
+    );
+  }
+
   if (cameraError) {
     return (
       <View style={styles.permissionContainer}>
@@ -441,7 +472,7 @@ const [landmarks, setLandmarks] = useState<HandLandmarks | null>(null);
         <Camera
           style={StyleSheet.absoluteFill}
           device={device}
-          isActive={!cameraError}
+          isActive={mode === 'camera' && !cameraError}
           frameProcessor={frameProcessor}
           onError={(error) => {
             console.error('Camera error:', error.message);
@@ -473,6 +504,9 @@ const [landmarks, setLandmarks] = useState<HandLandmarks | null>(null);
         <View style={styles.statsContainer}>
           <Text style={styles.statsText}>{fps.toFixed(0)} fps</Text>
           <Text style={styles.statsText}>G: {moveGain.toFixed(1)}</Text>
+          {remoteStatus === 'connected' && forwardGestures ? (
+            <Text style={[styles.statsText, { color: '#5ADC5A' }]}>REMOTO</Text>
+          ) : null}
         </View>
       </View>
 
@@ -492,6 +526,13 @@ const [landmarks, setLandmarks] = useState<HandLandmarks | null>(null);
           onPress={() => setShowHelp(!showHelp)}
         >
           <Text style={styles.controlButtonText}>?</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.controlButton}
+          onPress={() => setMode('remote')}
+        >
+          <Text style={[styles.controlButtonText, { fontSize: 16 }]}>PC</Text>
         </TouchableOpacity>
       </View>
 
