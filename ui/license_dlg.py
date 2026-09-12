@@ -6,6 +6,7 @@ revolucionários, planos selecionáveis, CTA dourado a pulsar e ativação
 offline de chave Pro.
 """
 import json
+import math
 import os
 import re
 import shutil
@@ -167,11 +168,25 @@ class LicenseDialog(QDialog):
         lay.setContentsMargins(26, 20, 26, 24)
         lay.setSpacing(12)
 
-        # Chip de estado FREE — discreto, sem pulsos.
+        # Chip de estado FREE — discreto, sem pulsos. Ao lado, o tempo de
+        # trial restante (só aparece enquanto há trial por gastar).
+        status_row = QHBoxLayout()
         chip = QLabel(tr("license.free_badge").replace(" ", " · "))
         chip.setObjectName("StatusChip")
         chip.setAlignment(Qt.AlignLeft)
-        lay.addWidget(chip)
+        status_row.addWidget(chip)
+        status_row.addStretch()
+        remaining = self._lm.trial_remaining_seconds()
+        if remaining > 0:
+            rem = QLabel(
+                tr("license.trial_remaining").format(
+                    m=max(1, math.ceil(remaining / 60))
+                )
+            )
+            rem.setObjectName("StatusChip")
+            rem.setAlignment(Qt.AlignRight)
+            status_row.addWidget(rem)
+        lay.addLayout(status_row)
 
         # Hero com o pitch de nova experiência tecnológica.
         hero = QHBoxLayout()

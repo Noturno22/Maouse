@@ -17,12 +17,14 @@ def _qapp():
 
 
 class FakeLicense:
+    _trial_remaining = 0
+
     @property
     def is_pro(self):
         return False
 
     def trial_remaining_seconds(self):
-        return 0
+        return self._trial_remaining
 
     def open_checkout(self, product, vendor_id):
         return True
@@ -60,6 +62,30 @@ def test_free_dialog_has_status_chip_without_pulse(dialog):
     assert dialog.width() == 620
     assert not any(isinstance(w, QGraphicsEffect)
                    for w in dialog.findChildren(QGraphicsEffect))
+
+
+def test_free_dialog_shows_trial_remaining_only_while_trial_active(monkeypatch):
+    class Box:
+        @staticmethod
+        def information(*a, **k):
+            pass
+
+        @staticmethod
+        def warning(*a, **k):
+            pass
+    monkeypatch.setattr(ld, "QMessageBox", Box)
+
+    class TrialLicense(FakeLicense):
+        _trial_remaining = 170
+
+    dlg = ld.LicenseDialog(Cfg(), TrialLicense())
+    try:
+        chips = [w for w in dlg.findChildren(QLabel) if w.objectName() == "StatusChip"]
+        texts = [w.text() for w in chips]
+        assert any(tr("license.trial_remaining").format(m=3) in t for t in texts), \
+            "trial ativo deve mostrar o tempo restante (arredondado p/ cima)"
+    finally:
+        dlg.close()
 
 
 def test_free_dialog_plans_render_dynamically(dialog):
