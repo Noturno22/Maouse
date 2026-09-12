@@ -1,4 +1,4 @@
-"""Tests for server-side 30-min trial. Idempotente + nunca diminui + report persiste."""
+"""Tests for server-side 5-min trial. Idempotente + nunca diminui + report persiste."""
 import os
 import sys
 
@@ -7,6 +7,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app import create_app
 from fastapi.testclient import TestClient
 from storage import connect, init_db
+
+TRIAL_SECONDS = 5 * 60
 
 
 def _client():
@@ -18,7 +20,7 @@ def test_trial_start_ok():
     resp = client.post("/api/v1/trial/start", json={"machine_id": "M1"})
     assert resp.status_code == 200
     body = resp.json()
-    assert body["remaining_seconds"] == 30 * 60
+    assert body["remaining_seconds"] == TRIAL_SECONDS
 
 
 def test_trial_start_does_not_reset():
@@ -26,7 +28,7 @@ def test_trial_start_does_not_reset():
     client.post("/api/v1/trial/start", json={"machine_id": "M2"})
     conn = connect()
     init_db(conn)
-    conn.execute("UPDATE trial SET used_seconds=1800 WHERE machine_id='M2'")
+    conn.execute("UPDATE trial SET used_seconds=? WHERE machine_id='M2'", (TRIAL_SECONDS,))
     conn.commit()
     conn.close()
     body = client.post("/api/v1/trial/start", json={"machine_id": "M2"}).json()
@@ -40,7 +42,7 @@ def test_trial_report_persists_usage():
                     json={"machine_id": "M3", "used_seconds": 120})
     assert r.status_code == 200
     status = client.get("/api/v1/trial/status?machine_id=M3").json()
-    assert status["remaining_seconds"] == 30 * 60 - 120
+    assert status["remaining_seconds"] == TRIAL_SECONDS - 120
 
 
 def test_trial_report_never_decreases():
@@ -50,7 +52,7 @@ def test_trial_report_never_decreases():
     # report menor não reduz
     client.post("/api/v1/trial/report", json={"machine_id": "M4", "used_seconds": 60})
     status = client.get("/api/v1/trial/status?machine_id=M4").json()
-    assert status["remaining_seconds"] == 30 * 60 - 300
+    assert status["remaining_seconds"] == TRIAL_SECONDS - 300
 
 
 def test_trial_status():
