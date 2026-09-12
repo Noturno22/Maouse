@@ -174,7 +174,8 @@ class MainWindow(QMainWindow):
 
     def _load_bg_image(self):
         try:
-            name = "logo.png" if self._license and self._license.is_pro else "logo-off.png"
+            off = self._paused or not (self._license and self._license.is_pro)
+            name = "logo-off.png" if off else "logo.png"
             self._set_bg_file(name)
         except Exception:
             self._bg.setPixmap(QPixmap())
@@ -311,9 +312,14 @@ class MainWindow(QMainWindow):
         if self._E is not None and self._E.emitter is not None:
             self._E.emitter.clear()
         self._state["paused"] = paused
-        self._paused = paused
-        self._menu.btn_pause.set_key("btn.resume" if paused else "btn.pause")
+        self._update_paused_state(paused)
         self._toast.show_toast(tr("toast.pause" if paused else "toast.resume"))
+
+    def _update_paused_state(self, paused):
+        """Reflete o estado pausa/retoma no botão (ON/OFF) e no logo de fundo."""
+        self._paused = paused
+        self._menu.btn_pause.set_key("btn.off" if paused else "btn.on")
+        self._load_bg_image()
 
     def _view_license_locked(self, feature: str) -> bool:
         """True se a funcionalidade estiver Pro-locked (não deve ligar no Free)."""
@@ -367,7 +373,7 @@ class MainWindow(QMainWindow):
         self._toast.show_toast("CÂMARA ON" if checked else "CÂMARA OFF")
 
     def _sync_toolbar(self):
-        self._menu.btn_pause.set_key("btn.resume" if self._paused else "btn.pause")
+        self._menu.btn_pause.set_key("btn.off" if self._paused else "btn.on")
         self._menu_checkable(
             self._menu.btn_voice, bool(self._voice) and self._voice.status not in ("off", "error"),
         )
@@ -678,8 +684,7 @@ class MainWindow(QMainWindow):
         # estado no badge/botão da janela.
         engine_paused = bool(self._state.get("paused", self._paused))
         if engine_paused != self._paused:
-            self._paused = engine_paused
-            self._menu.btn_pause.set_key("btn.resume" if engine_paused else "btn.pause")
+            self._update_paused_state(engine_paused)
         self._gesture_badge.update_gesture(gesture, engine_paused)
         if self._camera_on:
             self._cam_view.update_frame(frame, all_frames, active_side, self._flash)
