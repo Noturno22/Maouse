@@ -288,6 +288,21 @@ QPushButton#MenuBtnUpgrade:disabled {
     border: 1px solid #239B56;
     border-left: 3px solid #2ECC71;
 }
+QPushButton#TvMasterBtn {
+    background-color: rgba(0, 0, 0, 200);
+    border: 2px solid #2A3B4A;
+    border-radius: 14px;
+}
+QPushButton#TvMasterBtn:hover {
+    border-color: #7DD4FF;
+}
+QPushButton#TvMasterBtn:pressed {
+    background-color: #50C8FF;
+}
+QPushButton#TvMasterBtn:checked {
+    background-color: rgba(80, 200, 255, 0.16);
+    border-color: #50C8FF;
+}
 QDialog#SettingsDialog {
     background-color: #000000;
     color: #F0F4F8;

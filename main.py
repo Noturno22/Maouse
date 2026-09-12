@@ -32,8 +32,10 @@ from core.licensing import (
     is_pro_locked,
     set_active_license,
 )
+from core.llm import ChatClient
 from core.log import get_logger, setup_logging
 from core.mouse_ctl import MouseCtl
+from core.remote import RemoteServer, lan_ips
 from core.snap import SnapEngine
 from core.tracker import HandTracker, ensure_model
 from core.tray import TrayAppAdapter, TrayIcon
@@ -134,7 +136,8 @@ def resolve_assistant(cfg):
 
 
 def run_gui(cfg, cam, tracker, mouse, smooth_idx, gesture_ai, voice, tuner, speaker,
-            snap, assistant, magnifier, ctx, state, tray_icon, license_mgr=None):
+            snap, assistant, magnifier, ctx, state, tray_icon, license_mgr=None,
+            remote=None):
     """Arranca a janela nativa PySide6 (MainWindow) como interface principal.
 
     A MainWindow apresenta o feed com o esqueleto e overlays; a lógica de
@@ -160,7 +163,7 @@ def run_gui(cfg, cam, tracker, mouse, smooth_idx, gesture_ai, voice, tuner, spea
         cfg, cam, tracker, mouse, gesture_ai=gesture_ai, voice=voice,
         tuner=tuner, speaker=speaker, snap=snap,
         assistant=assistant, magnifier=magnifier,
-        license_mgr=license_mgr,
+        license_mgr=license_mgr, remote=remote,
     )
     window.setWindowTitle("Mãouse")
     window.resize(900, 640)
@@ -290,6 +293,14 @@ def main():
         use_gpu=args.gpu, num_threads=cfg.tracker_threads,
     )
     mouse = MouseCtl()
+    remote = None
+    if cfg.remote_enabled:
+        remote = RemoteServer(cfg, mouse)
+        if remote.start():
+            log.info("Controlo remoto por telemovel ativo (IPs: %s, porta: %d).",
+                     ", ".join(lan_ips()) or "-", cfg.remote_port)
+    else:
+        log.info("Controlo remoto por telemovel desativado.")
     tuner = AutoTuner(cfg)
 
     speaker = None
@@ -316,6 +327,8 @@ def main():
         voice = VoiceEngine(cfg, _queue.Queue())
         if speaker is not None:
             voice.set_speaker(speaker)
+        if cfg.llm_enabled:
+            voice.set_chat(ChatClient(cfg))
         if cfg.voice_enabled:
             voice.start()
 
@@ -383,7 +396,7 @@ def main():
             result = run_gui(
                 cfg, cam, tracker, mouse, smooth_idx, gesture_ai, voice,
                 tuner, speaker, snap, assistant, magnifier, ctx, state,
-                tray_icon, license_mgr=lic_,
+                tray_icon, license_mgr=lic_, remote=remote,
             )
             if result is None:
                 log.info("A usar preview OpenCV (sem PySide6).")
@@ -432,6 +445,11 @@ def main():
         if speaker is not None:
             speaker.stop()
         snap.stop()
+        if remote is not None:
+            try:
+                remote.stop()
+            except Exception:
+                pass
         tracker.close()
         cam.release()
         cv2.destroyAllWindows()

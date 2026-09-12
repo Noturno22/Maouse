@@ -7,6 +7,7 @@ entre as duas UIs.
 """
 import os
 import time
+import webbrowser
 
 import cv2
 from PySide6.QtCore import Qt, QTimer, Signal
@@ -29,6 +30,7 @@ from ui.theme import (
     init_gesture_colors,
 )
 from ui.toast import Toast
+from ui.tv_button import TvMasterButton
 from ui.voice_bar import VoiceBar
 
 log = get_logger("main_window")
@@ -42,7 +44,7 @@ class MainWindow(QMainWindow):
 
     def __init__(self, cfg, cam, tracker, mouse, gesture_ai=None,
                  voice=None, tuner=None, speaker=None, snap=None,
-                 assistant=None, magnifier=None, license_mgr=None):
+                 assistant=None, magnifier=None, license_mgr=None, remote=None):
         super().__init__()
         init_gesture_colors()
 
@@ -58,6 +60,7 @@ class MainWindow(QMainWindow):
         self._assistant = assistant
         self._magnifier = magnifier
         self._license = license_mgr
+        self._remote = remote
 
         self._paused = False
         self._show_help = False
@@ -142,6 +145,11 @@ class MainWindow(QMainWindow):
 
         self._menu = MenuPanel(central)
         self._menu.setFixedWidth(168)
+
+        self._tv_btn = TvMasterButton(central)
+        self._tv_btn.set_on(bool(self._cfg.trading_master_enabled))
+        self._tv_btn.toggled.connect(self._toggle_trading_master)
+        self._sync_tv_button()
 
         self._status_bar = QLabel(central)
         self._status_bar.setObjectName("StatusBar")
@@ -365,6 +373,7 @@ class MainWindow(QMainWindow):
             self._menu.btn_voice, bool(self._voice) and self._voice.status not in ("off", "error"),
         )
         self._menu_checkable(self._menu.btn_snap, bool(self._cfg.snap_enabled))
+        self._tv_btn.set_on(bool(self._cfg.trading_master_enabled))
 
     def keyPressEvent(self, event):
         key = event.key()
@@ -396,6 +405,10 @@ class MainWindow(QMainWindow):
             new_state = not self._camera_on
             self._menu.btn_camera.setChecked(new_state)
             self._toggle_camera(new_state)
+        elif key == Qt.Key_T:
+            new_state = not self._cfg.trading_master_enabled
+            self._tv_btn.setChecked(new_state)
+            self._toggle_trading_master(new_state)
         elif key == Qt.Key_F2:
             self._open_settings()
         elif key == Qt.Key_BracketLeft:
@@ -435,7 +448,63 @@ class MainWindow(QMainWindow):
             self._smooth_name = dlg.smooth_name
             if self._E is not None:
                 self._E.filters.set_params(self._cfg.filter_min_cutoff, self._cfg.filter_beta)
+            self._apply_remote_config()
+            self._sync_tv_button()
             self._toast.show_toast("Definições atualizadas")
+
+    def _sync_tv_button(self):
+        """Mostra/oculta o botão de TV conforme as definições."""
+        self._tv_btn.setVisible(bool(self._cfg.tv_button_enabled))
+        self._tv_btn.raise_()
+
+    def _apply_remote_config(self):
+        """(Re)liga/desliga o servidor de controlo remoto conforme as definições."""
+        cfg = self._cfg
+        if self._remote is None and cfg.remote_enabled:
+            from core.remote import RemoteServer
+
+            self._remote = RemoteServer(cfg, self._mouse)
+        if self._remote is None:
+            return
+        if cfg.remote_enabled:
+            if not self._remote.is_running:
+                if self._remote.start():
+                    self._toast.show_toast(f"REMOTO ON :{cfg.remote_port}")
+                else:
+                    self._toast.show_toast("REMOTO — porta em uso?", danger=True)
+            elif self._remote.bound_port != cfg.remote_port:
+                if self._remote.restart():
+                    self._toast.show_toast(f"REMOTO :{cfg.remote_port}")
+        else:
+            if self._remote.is_running:
+                self._remote.stop()
+                self._toast.show_toast("REMOTO OFF")
+
+    def _toggle_trading_master(self, checked):
+        """Ativa/desativa o Modo Trading Master: liga o controlo remoto por
+        telemóvel (comandar o PC de trading) e guarda a preferência."""
+        self._cfg.remote_enabled = bool(checked)
+        self._apply_remote_config()
+        if checked and not (self._remote and self._remote.is_running):
+            self._cfg.trading_master_enabled = False
+            self._cfg.remote_enabled = False
+            self._tv_btn.set_on(False)
+            self._toast.show_toast("TRADING MASTER — PORTA EM USO?", danger=True)
+            return
+        self._cfg.trading_master_enabled = bool(checked)
+        save_settings(self._cfg, self._smooth_name)
+        if checked:
+            self._open_tradingview()
+        self._toast.show_toast(
+            "TRADING MASTER ON" if checked else "TRADING MASTER OFF"
+        )
+
+    def _open_tradingview(self):
+        """Abre o navegador padrão do utilizador com o TradingView aberto."""
+        try:
+            webbrowser.open("https://www.tradingview.com")
+        except Exception as e:
+            log.debug("Falha ao abrir o TradingView: %s", e)
 
     def _open_license(self):
         from ui.license_dlg import LicenseDialog
@@ -480,6 +549,9 @@ class MainWindow(QMainWindow):
         x = w - bw - 10
         y = 10
         self._menu.setGeometry(x, y, bw, mh)
+
+        tby = h - 22 - self._tv_btn.height() - 10
+        self._tv_btn.move(12, tby)
 
     def _layout_camera(self):
         """Posiciona o preview da câmara como um painel centrado (não o fundo),
@@ -650,6 +722,8 @@ class MainWindow(QMainWindow):
             strip += f" | voz:{self._speaker.status}"
         if self._license and not self._license.is_pro:
             strip += " | FREE"
+        if self._cfg.trading_master_enabled:
+            strip += " | TRADING MASTER"
         self._status_bar.setText(strip)
         self._fps_lbl.setText(f"{self._fps:4.0f} fps")
 
@@ -714,6 +788,11 @@ class MainWindow(QMainWindow):
                 self._mouse.release_left()
         except Exception as e:
             log.debug("Falha ao largar o botao no fecho: %s", e)
+        if self._remote is not None:
+            try:
+                self._remote.stop()
+            except Exception as e:
+                log.debug("Falha ao parar o controlo remoto: %s", e)
         for obj, meth in (
             (self._snap, "stop"), (self._voice, "stop"),
             (self._speaker, "stop"), (self._tracker, "close"),
