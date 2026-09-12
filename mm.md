@@ -9,6 +9,6 @@ a camerasó deve aparecer quando irmos nas opcões e em ver camera !
 
 isso não deve atrapalhar a identificação erfeito dos gestos, a webcam é apenas para configurações e não como principal, o principal é a funcionaliadade perfeita dos gestões, precisamos aprimorar esta area critica de forma altamente proficional com as melhores tecnicas existentes e critividade dos nostroas agents e subagents experientes
 - ✔ RESOLVIDO: o `process_frame` (gestos) corre sempre em cada `_tick`; o toggle da câmara só afeta o render. Deteção aprimorada com deadband (Schmitt trigger) por dedo (dobrado/esticado) para eliminar tremulação entre gestos (`core/gestures.py`). Testes: 23/23 + 13/13 PASS.
+ opencode -s ses_f820a56a9ffeVsa6y1IL6awiM0
 
-opencode -s ses_f88ccc251ffemy7Vq2WCjBogs9
                             
