@@ -7,7 +7,9 @@ import time
 from typing import Any
 
 from config import SMOOTH_PRESETS, save_settings
+from core.hotkeys import _keyboard_shortcut
 from core.log import get_logger
+from core.nlu import TV_LABELS
 
 log = get_logger("commands")
 
@@ -135,4 +137,12 @@ def apply_command(action, value, cfg, mouse, state, ctx):
         return "SCROLL +" if action == "scroll_up" else "SCROLL -"
     if action == "autotune_toggle":
         return state["tuner"].toggle()
+    if action == "tv_tool":
+        if not cfg.trading_master_enabled:
+            return "TV: MODO OFF"
+        key = str(value).lower()[:1] if value else "t"
+        combos = getattr(cfg, "tv_tool_combos", {})
+        combo = combos.get(key) or f"alt+{key}"
+        _keyboard_shortcut(combo)
+        return f"TV: {TV_LABELS.get(key, 'FERRAMENTA')}"
     return None

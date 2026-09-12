@@ -63,6 +63,19 @@ def test_other_commands():
     assert parse_local("auto-afinar") == ("autotune_toggle", None)
 
 
+def test_tv_tool_variants():
+    assert parse_local("ferramenta linha horizontal") == ("tv_tool", "h")
+    assert parse_local("linha de tendência") == ("tv_tool", "t")
+    assert parse_local("usa a linha de tendencia") == ("tv_tool", "t")
+    assert parse_local("linha vertical") == ("tv_tool", "v")
+    assert parse_local("linha cruz") == ("tv_tool", "c")
+    assert parse_local("fibonacci") == ("tv_tool", "f")
+    assert parse_local("linha") == ("tv_tool", "t")
+    assert parse_local("troca o grafico") == ("tv_tool", "s")
+    assert parse_local("muda de simbolo") == ("tv_tool", "s")
+    assert parse_local("trocar de ativo") == ("tv_tool", "s")
+
+
 def test_unknown_text_is_none():
     assert parse_local("xpto sem sentido nenhum") == (None, None)
 
@@ -80,6 +93,6 @@ def test_action_labels_cover_all_actions():
         ("scroll_up", None), ("scroll_down", None), ("exit", None),
         ("help", None), ("save", None), ("smooth_suave", None),
         ("smooth_normal", None), ("smooth_reactivo", None),
-        ("snap_toggle", None),
+        ("snap_toggle", None), ("tv_tool", None),
     ]:
         assert action in ACTION_LABELS, f"falta label: {action}"

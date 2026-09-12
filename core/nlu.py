@@ -25,7 +25,31 @@ ACTIONS = (
     "magnify_on",
     "magnify_off",
     "snap_toggle",
+    "tv_tool",
 )
+
+# Ferramentas do TradingView (modo trading master).
+# A ordem importa: específicos primeiro, "linha" sozinha cai no último.
+TV_TOOLS = {
+    "h": (r"linha\s+horizontal", r"\bhorizontal\b"),
+    "v": (r"linha\s+vertical", r"\bvertical\b"),
+    "c": (r"linha\s+cruz", r"\bcruz\b"),
+    "f": (r"\bfibonacci\b", r"\bfib\b"),
+    "s": (
+        r"troca\w*\s+(de\s+|o\s+)?(grafic|s[íi]mbolo|ativo)",
+        r"muda\s+(de\s+|o\s+)?(grafic|s[íi]mbolo|ativo)",
+    ),
+    "t": (r"linha\s+de\s+tendenc", r"\btendenc", r"\blinha\b"),
+}
+
+TV_LABELS = {
+    "t": "LINHA",
+    "h": "HORIZONTAL",
+    "v": "VERTICAL",
+    "c": "CRUZ",
+    "f": "FIBONACCI",
+    "s": "TROCAR GRAFICO",
+}
 
 _PATTERNS = (
     ("right_click", (r"clique?\s+direito", r"clica?\s+direito", r"botao\s+direito")),
@@ -112,6 +136,10 @@ def parse_local(text):
     t = text.lower().strip()
     if not t:
         return None, None
+    for key, pats in TV_TOOLS.items():
+        for pat in pats:
+            if re.search(pat, t):
+                return "tv_tool", key
     for action, patterns in _PATTERNS:
         for pat in patterns:
             if re.search(pat, t):
@@ -188,4 +216,5 @@ ACTION_LABELS = {
     "magnify_on": "LUPA ON",
     "magnify_off": "LUPA OFF",
     "snap_toggle": "SNAP",
+    "tv_tool": "TV FERRAMENTA",
 }
