@@ -650,7 +650,9 @@ def _bundle_font_families(qss):
     out = out.replace(mark + "con" + mark, "'JetBrains Mono', 'Consolas'")
     out = out.replace("'Segoe UI Variable Display', 'Segoe UI'", mark + "disp" + mark)
     out = out.replace("'Segoe UI'", mark + "body" + mark)
-    out = out.replace(mark + "disp" + mark, "'Space Grotesk', 'Segoe UI Variable Display', 'Segoe UI'")
+    out = out.replace(
+        mark + "disp" + mark, "'Space Grotesk', 'Segoe UI Variable Display', 'Segoe UI'"
+    )
     out = out.replace(mark + "body" + mark, "'Inter', 'Segoe UI'")
     return out
 

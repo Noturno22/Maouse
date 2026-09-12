@@ -1,4 +1,5 @@
 import os
+
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from ui import main_window, menu_panel

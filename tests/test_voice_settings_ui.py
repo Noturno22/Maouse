@@ -1,11 +1,12 @@
 import os
+
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import pytest
-from PySide6.QtWidgets import QApplication, QDialog, QWidget
+from PySide6.QtWidgets import QApplication
 
-import core.audio_devices as ad
 import config
+import core.audio_devices as ad
 import ui.settings_dlg as sd
 from core.licensing import Tier
 
