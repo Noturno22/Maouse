@@ -487,7 +487,13 @@ class MainWindow(QMainWindow):
 
     def _toggle_trading_master(self, checked):
         """Ativa/desativa o Modo Trading Master: liga o controlo remoto por
-        telemóvel (comandar o PC de trading) e guarda a preferência."""
+        telemóvel (comandar o PC de trading) e guarda a preferência.
+
+        Só assinantes Pro: no FREE o gate bloqueia e mostra o aviso."""
+        if self._view_license_locked("trading_master"):
+            self._tv_btn.set_on(False)
+            self._flash_locked("TRADING MASTER é PRO — UPGRADE PRO")
+            return
         self._cfg.remote_enabled = bool(checked)
         self._apply_remote_config()
         if checked and not (self._remote and self._remote.is_running):
