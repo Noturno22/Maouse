@@ -1,12 +1,11 @@
 """Páginas /admin/* (Jinja2) do painel administrativo."""
 import os
 
+import admin_storage
+from admin_auth import COOKIE_NAME, make_session, verify_password, verify_session
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
-
-import admin_storage
-from admin_auth import COOKIE_NAME, make_session, verify_password, verify_session
 
 router = APIRouter()
 

@@ -4,7 +4,6 @@ Estrutura de recursos replicada do design: cada recurso tem uma tabela nova,
 colunas editáveis e estados livres (texto curto). Valores monetários guardados
 como texto + coluna de moeda (sem câmbio no servidor).
 """
-from storage import connect, init_db
 
 RESOURCES: dict[str, dict] = {
     "socios": {
@@ -49,13 +48,47 @@ _ADMIN_TABLES: dict[str, str] = {
 def init_admin_tables(conn) -> None:
     """Cria as tabelas administrativas (idempotente). Chamar a seguir a init_db."""
     _DDL = {
-        "socios": f"CREATE TABLE IF NOT EXISTS socios (" f"{_COMMON_COLS}," " nome TEXT, papel TEXT, participacao TEXT, capital_investido TEXT, capital_moeda TEXT, estado TEXT, email TEXT, notas TEXT);",
-        "investidores": f"CREATE TABLE IF NOT EXISTS investidores (" f"{_COMMON_COLS}," " nome TEXT, local TEXT, valor TEXT, moeda TEXT, equity TEXT, acordo TEXT, fase TEXT, estado TEXT, data_contacto TEXT, notas TEXT);",
-        "funcionarios": f"CREATE TABLE IF NOT EXISTS funcionarios (" f"{_COMMON_COLS}," " nome TEXT, funcao TEXT, tipo TEXT, regime TEXT, estado TEXT, salario TEXT, notas TEXT);",
-        "fases": f"CREATE TABLE IF NOT EXISTS fases (" f"{_COMMON_COLS}," " nome TEXT, fase TEXT, estado TEXT, data_inicio TEXT, data_fim TEXT, notas TEXT);",
-        "marcos": f"CREATE TABLE IF NOT EXISTS marcos (" f"{_COMMON_COLS}," " data TEXT, titulo TEXT, tipo TEXT, descricao TEXT);",
-        "metas": f"CREATE TABLE IF NOT EXISTS metas (" f"{_COMMON_COLS}," " titulo TEXT, descricao TEXT, valor TEXT, moeda TEXT, prazo TEXT, estado TEXT, prioridade TEXT);",
-        "movimentos_caixa": f"CREATE TABLE IF NOT EXISTS movimentos_caixa (" f"{_COMMON_COLS}," " data TEXT, tipo TEXT, descricao TEXT, valor TEXT, moeda TEXT, categoria TEXT);",
+        "socios": (
+            "CREATE TABLE IF NOT EXISTS socios ("
+            f"{_COMMON_COLS},"
+            " nome TEXT, papel TEXT, participacao TEXT, capital_investido TEXT,"
+            " capital_moeda TEXT, estado TEXT, email TEXT, notas TEXT);"
+        ),
+        "investidores": (
+            "CREATE TABLE IF NOT EXISTS investidores ("
+            f"{_COMMON_COLS},"
+            " nome TEXT, local TEXT, valor TEXT, moeda TEXT, equity TEXT,"
+            " acordo TEXT, fase TEXT, estado TEXT, data_contacto TEXT, notas TEXT);"
+        ),
+        "funcionarios": (
+            "CREATE TABLE IF NOT EXISTS funcionarios ("
+            f"{_COMMON_COLS},"
+            " nome TEXT, funcao TEXT, tipo TEXT, regime TEXT, estado TEXT,"
+            " salario TEXT, notas TEXT);"
+        ),
+        "fases": (
+            "CREATE TABLE IF NOT EXISTS fases ("
+            f"{_COMMON_COLS},"
+            " nome TEXT, fase TEXT, estado TEXT, data_inicio TEXT, data_fim TEXT,"
+            " notas TEXT);"
+        ),
+        "marcos": (
+            "CREATE TABLE IF NOT EXISTS marcos ("
+            f"{_COMMON_COLS},"
+            " data TEXT, titulo TEXT, tipo TEXT, descricao TEXT);"
+        ),
+        "metas": (
+            "CREATE TABLE IF NOT EXISTS metas ("
+            f"{_COMMON_COLS},"
+            " titulo TEXT, descricao TEXT, valor TEXT, moeda TEXT,"
+            " prazo TEXT, estado TEXT, prioridade TEXT);"
+        ),
+        "movimentos_caixa": (
+            "CREATE TABLE IF NOT EXISTS movimentos_caixa ("
+            f"{_COMMON_COLS},"
+            " data TEXT, tipo TEXT, descricao TEXT, valor TEXT, moeda TEXT,"
+            " categoria TEXT);"
+        ),
         "chat": "CREATE TABLE IF NOT EXISTS chat ("
                 "id INTEGER PRIMARY KEY AUTOINCREMENT,"
                 "autor TEXT NOT NULL, mensagem TEXT NOT NULL, created_at INTEGER NOT NULL);",

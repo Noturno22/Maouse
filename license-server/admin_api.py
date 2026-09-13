@@ -3,13 +3,10 @@
 CRUD genérico para os recursos de RESOURCES, chat, dashboard e envio de email
 aos sócios (reutiliza send_generic_email).
 """
-import os
-
-from fastapi import APIRouter, Depends, HTTPException, Request
-
 import admin_storage
 from admin_auth import require_admin
 from emailer import send_generic_email
+from fastapi import APIRouter, Depends, HTTPException
 from storage import connect, init_db
 
 router = APIRouter(prefix="/api/admin", dependencies=[Depends(require_admin)])

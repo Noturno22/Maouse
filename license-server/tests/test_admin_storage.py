@@ -66,7 +66,7 @@ def test_all_resources_have_common_id_column(tmp_path):
 def test_chat_add_and_after(tmp_path):
     conn = _db(tmp_path)
     id1 = admin_storage.add_chat(conn, "fundador", "primeira")
-    id2 = admin_storage.add_chat(conn, "fundador", "segunda")
+    admin_storage.add_chat(conn, "fundador", "segunda")
     after = admin_storage.chat_after(conn, after_id=id1)
     assert [m["mensagem"] for m in after] == ["segunda"]
 
