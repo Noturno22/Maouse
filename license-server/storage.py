@@ -63,6 +63,9 @@ def init_db(conn: sqlite3.Connection) -> None:
         );
         """
     )
+    # tabelas administrativas (painel web)
+    from admin_storage import init_admin_tables
+    init_admin_tables(conn)
     cur = conn.execute("SELECT v FROM config WHERE k='revocation_nonce'")
     if cur.fetchone() is None:
         conn.execute("INSERT INTO config(k,v) VALUES('revocation_nonce','0')")
