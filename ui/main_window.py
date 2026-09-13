@@ -22,6 +22,7 @@ from ui.camera_view import CameraView
 from ui.gesture_badge import GestureBadge
 from ui.help_panel import HelpPanel
 from ui.menu_panel import MenuPanel
+from ui.pause_toggle import PauseToggle
 from ui.status_indicators import StatusBadges
 from ui.theme import (
     FONT_MONO,
@@ -151,6 +152,9 @@ class MainWindow(QMainWindow):
         self._tv_btn.toggled.connect(self._toggle_trading_master)
         self._sync_tv_button()
 
+        self._pause_toggle = PauseToggle(central)
+        self._pause_toggle.clicked.connect(self._toggle_pause)
+
         self._status_bar = QLabel(central)
         self._status_bar.setObjectName("StatusBar")
         self._status_bar.setFont(FONT_STATUS)
@@ -164,6 +168,7 @@ class MainWindow(QMainWindow):
 
         self._build_menu()
         self._build_shortcuts()
+        self._layout_pause_toggle()
 
     def _apply_rounded_mask(self):
         """Recorta a janela frameless em cantos arredondados (vê-se o fundo)."""
@@ -232,7 +237,6 @@ class MainWindow(QMainWindow):
     def _build_menu(self):
         """Painel lateral de marca com botões agrupados (topo-direito)."""
         m = self._menu
-        m.btn_pause.clicked.connect(self._toggle_pause)
         m.btn_voice.toggled.connect(self._toggle_voice)
         m.btn_snap.toggled.connect(self._toggle_snap)
         m.btn_camera.toggled.connect(self._toggle_camera)
@@ -241,7 +245,7 @@ class MainWindow(QMainWindow):
         m.btn_quit.clicked.connect(self.close)
         m.btn_upgrade.clicked.connect(self._open_license)
         self._menu_buttons = [
-            m.btn_pause, m.btn_voice, m.btn_snap,
+            m.btn_voice, m.btn_snap,
             m.btn_camera, m.btn_help, m.btn_config, m.btn_quit,
         ]
 
@@ -318,7 +322,7 @@ class MainWindow(QMainWindow):
     def _update_paused_state(self, paused):
         """Reflete o estado pausa/retoma no botão (ON/OFF) e no logo de fundo."""
         self._paused = paused
-        self._menu.btn_pause.set_key("btn.off" if paused else "btn.on")
+        self._pause_toggle.set_paused(paused)
         self._load_bg_image()
 
     def _view_license_locked(self, feature: str) -> bool:
@@ -373,7 +377,7 @@ class MainWindow(QMainWindow):
         self._toast.show_toast("CÂMARA ON" if checked else "CÂMARA OFF")
 
     def _sync_toolbar(self):
-        self._menu.btn_pause.set_key("btn.off" if self._paused else "btn.on")
+        self._pause_toggle.set_paused(self._paused)
         self._menu_checkable(
             self._menu.btn_voice, bool(self._voice) and self._voice.status not in ("off", "error"),
         )
@@ -548,6 +552,7 @@ class MainWindow(QMainWindow):
         w, h = self.width(), self.height()
         self._layout_camera()
         self._fit_bg(w, h)
+        self._layout_pause_toggle()
         self._status.move(w - 310, 10)
         self._status.resize(300, 28)
         self._status_bar.setGeometry(0, h - 22, w, 22)
@@ -563,6 +568,14 @@ class MainWindow(QMainWindow):
 
         tby = h - 22 - self._tv_btn.height() - 10
         self._tv_btn.move(12, tby)
+
+    def _layout_pause_toggle(self):
+        pt = self._pause_toggle
+        bg = self._bg.geometry()
+        if bg.width() <= 0 or bg.height() <= 0:
+            pt.move((self.width() - pt.width()) // 2, self.height() - pt.height() - 24)
+            return
+        pt.move(bg.center().x() - pt.width() // 2, bg.bottom() + 24)
 
     def _layout_camera(self):
         """Posiciona o preview da câmara como um painel centrado (não o fundo),

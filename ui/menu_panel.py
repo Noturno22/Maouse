@@ -129,10 +129,9 @@ class MenuPanel(QWidget):
         root.addWidget(self._section1)
         root.addSpacing(6)
 
-        self.btn_pause = MenuButton("btn.on", "menu-pause", checkable=False)
         self.btn_voice = MenuButton("btn.voice", "menu-voice", checkable=True)
         self.btn_snap = MenuButton("btn.snap", "menu-snap", checkable=True)
-        for btn in (self.btn_pause, self.btn_voice, self.btn_snap):
+        for btn in (self.btn_voice, self.btn_snap):
             btn.setFixedHeight(34)
             root.addWidget(btn)
             root.addSpacing(6)
