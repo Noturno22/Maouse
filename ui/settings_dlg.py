@@ -59,6 +59,7 @@ class SettingsDialog(QDialog):
         self._cfg = cfg
         self._smooth_name = smooth_name
         self._tier = license_mgr.tier if license_mgr is not None else Tier.FREE
+        self._license_mgr = license_mgr
         self.setWindowTitle("Definições — Mãouse")
         self.setObjectName("SettingsDialog")
         self.setStyleSheet(MAIN_STYLESHEET)
@@ -419,15 +420,19 @@ class SettingsDialog(QDialog):
         sub = QLabel(
             "Botão de TV no ecrã principal para ativar o modo dedicado a"
             " trading (abre o TradingView + comando remoto pelo telemóvel)."
+            " Exclusivo para assinantes Pro."
         )
         sub.setObjectName("HeroSubtitle")
         sub.setWordWrap(True)
         pl.addWidget(sub)
 
         tm, tml = _group("Modo Trading Master", None)
-        self._tv_btn_ch = QCheckBox("Mostrar o botão 'Modo Trading Master' no ecrã principal")
-        self._tv_btn_ch.setChecked(self._cfg.tv_button_enabled)
-        tml.addWidget(self._tv_btn_ch)
+        self._tv_btn_ch, tv_lay = self._pro_checkbox(
+            "trading_master",
+            "Mostrar o botão 'Modo Trading Master' no ecrã principal",
+            self._cfg.tv_button_enabled,
+        )
+        tml.addLayout(tv_lay)
         tv_hint = QLabel(
             "Atalhos de voz -> teclado do TradingView, um por linha no"
             " formato 'chave = combo' (ex: h = alt+h, s = ctrl+k)."
@@ -437,6 +442,25 @@ class SettingsDialog(QDialog):
         tv_hint.setObjectName("MicHint")
         tv_hint.setWordWrap(True)
         tml.addWidget(tv_hint)
+        self._tv_master_locked = is_pro_locked(self._tier, "trading_master")
+        if self._tv_master_locked:
+            buy_lay = QHBoxLayout()
+            buy_hint = QLabel(
+                "Trading Master é um produto pago (€149,90) — o modo abre o"
+                " TradingView e ativa o controlo remoto por telemóvel."
+            )
+            buy_hint.setObjectName("MicHint")
+            buy_hint.setWordWrap(True)
+            buy_lay.addWidget(buy_hint, 1)
+            self._tv_buy_btn = QPushButton("SUBSCREVER TRADING MASTER (€149,90)")
+            self._tv_buy_btn.setObjectName("ProCta")
+            self._tv_buy_btn.setCursor(Qt.PointingHandCursor)
+            self._tv_buy_btn.clicked.connect(self._buy_trading_master)
+            buy_lay.addWidget(self._tv_buy_btn)
+            tml.addLayout(buy_lay)
+        else:
+            self._tv_buy_btn = None
+        tv_hint.setEnabled(not self._tv_master_locked)
         self._tv_combos_edit = QPlainTextEdit()
         self._tv_combos_edit.setObjectName("KeyField")
         self._tv_combos_edit.setFont(FONT_MONO)
@@ -445,6 +469,7 @@ class SettingsDialog(QDialog):
             "\n".join(f"{k} = {v}" for k, v in self._cfg.tv_tool_combos.items())
         )
         tml.addWidget(self._tv_combos_edit)
+        self._tv_combos_edit.setEnabled(not self._tv_master_locked)
         pl.addWidget(tm)
         pl.addStretch()
         self._stack.addWidget(panel)
@@ -456,6 +481,12 @@ class SettingsDialog(QDialog):
         self._cfg.remote_token = generate_token()
         self._remote_token_edit.setText(self._cfg.remote_token)
         self._refresh_remote_info()
+
+    def _buy_trading_master(self):
+        from ui.license_dlg import PADDLE_VENDOR_ID
+
+        if self._license_mgr is not None:
+            self._license_mgr.open_checkout("trading_master", PADDLE_VENDOR_ID)
 
     def _refresh_remote_info(self):
         from core.remote import generate_token, lan_ips
