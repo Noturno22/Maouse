@@ -4,10 +4,9 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from fastapi.testclient import TestClient
-
 from admin_auth import COOKIE_NAME, make_session
 from app import create_app
+from fastapi.testclient import TestClient
 
 
 def test_login_page_200():
@@ -45,3 +44,12 @@ def test_login_bad_password_no_cookie():
                        follow_redirects=False)
     assert resp.status_code == 200
     assert COOKIE_NAME not in resp.headers.get("set-cookie", "")
+
+
+def test_all_admin_pages_200_with_session():
+    client = TestClient(create_app())
+    client.cookies.set(COOKIE_NAME, make_session())
+    for path in ("/admin", "/admin/socios", "/admin/investidores",
+                 "/admin/funcionarios", "/admin/fases", "/admin/marcos",
+                 "/admin/metas", "/admin/caixa", "/admin/chat", "/admin/emails"):
+        assert client.get(path).status_code == 200, path

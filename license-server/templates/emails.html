@@ -1,5 +1,19 @@
 {% extends "_base.html" %}
 {% block content %}
-<h1>Emails</h1>
-<p class="muted">Placeholder — histórico de emails enviados pela API /api/admin/emails.</p>
+<h1>Enviar email aos sócios</h1>
+<div class="panel">
+  <form id="email-form">
+    <div class="row"><label>Destinatários (sócios)</label><div id="socios-list"></div></div>
+    <div class="row"><label>Assunto</label><input name="assunto" required></div>
+    <div class="row"><label>Corpo</label><textarea name="corpo" required></textarea></div>
+    <button type="submit">Enviar</button>
+    <p id="email-result" class="muted"></p>
+  </form>
+</div>
+<h1>Histórico</h1>
+<div class="panel"><table id="emails-history">
+  <thead><tr><th>Para</th><th>Assunto</th><th>Estado</th><th>Erro</th></tr></thead>
+  <tbody></tbody>
+</table></div>
+<script src="/admin_static/emails.js"></script>
 {% endblock %}
