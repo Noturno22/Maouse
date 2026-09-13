@@ -10,7 +10,7 @@ RESOURCES: dict[str, dict] = {
     "socios": {
         "cols": [
             "nome", "papel", "participacao", "capital_investido", "capital_moeda",
-            "estado", "notas",
+            "estado", "email", "notas",
         ],
     },
     "investidores": {
@@ -49,7 +49,7 @@ _ADMIN_TABLES: dict[str, str] = {
 def init_admin_tables(conn) -> None:
     """Cria as tabelas administrativas (idempotente). Chamar a seguir a init_db."""
     _DDL = {
-        "socios": f"CREATE TABLE IF NOT EXISTS socios (" f"{_COMMON_COLS}," " nome TEXT, papel TEXT, participacao TEXT, capital_investido TEXT, capital_moeda TEXT, estado TEXT, notas TEXT);",
+        "socios": f"CREATE TABLE IF NOT EXISTS socios (" f"{_COMMON_COLS}," " nome TEXT, papel TEXT, participacao TEXT, capital_investido TEXT, capital_moeda TEXT, estado TEXT, email TEXT, notas TEXT);",
         "investidores": f"CREATE TABLE IF NOT EXISTS investidores (" f"{_COMMON_COLS}," " nome TEXT, local TEXT, valor TEXT, moeda TEXT, equity TEXT, acordo TEXT, fase TEXT, estado TEXT, data_contacto TEXT, notas TEXT);",
         "funcionarios": f"CREATE TABLE IF NOT EXISTS funcionarios (" f"{_COMMON_COLS}," " nome TEXT, funcao TEXT, tipo TEXT, regime TEXT, estado TEXT, salario TEXT, notas TEXT);",
         "fases": f"CREATE TABLE IF NOT EXISTS fases (" f"{_COMMON_COLS}," " nome TEXT, fase TEXT, estado TEXT, data_inicio TEXT, data_fim TEXT, notas TEXT);",

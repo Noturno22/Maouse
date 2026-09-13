@@ -12,6 +12,8 @@ import os
 import secrets
 import time
 
+from fastapi import Request
+
 COOKIE_NAME = "maouse_admin"
 MAX_AGE = 7 * 24 * 3600
 _DEV_SECRET = "dev-session-secret"
@@ -62,7 +64,7 @@ def verify_password(password: str) -> bool:
     return hmac.compare_digest(password, expected)
 
 
-def require_admin(request) -> None:
+def require_admin(request: Request) -> None:
     """Dependency FastAPI: rejeita com 401 se a sessão não for válida."""
     from fastapi import HTTPException
     cookie = request.cookies.get(COOKIE_NAME, "")

@@ -199,6 +199,10 @@ def create_app() -> FastAPI:
         send_key_email(info["email"], key)
         return {"ok": True, "handled": True, "key": key, "email": info["email"]}
 
+    # Painel administrativo (API)
+    from admin_api import router as admin_api_router
+    app.include_router(admin_api_router)
+
     return app
 
 
