@@ -8,7 +8,11 @@ async function pollNow() {
     (data.messages || []).forEach(m => {
       const div = document.createElement("div");
       div.className = "msg";
-      div.innerHTML = `<div class="meta">${new Date(m.created_at * 1000).toLocaleString()}</div>${m.mensagem}</div>`;
+      const meta = document.createElement("div");
+      meta.className = "meta";
+      meta.textContent = `${m.autor || "fundador"} · ${new Date(m.created_at * 1000).toLocaleString()}`;
+      div.appendChild(meta);
+      div.appendChild(document.createTextNode(m.mensagem));
       box.appendChild(div);
       afterId = m.id;
     });

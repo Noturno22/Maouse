@@ -85,7 +85,12 @@ def emails_list(db=Depends(get_db)):
 
 @router.post("/emails/send", operation_id="emails_send", response_model=dict)
 def emails_send(payload: dict, db=Depends(get_db)):
-    socio_ids = [int(i) for i in payload.get("socio_ids", [])]
+    socio_ids = []
+    for i in payload.get("socio_ids", []):
+        try:
+            socio_ids.append(int(i))
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="id_invalido") from None
     assunto = str(payload.get("assunto", "")).strip()
     corpo = str(payload.get("corpo", "")).strip()
     if not assunto or not corpo:
@@ -94,6 +99,7 @@ def emails_send(payload: dict, db=Depends(get_db)):
     for sid in socio_ids:
         socio = admin_storage.get_row(db, "socios", sid)
         if socio is None:
+            failed.append({"id": sid, "erro": "nao_encontrado"})
             continue
         email = (socio.get("email") or "").strip()
         if not email:

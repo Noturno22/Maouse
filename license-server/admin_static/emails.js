@@ -3,7 +3,7 @@ async function loadSocios() {
   const data = await r.json();
   document.getElementById("socios-list").innerHTML = (data.items || [])
     .map(s => `<label style="display:flex;align-items:center;gap:6px">
-      <input type="checkbox" value="${s.id}"> ${s.nome}${s.email ? ` — ${s.email}` : ""}</label>`)
+      <input type="checkbox" value="${s.id}"> ${esc(s.nome)}${s.email ? ` — ${esc(s.email)}` : ""}</label>`)
     .join("") || '<span class="muted">Sem sócios registados.</span>';
 }
 
@@ -27,8 +27,13 @@ async function loadHistory() {
   const r = await fetch("/api/admin/emails");
   const data = await r.json();
   document.querySelector("#emails-history tbody").innerHTML = (data.items || [])
-    .map(m => `<tr><td>${m.para}</td><td>${m.assunto}</td><td>${m.estado}</td>
-      <td>${m.erro || ""}</td></tr>`).join("");
+    .map(m => `<tr><td>${esc(m.para)}</td><td>${esc(m.assunto)}</td><td>${esc(m.estado)}</td>
+      <td>${esc(m.erro) || ""}</td></tr>`).join("");
+}
+
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
 loadSocios();
