@@ -31,6 +31,13 @@ def test_is_pro_locked():
     assert not lic.is_pro_locked(lic.Tier.PRO, "snap")
 
 
+def test_trading_master_is_pro_locked():
+    assert "trading_master" in lic.PRO_LOCKED
+    assert lic.is_pro_locked(lic.Tier.FREE, "trading_master")
+    assert not lic.is_pro_locked(lic.Tier.PRO, "trading_master")
+    assert lic.entitlements(lic.Tier.PRO)["trading_master"]
+
+
 def test_trial_blocks_when_exhausted(tmp_path):
     store = tmp_path / "lic.json"
     lm = lic.LicenseManager(store_path=str(store), trial_seconds=30 * 60)
