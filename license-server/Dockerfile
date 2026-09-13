@@ -13,7 +13,7 @@ WORKDIR /app
 COPY license-server/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
-COPY license-server/*.py /app/
+COPY license-server /app
 
 # Cria um volume para a base de dados SQLite persistente.
 # O Render monta um disco neste caminho se AIRMOUSE_LS_DB apontar para cá.

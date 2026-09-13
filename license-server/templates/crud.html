@@ -1,0 +1,16 @@
+{% extends "_base.html" %}
+{% block content %}
+<h1>{{ title }}</h1>
+<div class="panel">
+  <table>
+    <thead>
+      <tr>{% for f in fields %}<th>{{ f }}</th>{% endfor %}</tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td colspan="{{ fields|length }}" class="muted">Sem registos — o CRUD chega pela API /api/admin/{{ resource }}.</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+{% endblock %}
