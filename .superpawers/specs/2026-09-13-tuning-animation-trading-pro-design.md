@@ -3,7 +3,9 @@
 **Data:** 2026-09-13
 **Branch:** `feature/tuning-animation-trading-pro`
 **Tipo:** Feature (UI + licenciamento)
-**Estado:** Design aprovado pelo utilizador (2026-09-13).
+**Estado:** Design aprovado pelo utilizador (2026-09-13, revisão com Task 8).
+**Rev. 2 (2026-09-13):** Pause ON/OFF deixa o menu lateral → botão circular no
+centro-inferior (por baixo do logo), com animação on/off (Task 8).
 
 ## 1. Contexto e problema
 
@@ -21,6 +23,13 @@ livremente. O painel Trading em `ui/settings_dlg.py` não mostra badge/limite
 nem dá caminho de compra. O produto existe na grelha (`_PRODUCTS`, €149,90) e no
 checkout (`open_checkout("trading_master")`), mas é **só para assinantes pagos**.
 
+### 1.3 Pause no menu lateral
+O botão ON/OFF de pausa vive no `MenuPanel` (`ui/menu_panel.py::btn_pause`) como
+mais um botão de lista, sem destaque. Entregou-se "botão" mas não a sensação de
+interruptor principal: o comando central (parar/retomar o rato) está escondido
+numa lista lateral. Deve passar a interruptor circular no centro da janela,
+**por baixo da imagem de fundo central**. A tecla `Espaço` continua a alternar.
+
 ## 2. Objetivo
 
 1. **Animar os sliders atuais** (só painel Cursor; sem painel novo) com:
@@ -28,6 +37,8 @@ checkout (`open_checkout("trading_master")`), mas é **só para assinantes pagos
    - **brilho** — acende ao ajustar, mantém-se vivo enquanto arrastas e esfumaça ao largar.
 2. **Gating Trading Master para pagos**, em profundidade: core, UI de Definições,
    janela principal e arranque, mais testes.
+3. **Pause ON/OFF como interruptor principal**: sair do menu lateral e passar a
+   botão circular moderno por baixo do logo central, com animação on/off.
 
 Sem alterar comportamento dos outros painéis nem a API de `_save`/`_reset_defaults`.
 
@@ -122,22 +133,58 @@ class TuneSlider(QFrame):
   ```
 - Redação só em runtime (não reescreve `settings.json`), padrão já usado.
 
-## 5. Testes
+## 5. Parte 3 — Pause ON/OFF circular (Task 8)
+
+Novo módulo `ui/pause_toggle.py`, auto-contido e testável.
+
+### 5.1 API
+```python
+class PauseToggle(QPushButton):
+    def __init__(self, parent=None, size=52): ...
+    def set_paused(self, paused: bool)   # ON quando not paused
+```
+
+### 5.2 Aspeto e animação
+- Círculo moderno e simples (~52 px) com dois estados visuais:
+  - **ON** (a correr): preenchido com `ACCENT`, texto `ON` (reusa `tr("btn.on")`),
+    glow a respirar (`breathe_glow` com `ACCENT_GLOW`), fontes/arredondado do tema.
+  - **OFF** (pausado): contorno escuro do tema, texto `OFF` (reusa `tr("btn.off")`),
+    sem glow.
+- Ao trocar de estado (clique ou `set_paused`): animação curta de escala/pulso
+  (~150 ms, `OutCubic`) — o círculo respira no momento do toggle.
+- `set_paused(paused)`: atualiza texto/estilo/glow; pode ser chamado em qualquer
+  altura (sincronização do motor, tecla `Espaço`, tray).
+
+### 5.3 Integração em `ui/main_window.py`
+- Remover `btn_pause` do `MenuPanel` (`ui/menu_panel.py:132`, `:135-138`) e todas
+  as referências em `main_window.py`: connect (`:235`), lista `_menu_checkable`
+  (`:244`) e `set_key` (`:321` e `:376`).
+- Criar `self._pause_toggle = PauseToggle(central)`; `clicked` → `_toggle_pause`.
+- Posição: **centro-inferior** (centrado em X, afastado ~24 px do fundo) sobre o
+  central, abaixo do logo/background; recalculada em `resizeEvent`.
+- `_update_paused_state` e `_sync_toolbar` passam a atualizar
+  `self._pause_toggle.set_paused(paused)`.
+- A tecla `Espaço` e o tray mantêm `_toggle_pause` (inalterados).
+
+## 6. Testes
 
 | Ficheiro | O quê |
 |---|---|
 | `tests/test_tune_slider.py` (novo) | API (`value`/`setValue`/`setRange`); tween termina no valor formatado correto (com `tween_ms` pequeno + loop `app.processEvents`); novo `setValue` durante tween não salta; glow aplicado após `setValue` (tem `QGraphicsDropShadowEffect`); press→release aplica/faz fade (efeito presente). |
 | `tests/test_settings_trading_pro.py` (novo) | Dialogs FREE vs PRO: FREE → checkbox desativado com `[PRO]` no texto e botão de subscrição presente; PRO → checkbox ativo, editor ativo, sem botão de venda. |
 | `tests/test_licensing.py` | Novo assert: `PRO_LOCKED` contém `trading_master`; `is_pro_locked(FREE, trading_master)` verdadeiro. |
+| `tests/test_pause_toggle.py` (novo) | `set_paused(False)` mostra texto "ON" e tem `QGraphicsDropShadowEffect` ativo (glow); `set_paused(True)` mostra "OFF" e efeito sem glow; clique alterna (toggle chama `_toggle_pause` via sinal). |
 
 Fixture das UI: `QApplication` offscreen (padrão de `tests/test_license_dialog_free_ui.py`);
 cfg de teste com tier do licenciamento falso. Não tocar em `settings.json`/store reais.
 Verificação local obrigatória: suite completa com venv, 0 falhas.
 
-## 6. Fora de âmbito / notas
+## 7. Fora de âmbito / notas
 
 - Não se altera a grelha de produtos nem o flow de checkout existente
   (vendor real continua `TODO(producao)` — mantém o `PADDLE_VENDOR_ID`/URL atual).
 - Não se cria painel/slider novo para autotune nem preview de vídeo.
 - `_slider_block` removido; `temp_baseline_ref.py` (untracked, baseline) fica fora
   dos commits.
+- O botão ON/OFF abandonado no menu (recurso antigo `btn.on`/`btn.off` mantém-se
+  nas traduções; sem limpeza das chaves neste trabalho).

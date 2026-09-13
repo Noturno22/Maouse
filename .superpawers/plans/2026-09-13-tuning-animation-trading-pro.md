@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpawers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Animar os sliders do painel Cursor das Definições (contador + brilho) e tornar o Modo Trading Master exclusivo de assinantes pagos (PRO), com gate em profundidade.
+**Goal:** Animar os sliders do painel Cursor das Definições (contador + brilho), tornar o Modo Trading Master exclusivo de assinantes pagos (PRO), com gate em profundidade, e transformar o botão ON/OFF de pausa num interruptor circular no centro-inferior da janela (fora do menu), com animação on/off.
 
 **Architecture:** Um novo widget `ui/tune_slider.py` (`TuneSlider`) encapsula nome + valor animado + slider, com tween `QVariantAnimation` do número e glow via `QGraphicsDropShadowEffect`; substitui `_slider_block` nos 3 sliders. O gate do Trading usa o mecanismo existente `PRO_LOCKED`/`is_pro_locked` (pago = `Tier.PRO`), aplicado em UI, janela principal e arranque.
 
@@ -39,16 +39,19 @@
 ## File Structure
 
 - **Create:** `ui/tune_slider.py` — widget `TuneSlider` (nome, valor animado, slider, glow).
+- **Create:** `ui/pause_toggle.py` — widget circular ON/OFF (`PauseToggle`) com animação.
 - **Modify:** `ui/settings_dlg.py` — usar `TuneSlider` no painel Cursor; painel Trading com gate PRO + botão de subscrição; guardar `_license_mgr`.
 - **Modify:** `core/licensing.py` — `PRO_LOCKED` ganha `trading_master`.
-- **Modify:** `ui/main_window.py` — gate no topo de `_toggle_trading_master`.
+- **Modify:** `ui/main_window.py` — gate no topo de `_toggle_trading_master`; remover `btn_pause` do menu e usar `PauseToggle` no centro-inferior.
+- **Modify:** `ui/menu_panel.py` — remover `btn_pause` (e loop associado).
 - **Modify:** `main.py` — redação de `trading_master_enabled`/`tv_button_enabled` no arranque.
 - **Create test:** `tests/test_tune_slider.py`.
 - **Create test:** `tests/test_settings_cursor_sliders.py`.
 - **Create test:** `tests/test_settings_trading_pro.py`.
+- **Create test:** `tests/test_pause_toggle.py`.
 - **Modify test:** `tests/test_licensing.py` — `trading_master` em `PRO_LOCKED`.
 
-Ordem de tarefas (TDD, commits frequentes): T1 widget → T2 integrar Definições → T3 licensing → T4 painel Trading → T5 janela principal → T6 arranque → T7 suite.
+Ordem de tarefas (TDD, commits frequentes): T1 widget → T2 integrar Definições → T3 licensing → T4 painel Trading → T5 janela principal → T6 arranque → T7 suite → T8 pause ON/OFF circular.
 
 ---
 
@@ -809,3 +812,262 @@ Expected: no findings.
 - Definições → Trading com conta FREE: checkbox `[PRO]` desativado, editor desativado, botão "SUBSCREVER TRADING MASTER".
 - Tecla `T` em conta FREE: flash vermelho "TRADING MASTER é PRO — UPGRADE PRO", botão TV fica OFF.
 - Com conta PRO: tudo ativo.
+
+---
+
+### Task 8: Pause ON/OFF circular (fora do menu)
+
+**Files:**
+- Create: `ui/pause_toggle.py`
+- Modify: `ui/menu_panel.py` — remover `btn_pause`
+- Modify: `ui/main_window.py` — remover referências a `btn_pause`; criar `PauseToggle` no centro-inferior
+- Test: `tests/test_pause_toggle.py`
+
+- [ ] **Step 1: Escrever o teste que falha**
+
+Criar `tests/test_pause_toggle.py` (padrão offscreen do repo):
+
+```python
+import os
+import time
+
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+import pytest
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QApplication, QGraphicsDropShadowEffect
+
+from ui.pause_toggle import PauseToggle
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _qapp():
+    app = QApplication.instance() or QApplication([])
+    yield app
+
+
+def _drain(ms=500):
+    end = time.monotonic() + ms / 1000.0
+    while time.monotonic() < end:
+        QApplication.processEvents()
+        time.sleep(0.005)
+
+
+def test_default_state_is_on_with_glow():
+    pt = PauseToggle()
+    assert pt.is_paused() is False
+    assert "ON" in pt.text().upper()
+    eff = pt.graphicsEffect()
+    assert isinstance(eff, QGraphicsDropShadowEffect)
+    assert eff.color().alpha() > 0
+
+
+def test_set_paused_true_shows_off_no_glow():
+    pt = PauseToggle(glow_ms=30)
+    pt.set_paused(True)
+    _drain(400)
+    assert pt.is_paused() is True
+    assert "OFF" in pt.text().upper()
+    eff = pt.graphicsEffect()
+    assert isinstance(eff, QGraphicsDropShadowEffect)
+    assert eff.color().alpha() == 0
+
+
+def test_set_paused_false_restores_on():
+    pt = PauseToggle(glow_ms=30)
+    pt.set_paused(True)
+    _drain(400)
+    pt.set_paused(False)
+    _drain(400)
+    assert pt.is_paused() is False
+    assert "ON" in pt.text().upper()
+    assert pt.graphicsEffect().color().alpha() > 0
+
+
+def test_click_toggles_state():
+    pt = PauseToggle(glow_ms=30)
+    pt.click()
+    _drain(400)
+    assert pt.is_paused() is True
+    assert "OFF" in pt.text().upper()
+```
+
+- [ ] **Step 2: Correr o teste para o ver falhar**
+
+Run: `.\.venv\Scripts\python.exe -m pytest tests/test_pause_toggle.py -v`
+Expected: FAIL — `ModuleNotFoundError: No module named 'ui.pause_toggle'`.
+
+- [ ] **Step 3: Implementar o widget**
+
+Criar `ui/pause_toggle.py`:
+
+```python
+"""Interruptor circular ON/OFF (pausa) com animacao de estado.
+
+Substitui o botao de lista do menu lateral: um circulo moderno e simples,
+posicionado no centro-inferior por baixo do logo, que respira ao alternar
+ON -> OFF e acende (glow) enquanto esta ON.
+"""
+from PySide6.QtCore import QEasingCurve, Qt, QVariantAnimation
+from PySide6.QtGui import QColor
+from PySide6.QtWidgets import (
+    QGraphicsDropShadowEffect,
+    QPushButton,
+)
+
+from i18n import tr
+from ui.theme import ACCENT, ACCENT_GLOW, breathe_glow
+
+
+class PauseToggle(QPushButton):
+    """Circulo ON/OFF. ON = preenchido com accent + glow a respirar;
+    OFF = contorno escuro sem glow. ``clicked`` e emitido (como qualquer
+    QPushButton); a janela liga-o a ``_toggle_pause``.
+    """
+
+    def __init__(self, parent=None, size=52, glow_ms=450):
+        super().__init__(parent)
+        self._paused = False
+        self._glow_ms = glow_ms
+        self._size = size
+        self._breath = None
+        self.setObjectName("PauseToggle")
+        self.setFixedSize(size, size)
+        self.setCursor(Qt.PointingHandCursor)
+        self._configure_glow()
+        self._refresh()
+        self.clicked.connect(self._on_clicked)
+
+    def _on_clicked(self):
+        self.set_paused(not self._paused)
+        self._pulse()
+
+    def is_paused(self) -> bool:
+        return self._paused
+
+    def set_paused(self, paused: bool):
+        paused = bool(paused)
+        if paused == self._paused:
+            return
+        self._paused = paused
+        self._refresh()
+
+    def _refresh(self):
+        if self._breath is not None:
+            self._breath.stop()
+            self._breath = None
+        if not self._paused:
+            self.setText(tr("btn.on"))
+            self.setProperty("on", True)
+            self.setStyleSheet(self._on_style())
+            self._breath = breathe_glow(
+                self, ACCENT_GLOW, min_alpha=90, max_alpha=200,
+                min_blur=8, max_blur=20, ms=self._glow_ms,
+            )
+        else:
+            self.setText(tr("btn.off"))
+            self.setProperty("on", False)
+            self.setStyleSheet(self._off_style())
+            self._fade_glow()
+        self.style().unpolish(self)
+        self.style().polish(self)
+
+    def _on_style(self) -> str:
+        return (
+            f"QPushButton#PauseToggle {{ border: none;"
+            f" border-radius: {self._size // 2}px; background: {ACCENT.name()};"
+            f" color: #0c1016; font-family: 'Segoe UI Semibold'; font-size: 13px; }}"
+        )
+
+    def _off_style(self) -> str:
+        return (
+            f"QPushButton#PauseToggle {{ border: 2px solid {QColor('#8b96a5').name()};"
+            f" border-radius: {self._size // 2}px; background: {QColor('#1d2530').name()};"
+            f" color: {QColor('#aab4c2').name()}; font-family: 'Segoe UI Semibold';"
+            f" font-size: 13px; }}"
+        )
+
+    def _configure_glow(self):
+        eff = QGraphicsDropShadowEffect(self)
+        eff.setOffset(0, 0)
+        eff.setColor(QColor(0, 0, 0, 0))
+        eff.setBlurRadius(0)
+        self.setGraphicsEffect(eff)
+
+    def _fade_glow(self):
+        if self._breath is not None:
+            self._breath.stop()
+            self._breath = None
+        eff = self.graphicsEffect()
+        if eff is None:
+            self._configure_glow()
+            eff = self.graphicsEffect()
+        eff.setColor(QColor(0, 0, 0, 0))
+        eff.setBlurRadius(0)
+
+    def _pulse(self):
+        anim = QVariantAnimation(self)
+        anim.setStartValue(1.0)
+        anim.setEndValue(1.12)
+        anim.setDuration(140)
+        anim.setEasingCurve(QEasingCurve.OutCubic)
+        anim.valueChanged.connect(self._scale_to)
+        anim.finished.connect(self._reset_size)
+        anim.start()
+
+    def _scale_to(self, t):
+        self.setFixedSize(int(self._size * t), int(self._size * t))
+
+    def _reset_size(self):
+        self.setFixedSize(self._size, self._size)
+```
+
+Nota: `tr("btn.on")`/`tr("btn.off")` mantêm as chaves de tradução já existentes;
+`ACCENT`/`ACCENT_GLOW`/`breathe_glow` vêm de `ui/theme.py`.
+```
+
+- [ ] **Step 4: Correr o teste para o ver passar**
+
+Run: `.\.venv\Scripts\python.exe -m pytest tests/test_pause_toggle.py -v`
+Expected: PASS (4 tests).
+
+- [ ] **Step 5: Remover `btn_pause` do menu lateral**
+
+Em `ui/menu_panel.py` (linhas 132-138):
+- Remover `self.btn_pause = MenuButton("btn.on", "menu-pause", checkable=False)`.
+- O loop passa a ser `for btn in (self.btn_voice, self.btn_snap):`.
+
+**Fix whitespace:** manter o spacing/estrutura (linhas 140+, dividers) intactos.
+
+- [ ] **Step 6: Ligar em `ui/main_window.py`**
+
+- Na `_build_ui` (após `self._tv_btn`, junto das outras criações): criar `self._pause_toggle = PauseToggle(central)` (import de `ui.pause_toggle` junto dos outros `ui.*`) e `self._pause_toggle.clicked.connect(self._toggle_pause)`.
+- Na `_build_menu` (linha 235): remover `m.btn_pause.clicked.connect(self._toggle_pause)` e, na lista `self._menu_buttons` (linha 244), remover `m.btn_pause,` — `_menu_checkable` continua a funcionar para os restantes.
+- Posicionar por baixo da imagem central (após `_fit_bg` chamado em `resizeEvent`): criar `_layout_pause_toggle()` e chamá-lo no fim de `_build_ui` e em `resizeEvent(event)` depois de `self._fit_bg(w, h)`:
+  ```python
+  def _layout_pause_toggle(self):
+      pt = self._pause_toggle
+      bg = self._bg.geometry()
+      if bg.width() <= 0 or bg.height() <= 0:
+          pt.move((self.width() - pt.width()) // 2, self.height() - pt.height() - 24)
+          return
+      pt.move(bg.center().x() - pt.width() // 2, bg.bottom() + 24)
+  ```
+- Em `_update_paused_state` (linha 318-321): substituir `self._menu.btn_pause.set_key(...)` por `self._pause_toggle.set_paused(paused)`.
+- Em `_sync_toolbar` (linha 375-376): substituir `self._menu.btn_pause.set_key(...)` por `self._pause_toggle.set_paused(self._paused)`.
+- A tecla `Espaço` (`_toggle_pause`) e o tray ficam inalterados (continuam a refletir o estado no círculo via `_update_paused_state`).
+
+- [ ] **Step 7: Suite completa + lint**
+
+Run: `.\.venv\Scripts\python.exe -m pytest -q`
+Expected: `239 passed` (225 baseline + 5 tune_slider + 2 cursor_sliders + 2 trading_pro + 1 licensing + 4 pause_toggle).
+
+Run: `.\.venv\Scripts\python.exe -m ruff check ui/pause_toggle.py ui/menu_panel.py ui/main_window.py tests/test_pause_toggle.py`
+Expected: no findings.
+
+- [ ] **Step 8: Smoke manual (lista para o utilizador)**
+
+- No ecrã principal: o menu lateral **já não tem** o botão ON/OFF; existe um círculo no centro-inferior por baixo do logo.
+- Clicar no círculo: ON ⇄ OFF com animação (pulso) e glow quando ON; o rato para/retoma.
+- Tecla `Espaço` continua a alternar e o círculo reflete o estado.
+- Tray Pausar/Retomar continua a funcionar e reflete-se no círculo.
