@@ -1,0 +1,35 @@
+{% extends "_base.html" %}
+{% block content %}
+<h1>{{ title }}</h1>
+<div class="panel">
+  <form id="entry-form" class="form-grid">
+    {% for field in fields %}
+    {% if field == 'notas' or field == 'descricao' or field == 'corpo' %}
+    <div class="row" style="grid-column:1/-1">
+      <label>{{ field.replace('_',' ').title() }}</label>
+      <textarea name="{{ field }}" placeholder="{{ field }}"></textarea>
+    </div>
+    {% else %}
+    <div class="row">
+      <label>{{ field.replace('_',' ').title() }}</label>
+      <input name="{{ field }}" placeholder="{{ field }}">
+    </div>
+    {% endif %}
+    {% endfor %}
+    <div class="row" style="grid-column:1/-1">
+      <button type="submit" id="save-btn">Adicionar</button>
+    </div>
+  </form>
+</div>
+<div class="panel">
+  <table id="items-table">
+    <thead><tr id="items-head"></tr></thead>
+    <tbody id="items-body"></tbody>
+  </table>
+</div>
+<script>
+window.ADMIN_RESOURCE = "{{ resource }}";
+const ADMIN_FIELDS = {{ fields | tojson }};
+</script>
+<script src="/admin_static/admin.js"></script>
+{% endblock %}

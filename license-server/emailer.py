@@ -53,3 +53,27 @@ def send_key_email(to_email: str, key: str) -> Result:
         return Result(fired=True, error="")
     except Exception as exc:  # noqa: BLE001 - o webhook não deve falhar por email
         return Result(fired=False, error=str(exc))
+
+
+def build_generic_email(to_email: str, subject: str, body: str) -> EmailMessage:
+    msg = EmailMessage()
+    msg["Subject"] = subject
+    msg["From"] = _cfg()["from"]
+    msg["To"] = to_email
+    msg.set_content(body)
+    return msg
+
+
+def send_generic_email(to_email: str, subject: str, body: str) -> Result:
+    cfg = _cfg()
+    if not cfg["enabled"]:
+        return Result(fired=False, error="")
+    try:
+        msg = build_generic_email(to_email, subject, body)
+        with smtplib.SMTP(cfg["host"], cfg["port"]) as srv:
+            srv.starttls()
+            srv.login(cfg["user"], cfg["password"])
+            srv.sendmail(cfg["from"], [to_email], msg.as_string())
+        return Result(fired=True, error="")
+    except Exception as exc:  # noqa: BLE001 - o email não deve derrubar o pedido
+        return Result(fired=False, error=str(exc))

@@ -5,6 +5,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import emailer
+from emailer import send_generic_email
 
 
 def test_build_message_contains_key():
@@ -78,3 +79,10 @@ def test_send_returns_error_not_raises(monkeypatch):
     res = emailer.send_key_email("a@b.c", "MAO-KEY")
     assert res.fired is False
     assert res.error != ""
+
+
+def test_generic_email_disabled_returns_noop(monkeypatch):
+    monkeypatch.setenv("AIRMOUSE_SMTP_ENABLED", "0")
+    result = send_generic_email("a@b.c", "Assunto", "Corpo")
+    assert result.fired is False
+    assert result.error == ""

@@ -11,6 +11,8 @@ services:
     envVars:
       - key: AIRMOUSE_LS_ADMIN_TOKEN
         sync: false # define no painel (não versionar)
+      - key: AIRMOUSE_LS_ADMIN_SESSION_SECRET
+        sync: false # definir no painel do Render
       - key: AIRMOUSE_LS_PRIVATE_KEY
         sync: false
       - key: AIRMOUSE_LS_PUBLIC_KEY

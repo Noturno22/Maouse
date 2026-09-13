@@ -199,6 +199,17 @@ def create_app() -> FastAPI:
         send_key_email(info["email"], key)
         return {"ok": True, "handled": True, "key": key, "email": info["email"]}
 
+    # Painel administrativo (páginas + API + estáticos)
+    from admin_api import router as admin_api_router
+    from admin_pages import router as admin_pages_router
+    from fastapi.staticfiles import StaticFiles
+    admin_static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                    "admin_static")
+    app.mount("/admin_static",
+              StaticFiles(directory=admin_static_dir), name="admin_static")
+    app.include_router(admin_pages_router)
+    app.include_router(admin_api_router)
+
     return app
 
 
