@@ -242,6 +242,14 @@ def main():
     cfg.tts_enabled = cfg.tts_enabled and not is_pro_locked(lic_.tier, "tts")
     cfg.ai_enabled = cfg.ai_enabled and ent["ai"]
     cfg.autotune_enabled = cfg.autotune_enabled and ent["autotune"]
+    cfg.trading_master_enabled = (
+        cfg.trading_master_enabled
+        and not is_pro_locked(lic_.tier, "trading_master")
+    )
+    cfg.tv_button_enabled = (
+        cfg.tv_button_enabled
+        and not is_pro_locked(lic_.tier, "trading_master")
+    )
     cfg.low_light_boost = cfg.low_light_boost and ent["low_light"]
     cfg.magnifier_enabled = cfg.magnifier_enabled
     cfg.clap_enabled = cfg.clap_enabled
