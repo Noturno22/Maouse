@@ -2,8 +2,8 @@
 //
 // Protocolo (PC: core/remote.py):
 //   1. Primeira mensagem é sempre o auth:
-//       {"cmd":"auth","token":"..."}  ->  {"ok":true,"w":1920,"h":1080}
-//      Token errado -> {"ok":false,"error":"auth_required"} + ligação fechada.
+//       {"cmd":"auth","token":"..."}  ->  {"cmd":"auth","ok":true,"w":1920,"h":1080}
+//      Token errado -> {"cmd":"auth","ok":false,"error":"auth_required"} + ligação fechada.
 //   2. Depois, comandos JSON; todos respondem {"ok":true,...}:
 //       ping | move{dx,dy} | move_to{x,y} | click{button,count}
 //       press{button} | release{button} | scroll{dx,dy} | key{key}

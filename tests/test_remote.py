@@ -73,6 +73,31 @@ def test_lan_ips_returns_list():
     assert all(":" not in ip for ip in ips)
 
 
+def test_usable_ip_filters_non_routable():
+    from core.remote import _usable_ip
+
+    assert _usable_ip("192.168.1.50") is True
+    assert _usable_ip("10.0.0.7") is True
+    assert _usable_ip("127.0.0.1") is False
+    assert _usable_ip("169.254.10.1") is False
+    assert _usable_ip("0.0.0.0") is False
+    assert _usable_ip("::1") is False
+    assert _usable_ip("") is False
+
+
+def test_key_aliases_arrow_keys():
+    from pynput.keyboard import Key
+
+    from core.remote import RemoteServer
+
+    srv = RemoteServer(Config(), FakeMouse())
+    assert srv._resolve_key("arrow_left") is Key.left
+    assert srv._resolve_key("arrow_up") is Key.up
+    assert srv._resolve_key("arrow_down") is Key.down
+    assert srv._resolve_key("arrow_right") is Key.right
+    assert srv._resolve_key("left") is Key.left
+
+
 def test_dispatch_move_click_scroll_press():
     cfg = Config()
     cfg.remote_token = "tok"

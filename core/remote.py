@@ -6,7 +6,7 @@ teclado do PC via WiFi (rede local) ou Internet (IP público + porta).
 Protocolo (JSON por mensagem):
 
   -> {"cmd": "auth", "token": "..."}              # primeira mensagem obrigatória
-  <- {"ok": true, "w": 1920, "h": 1080}
+  <- {"cmd": "auth", "ok": true, "w": 1920, "h": 1080}
   -> {"cmd": "ping"}
   <- {"ok": true, "pong": true}
   -> {"cmd": "move", "dx": 12, "dy": -4}          # movimento relativo (px)
@@ -46,21 +46,69 @@ def generate_token(nbytes=8):
     return secrets.token_hex(nbytes)
 
 
+def _usable_ip(ip):
+    ip = str(ip or "")
+    return bool(
+        ip
+        and not ip.startswith("127.")
+        and not ip.startswith("169.254.")
+        and not ip.startswith("0.")
+        and ":" not in ip
+    )
+
+
 def lan_ips():
     """Endereços IPv4 desta máquina na rede local (exclui loopback)."""
+    out = []
     try:
         _, _, addrs = socket.gethostbyname_ex(socket.gethostname())
+        for addr in addrs:
+            if _usable_ip(addr) and addr not in out:
+                out.append(addr)
     except Exception:
-        addrs = []
-    out = []
-    for addr in addrs:
-        addr = str(addr)
-        if not addr.startswith("127.") and ":" not in addr:
-            out.append(addr)
-    for addr in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
-        ip = str(addr[4][0])
-        if not ip.startswith("127.") and ip not in out:
-            out.append(ip)
+        pass
+    try:
+        for addr in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
+            ip = str(addr[4][0])
+            if _usable_ip(ip) and ip not in out:
+                out.append(ip)
+    except Exception:
+        pass
+    # Linux/macOS: interfaces reais (ignora docker/veth/br-/pontes virtuais),
+    # para o utilizador só ver o IP da rede local.
+    try:
+        import subprocess
+
+        proc = subprocess.run(
+            ["ip", "-o", "-4", "addr", "show"],
+            capture_output=True, text=True, timeout=3,
+        )
+        for line in proc.stdout.splitlines():
+            parts = line.split()
+            if len(parts) >= 4:
+                iface = parts[1]
+                ip = parts[3].split("/", 1)[0]
+                if iface.startswith(
+                    ("docker", "br-", "veth", "virbr", "vboxnet", "podman", "lo")
+                ):
+                    continue
+                if _usable_ip(ip) and ip not in out:
+                    out.append(ip)
+    except Exception:
+        pass
+    # Fallback: IP da rota por omissão (funciona mesmo sem hostname resolvível).
+    if not out:
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            try:
+                s.connect(("8.8.8.8", 80))
+                ip = s.getsockname()[0]
+                if _usable_ip(ip) and ip not in out:
+                    out.append(ip)
+            finally:
+                s.close()
+        except Exception:
+            pass
     return out
 
 
@@ -200,12 +248,15 @@ class RemoteServer:
                         authed = True
                         await self._send(
                             connection,
-                            {"ok": True, "w": getattr(self._mouse, "screen_w", 1920),
+                            {"cmd": "auth", "ok": True,
+                             "w": getattr(self._mouse, "screen_w", 1920),
                              "h": getattr(self._mouse, "screen_h", 1080)},
                         )
                         log.info("Telemóvel autenticado (%s).", connection.remote_address)
                     else:
-                        await self._send(connection, {"ok": False, "error": "auth_required"})
+                        await self._send(
+                            connection, {"cmd": "auth", "ok": False, "error": "auth_required"}
+                        )
                         await connection.close()
                         return
                     continue
@@ -375,6 +426,8 @@ class RemoteServer:
                 "end": Key.end, "pageup": Key.page_up, "pagedown": Key.page_down,
                 "pgup": Key.page_up, "pgdn": Key.page_down,
                 "up": Key.up, "down": Key.down, "left": Key.left, "right": Key.right,
+                "arrow_up": Key.up, "arrow_down": Key.down,
+                "arrow_left": Key.left, "arrow_right": Key.right,
                 "f1": Key.f1, "f2": Key.f2, "f3": Key.f3, "f4": Key.f4,
                 "f5": Key.f5, "f6": Key.f6, "f7": Key.f7, "f8": Key.f8,
                 "f9": Key.f9, "f10": Key.f10, "f11": Key.f11, "f12": Key.f12,
@@ -444,7 +497,7 @@ class RemoteServer:
             "play_pause": Key.media_play_pause,
             "next": Key.media_next,
             "prev": Key.media_previous,
-            "stop": Key.media_stop,
+            "stop": getattr(Key, "media_stop", None),
         }
         key = map_actions.get(action)
         if key is None:
