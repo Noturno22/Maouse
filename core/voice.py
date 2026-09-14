@@ -11,6 +11,7 @@ import zipfile
 
 import numpy as np
 
+from config import user_models_dir
 from core.log import get_logger
 from core.nlu import parse_local, parse_with_llm
 from core.stt import STTRouter
@@ -61,9 +62,15 @@ def ensure_vosk_model(cfg):
     if found:
         return found
 
-    zip_path = os.path.join(base, "vosk-pt.zip")
-    print(f"A baixar modelo de voz (~49 MB) para {base} ...")
-    os.makedirs(base, exist_ok=True)
+    # O caminho configurado pode nao ser escrevivel (ex.: Program Files).
+    # Usa o directorio do utilizador para o download e extracao.
+    udir = user_models_dir()
+    found = _find_model_dir(udir, os.path.join(udir, "vosk-model-small-pt"))
+    if found:
+        return found
+
+    zip_path = os.path.join(udir, "vosk-pt.zip")
+    print(f"A baixar modelo de voz (~49 MB) para {udir} ...")
 
     def _progress(blocks, bs, total):
         if total > 0:
@@ -73,9 +80,9 @@ def ensure_vosk_model(cfg):
     urllib.request.urlretrieve(cfg.vosk_model_url, zip_path, reporthook=_progress)
     print("\rA extrair modelo de voz...      ")
     with zipfile.ZipFile(zip_path) as zf:
-        zf.extractall(base)
+        zf.extractall(udir)
     os.remove(zip_path)
-    found = _find_model_dir(base, cfg.vosk_model_path)
+    found = _find_model_dir(udir, os.path.join(udir, "vosk-model-small-pt"))
     if found:
         return found
     raise FileNotFoundError("Modelo Vosk nao encontrado apos extracao")

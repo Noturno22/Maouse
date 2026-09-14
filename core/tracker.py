@@ -5,6 +5,7 @@ import mediapipe as mp
 from mediapipe.tasks import python as mp_tasks
 from mediapipe.tasks.python import vision
 
+from config import resolve_asset, user_models_dir
 from core.log import get_logger
 
 log = get_logger("tracker")
@@ -20,13 +21,16 @@ HAND_CONNECTIONS = (
 
 
 def ensure_model(path, url, timeout_s=15.0):
-    if os.path.isfile(path):
-        return path
-    parent = os.path.dirname(path)
-    if parent:
-        os.makedirs(parent, exist_ok=True)
-    tmp = path + ".part"
-    print(f"A baixar modelo MediaPipe para {path} ...")
+    bundled = resolve_asset(path)
+    if bundled:
+        return bundled
+    # O caminho podem nao ser escrevivel (ex.: Program Files). Descarrega para
+    # o directorio do utilizador e devolve o caminho real usado.
+    dest = os.path.join(user_models_dir(), os.path.basename(path))
+    if os.path.isfile(dest):
+        return dest
+    tmp = dest + ".part"
+    print(f"A baixar modelo MediaPipe para {dest} ...")
     req = urllib.request.Request(url)
     try:
         with urllib.request.urlopen(req, timeout=timeout_s) as resp:
@@ -36,7 +40,7 @@ def ensure_model(path, url, timeout_s=15.0):
                     if not chunk:
                         break
                     fh.write(chunk)
-        os.replace(tmp, path)
+        os.replace(tmp, dest)
     except Exception:
         try:
             os.remove(tmp)
@@ -44,7 +48,7 @@ def ensure_model(path, url, timeout_s=15.0):
             log.debug("N\u00e3o foi poss\u00edvel limpar ficheiro tempor\u00e1rio %s: %s", tmp, e)
         raise
     print("Modelo pronto.")
-    return path
+    return dest
 
 
 class HandTracker:

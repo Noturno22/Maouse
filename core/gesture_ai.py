@@ -1,8 +1,10 @@
 import os
+import shutil
 import urllib.request
 
 import numpy as np
 
+from config import resolve_asset, user_models_dir
 from core.gestures import Gesture
 
 CLASSES = (
@@ -103,26 +105,41 @@ class GestureAI:
 
 
 def ensure_ai_model(path, url=None):
-    if os.path.isfile(path):
-        return path
-    parent = os.path.dirname(os.path.abspath(__file__))
-    local = os.path.join(parent, "gesture_mlp.npz")
+    bundled = resolve_asset(path)
+    if bundled:
+        return bundled
+    # O caminho podem nao ser escrevivel (ex.: Program Files). Usa o
+    # directorio do utilizador como destino e devolve o caminho real.
+    dest = os.path.join(user_models_dir(), "gesture_mlp.npz")
+    if os.path.isfile(dest):
+        return dest
+    source = None
+    local = os.path.join(os.path.dirname(os.path.abspath(__file__)), "gesture_mlp.npz")
     if os.path.isfile(local):
-        import shutil
-
-        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-        shutil.copyfile(local, path)
-        return path
+        source = local
+    if source is None:
+        bundled_in_repo = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "models", "gesture_mlp.npz",
+        )
+        if os.path.isfile(bundled_in_repo):
+            source = bundled_in_repo
+    if source is not None:
+        try:
+            shutil.copyfile(source, dest)
+            print(f"Modelo IA copiado de {source}")
+            return dest
+        except OSError:
+            pass
     urls = (url,) if url else MODEL_URLS
     for u in urls:
         try:
-            print(f"A baixar modelo de gestos IA para {path} ...")
-            tmp = path + ".part"
-            os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+            print(f"A baixar modelo de gestos IA para {dest} ...")
+            tmp = dest + ".part"
             urllib.request.urlretrieve(u, tmp)
-            os.replace(tmp, path)
+            os.replace(tmp, dest)
             print("Modelo IA pronto.")
-            return path
+            return dest
         except Exception:
             continue
     raise FileNotFoundError(

@@ -1,0 +1,51 @@
+# Render Blueprint — implanta o license server da Mãouse a partir deste repo.
+# Uso: liga este repo ao Render (Blueprints) ou usa "New + > Blueprint".
+# Um disco persistente é montado em /data — a base SQLite fica lá.
+services:
+  - type: web
+    name: maouse-license-server
+    runtime: docker
+    repo: https://github.com/Noturno22/AirMouse.git
+    plan: free
+    dockerfilePath: ./license-server/Dockerfile
+    envVars:
+      - key: AIRMOUSE_LS_ADMIN_TOKEN
+        sync: false # define no painel (não versionar)
+      - key: AIRMOUSE_LS_ADMIN_SESSION_SECRET
+        sync: false # definir no painel do Render
+      - key: AIRMOUSE_LS_PRIVATE_KEY
+        sync: false
+      - key: AIRMOUSE_LS_PUBLIC_KEY
+        sync: false
+      - key: AIRMOUSE_PADDLE_WEBHOOK_SECRET
+        sync: false
+      - key: AIRMOUSE_SMTP_ENABLED
+        value: "0"
+      - key: AIRMOUSE_SMTP_HOST
+        sync: false
+      - key: AIRMOUSE_SMTP_PORT
+        value: "587"
+      - key: AIRMOUSE_SMTP_USER
+        sync: false
+      - key: AIRMOUSE_SMTP_PASSWORD
+        sync: false
+      - key: AIRMOUSE_SMTP_FROM
+        sync: false
+      # Mobile (IAP Pro) — validação server-side das compras Google Play.
+      # Definição no painel: o JSON da conta de serviço é grande e secreto.
+      - key: AIRMOUSE_MOBILE_PRODUCT_ID
+        value: maouse_mobile_pro
+      - key: AIRMOUSE_MOBILE_PACKAGE_NAME
+        value: com.airmouse.mobile
+      - key: AIRMOUSE_GOOGLE_PLAY_CREDENTIALS_JSON
+        sync: false
+      - key: AIRMOUSE_MOBILE_DEV_ALLOW
+        value: "0"
+      # Base de dados persistente no disco.
+      - key: AIRMOUSE_LS_DB
+        value: /data/license.db
+    disk:
+      name: maouse-license-data
+      mountPath: /data
+      sizeGB: 1
+    healthCheckPath: /health

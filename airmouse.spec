@@ -15,6 +15,15 @@ for src, dst in (
 ):
     if os.path.isdir(src):
         datas.append((src, dst))
+# Modelos críticos de arranque vêm DENTRO do instalador (offline, sem download
+# na primeira execução). Vosk e Piper mantêm-se como download por-utilizador
+# (escrevível em %LOCALAPPDATA%\AirMouse\models) para não inflar o instalador.
+for src, dst in (
+    ("models/hand_landmarker.task", "models"),
+    ("models/gesture_mlp.npz", "models"),
+):
+    if os.path.isfile(src):
+        datas.append((src, dst))
 for pkg in ("mediapipe", "vosk"):
     d, b, h = collect_all(pkg)
     datas += d

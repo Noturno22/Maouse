@@ -5,6 +5,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 import pytest
 from PySide6.QtWidgets import QApplication
 
+import config
 from config import Config
 from core.licensing import Tier
 from ui.settings_dlg import SettingsDialog
@@ -19,6 +20,13 @@ def _qapp():
 
 class FakeLM:
     tier = Tier.PRO
+
+
+@pytest.fixture(autouse=True)
+def _iso_settings(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        config, "SETTINGS_FILE", str(tmp_path / "settings.json")
+    )
 
 
 @pytest.fixture

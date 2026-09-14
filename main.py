@@ -18,7 +18,14 @@ import sys
 
 import cv2
 
-from config import SETTINGS_FILE, SMOOTH_PRESETS, Config, load_settings, save_settings
+from config import (
+    SETTINGS_FILE,
+    SMOOTH_PRESETS,
+    Config,
+    load_settings,
+    save_settings,
+    user_models_dir,
+)
 from core.assistant import Assistant3D
 from core.autotune import AutoTuner
 from core.camera import CameraStream
@@ -313,9 +320,16 @@ def main():
 
     speaker = None
     if cfg.tts_enabled:
+
+        def _voice_path(name):
+            bundled = os.path.join(cfg.piper_model_dir, name)
+            if os.path.isfile(bundled):
+                return bundled
+            return os.path.join(user_models_dir(), "piper", name)
+
         voice_files = (
-            (cfg.piper_onnx_url, os.path.join(cfg.piper_model_dir, "pt_BR-faber-medium.onnx")),
-            (cfg.piper_conf_url, os.path.join(cfg.piper_model_dir, "pt_BR-faber-medium.onnx.json")),
+            (cfg.piper_onnx_url, _voice_path("pt_BR-faber-medium.onnx")),
+            (cfg.piper_conf_url, _voice_path("pt_BR-faber-medium.onnx.json")),
         )
         speaker = Speaker(enabled=True, model_dir=cfg.piper_model_dir,
                           voice_files=voice_files)

@@ -35,6 +35,10 @@ def test_sign_decode_roundtrip_with_content_envs(content_keys):
 
 def test_tampered_token_rejected_with_content_envs(content_keys):
     token = security.sign({"sub": "machine:abc", "tier": "pro"})
-    tampered = token[:-1] + ("B" if token[-1] != "B" else "C")
+    # Adultera o 1.º carácter da assinatura (bits significativos). O último
+    # carácter base64url pode seguir bits descartados -> assinatura íntegra.
+    sig = token.split(".")[2]
+    repl = "A" if sig[0] != "A" else "B"
+    tampered = token[: -len(sig)] + repl + sig[1:]
     with pytest.raises(InvalidSignatureError):
         security.decode_jwt(tampered)

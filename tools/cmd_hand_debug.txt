@@ -1,0 +1,53 @@
+[fr30] Right@x=357   COMANDOS-> NENHUMA
+[fr35] Right@x=382   COMANDOS-> NENHUMA
+[fr42] Right@x=308   COMANDOS-> NONE@x=308
+[fr49] Right@x=323   COMANDOS-> NENHUMA
+[fr57] Right@x=325   COMANDOS-> NENHUMA
+[fr111] Right@x=325   COMANDOS-> NENHUMA
+[fr117] Right@x=373   COMANDOS-> NENHUMA
+[fr125] Right@x=450   COMANDOS-> NENHUMA
+[fr133] Right@x=398   COMANDOS-> NENHUMA
+[fr141] Right@x=440   COMANDOS-> NENHUMA
+[fr172] Left@x=228   COMANDOS-> NONE@x=228
+[fr177] Left@x=280   COMANDOS-> OPEN@x=280
+[fr184] Left@x=225   COMANDOS-> OPEN@x=225
+[fr190] Right@x=149   COMANDOS-> OPEN@x=149
+[fr198] Right@x=210   COMANDOS-> NONE@x=210
+[fr205] Left@x=248   COMANDOS-> OPEN@x=248
+[fr213] Left@x=65   COMANDOS-> OPEN@x=65
+[fr220] Left@x=210   COMANDOS-> OPEN@x=210
+[fr228] Left@x=229   COMANDOS-> OPEN@x=229
+[fr236] Right@x=148   COMANDOS-> NONE@x=148
+[fr243] Left@x=188   COMANDOS-> NONE@x=188
+[fr249] Left@x=213   COMANDOS-> OPEN@x=213
+[fr257] Right@x=219   COMANDOS-> OPEN@x=219
+[fr265] Right@x=250   COMANDOS-> OPEN@x=250
+[fr273] Right@x=229 Left@x=528   COMANDOS-> OPEN@x=229
+[fr282] Right@x=177 Left@x=438   COMANDOS-> OPEN@x=177
+[fr291] Right@x=150 Left@x=425   COMANDOS-> OPEN@x=150
+[fr300] Right@x=142 Left@x=380   COMANDOS-> OPEN@x=142
+[fr309] Right@x=114 Left@x=313   COMANDOS-> OPEN@x=114
+[fr318] Right@x=107 Left@x=399   COMANDOS-> OPEN@x=107
+[fr325] Right@x=109 Left@x=444   COMANDOS-> OPEN@x=109
+[fr334] Right@x=118 Left@x=421   COMANDOS-> OPEN@x=118
+[fr341] Right@x=123 Left@x=481   COMANDOS-> OPEN@x=123
+[fr350] Right@x=190 Left@x=457   COMANDOS-> OPEN@x=190
+[fr359] Right@x=218 Left@x=460   COMANDOS-> OPEN@x=218
+[fr368] Right@x=197 Left@x=439   COMANDOS-> OPEN@x=197
+[fr377] Right@x=144 Left@x=393   COMANDOS-> OPEN@x=144
+[fr386] Right@x=139 Left@x=437   COMANDOS-> OPEN@x=139
+[fr395] Left@x=114 Right@x=539   COMANDOS-> OPEN@x=114
+[fr475] Right@x=487   COMANDOS-> NENHUMA
+[fr482] Left@x=450   COMANDOS-> NENHUMA
+[fr488] Left@x=430   COMANDOS-> NENHUMA
+[fr496] Left@x=510 Right@x=115   COMANDOS-> OPEN@x=115
+[fr505] Left@x=518 Right@x=115   COMANDOS-> OPEN@x=115
+[fr514] Left@x=488 Right@x=117   COMANDOS-> OPEN@x=117
+[fr523] Left@x=410 Right@x=143   COMANDOS-> OPEN@x=143
+[fr532] Left@x=400 Right@x=158   COMANDOS-> OPEN@x=158
+[fr541] Left@x=427 Right@x=161   COMANDOS-> OPEN@x=161
+[fr550] Left@x=429 Right@x=163   COMANDOS-> OPEN@x=163
+[fr559] Left@x=439 Right@x=162   COMANDOS-> OPEN@x=162
+[fr568] Left@x=440 Right@x=179   COMANDOS-> OPEN@x=179
+[fr577] Left@x=438 Right@x=189   COMANDOS-> OPEN@x=189
+[fr586] Left@x=435 Right@x=203   COMANDOS-> OPEN@x=203
