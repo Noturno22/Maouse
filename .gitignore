@@ -48,3 +48,6 @@ version_info.txt
 # Config local do utilizador (calibração, dispositivo de mic, token remoto)
 # O exemplo com defaults de fábrica segue commitado em settings.example.json
 settings.json
+# Playwright MCP (sessoes locais de debug)
+.playwright-mcp/
+temp_baseline_ref.py
