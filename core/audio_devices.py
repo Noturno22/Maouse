@@ -26,9 +26,12 @@ def _normalize(devices):
 def list_input_devices(query=None):
     """Lista de (indice, nome) dos dispositivos com canais de entrada."""
     if query is None:
-        import sounddevice as sd
+        try:
+            import sounddevice as sd
 
-        query = sd.query_devices
+            query = sd.query_devices
+        except Exception:
+            return []
     try:
         devices = query()
     except Exception:
@@ -46,9 +49,12 @@ def select_device(pref, query=None):
     if pref is None or pref == "":
         return None
     if query is None:
-        import sounddevice as sd
+        try:
+            import sounddevice as sd
 
-        query = sd.query_devices
+            query = sd.query_devices
+        except Exception as exc:
+            raise DeviceError(f"Sem microfones: {exc}") from exc
     try:
         devices = query()
     except Exception as exc:
