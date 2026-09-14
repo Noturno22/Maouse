@@ -34,6 +34,8 @@ const PANEL = '#1f1f1f';
 const KEY_BG = '#2a2a2a';
 const BORDER = '#333333';
 
+const DRAG_HOLD_MS = 380;
+
 export default function RemoteScreen({ onBack }: Props) {
   const {
     host,
@@ -52,7 +54,8 @@ export default function RemoteScreen({ onBack }: Props) {
   const [hostDraft, setHostDraft] = useState(host);
   const [portDraft, setPortDraft] = useState(port);
   const [tokenDraft, setTokenDraft] = useState(token);
-  const [draftText, setDraftText] = useState('');
+  const kbBufRef = useRef('');
+  const [kbText, setKbText] = useState('');
 
   const connected = status === 'connected';
   const busy = status === 'connecting';
@@ -76,13 +79,44 @@ export default function RemoteScreen({ onBack }: Props) {
     connect();
   };
 
-  const onSendText = () => {
-    const text = draftText.trim();
-    if (!text) return;
-    remote.text(text);
-    setDraftText('');
-    haptic();
-  };
+  const onKbChange = useCallback(
+    (v: string) => {
+      const prev = kbBufRef.current;
+      kbBufRef.current = v;
+      setKbText(v);
+      if (!remote.isConnected) return;
+      if (v.length < prev.length) {
+        for (let i = prev.length - v.length; i > 0; i--) remote.key('backspace');
+      } else if (v.length > prev.length) {
+        const added = v.slice(prev.length);
+        let batch = '';
+        for (const ch of added) {
+          if (ch === '\n') {
+            if (batch) { remote.text(batch); batch = ''; }
+            remote.key('enter');
+          } else {
+            batch += ch;
+          }
+        }
+        if (batch) remote.text(batch);
+      }
+    },
+    []
+  );
+
+  const clearKb = useCallback(() => {
+    kbBufRef.current = '';
+    setKbText('');
+  }, []);
+
+  const onKbEnter = useCallback(() => {
+    if (remote.isConnected) remote.key('enter');
+    clearKb();
+  }, [clearKb]);
+
+  const onKbBackspace = useCallback(() => {
+    if (remote.isConnected) remote.key('backspace');
+  }, []);
 
   const layoutRef = useRef<Size>({ w: 1, h: 1 });
   const touchState = useRef({
@@ -90,6 +124,7 @@ export default function RemoteScreen({ onBack }: Props) {
     last: new Map<number, TouchPos>(),
     startTime: 0,
     moved: false,
+    dragging: false,
     scrollAcc: 0,
   });
 
@@ -103,6 +138,7 @@ export default function RemoteScreen({ onBack }: Props) {
         ts.count = evt.nativeEvent.touches.length;
         ts.startTime = Date.now();
         ts.moved = false;
+        ts.dragging = false;
         ts.scrollAcc = 0;
         ts.last.clear();
         for (const touch of evt.nativeEvent.touches as any[]) {
@@ -115,6 +151,10 @@ export default function RemoteScreen({ onBack }: Props) {
         const count = touches.length;
 
         if (count !== ts.count) {
+          if (ts.dragging) {
+            remote.release('left');
+            ts.dragging = false;
+          }
           ts.count = count;
           ts.last.clear();
           for (const touch of touches) {
@@ -131,11 +171,18 @@ export default function RemoteScreen({ onBack }: Props) {
           if (prev) {
             const dx = cur.x - prev.x;
             const dy = cur.y - prev.y;
-            if (Math.abs(dx) > 1 || Math.abs(dy) > 1) ts.moved = true;
-            if (ts.moved && (dx !== 0 || dy !== 0)) remote.move(dx, dy);
+            const now = Date.now();
+            if (Math.abs(dx) > 2 || Math.abs(dy) > 2) ts.moved = true;
+            if (!ts.dragging && !ts.moved && now - ts.startTime > DRAG_HOLD_MS) {
+              ts.dragging = true;
+              haptic();
+              remote.press('left');
+            }
+            if (dx !== 0 || dy !== 0) {
+              remote.move(dx, dy);
+            }
           }
         } else if (count > 1) {
-          // Scroll vertical com dois dedos: média das deltas de cada dedo.
           let dy = 0;
           for (const touch of touches) {
             const prev = ts.last.get(touch.identifier);
@@ -145,7 +192,7 @@ export default function RemoteScreen({ onBack }: Props) {
           }
           dy /= count;
           if (Math.abs(dy) > 0.5) ts.moved = true;
-          if (ts.moved && dy !== 0) {
+          if (dy !== 0) {
             ts.scrollAcc += dy;
             const step = Math.round(ts.scrollAcc);
             if (step !== 0) {
@@ -158,18 +205,29 @@ export default function RemoteScreen({ onBack }: Props) {
       onPanResponderRelease: (evt) => {
         const ts = touchState.current;
         const dur = Date.now() - ts.startTime;
-        if (ts.count === 1 && !ts.moved && dur < 260) {
-          const all = evt.nativeEvent.touches as any[];
-          const changed = (evt.nativeEvent as any).changedTouches;
-          const touch = (changed && changed.length ? changed[0] : all[0]) as any;
-          let x = 0.5;
-          let y = 0.5;
-          if (touch) {
-            x = Math.max(0, Math.min(1, touch.locationX / layoutRef.current.w));
-            y = Math.max(0, Math.min(1, touch.locationY / layoutRef.current.h));
+        if (ts.dragging) {
+          remote.release('left');
+          ts.dragging = false;
+        } else if (!ts.moved && dur < 260) {
+          if (ts.count === 1) {
+            const all = evt.nativeEvent.touches as any[];
+            const changed = (evt.nativeEvent as any).changedTouches;
+            const touch = (changed && changed.length ? changed[0] : all[0]) as any;
+            let x = 0.5;
+            let y = 0.5;
+            if (touch) {
+              x = Math.max(0, Math.min(1, touch.locationX / layoutRef.current.w));
+              y = Math.max(0, Math.min(1, touch.locationY / layoutRef.current.h));
+            }
+            remote.gesture('tap', x, y);
+            haptic();
+          } else if (ts.count === 2) {
+            remote.click('right', 1);
+            haptic();
+          } else if (ts.count >= 3) {
+            remote.click('middle', 1);
+            haptic();
           }
-          remote.gesture('tap', x, y);
-          haptic();
         }
         ts.last.clear();
         ts.count = 0;
@@ -178,6 +236,10 @@ export default function RemoteScreen({ onBack }: Props) {
       },
       onPanResponderTerminate: () => {
         const ts = touchState.current;
+        if (ts.dragging) {
+          remote.release('left');
+          ts.dragging = false;
+        }
         ts.last.clear();
         ts.count = 0;
         ts.moved = false;
@@ -202,7 +264,9 @@ export default function RemoteScreen({ onBack }: Props) {
           }}
           {...panResponder.panHandlers}
         >
-          <Text style={styles.touchpadHint}>1 dedo = mover · toque = clique · 2 dedos = scroll</Text>
+          <Text style={styles.touchpadHint}>
+            1 dedo = mover · toque = clique · manter = arrastar · 2 dedos = scroll · 2/3 dedos tocar = dir/meio
+          </Text>
           <View style={styles.screenPill}>
             <Text style={styles.screenPillText}>
               {screen ? `${screen.w}×${screen.h}` : '…'}
@@ -215,18 +279,25 @@ export default function RemoteScreen({ onBack }: Props) {
         <View style={styles.textRow}>
           <TextInput
             style={styles.textInput}
-            value={draftText}
-            onChangeText={setDraftText}
-            placeholder="Escrever no PC…"
+            value={kbText}
+            onChangeText={onKbChange}
+            onSubmitEditing={onKbEnter}
+            placeholder="Escrever em tempo real no PC…"
             placeholderTextColor="#777"
             autoCapitalize="none"
             autoCorrect={false}
-            returnKeyType="send"
-            onSubmitEditing={onSendText}
+            spellCheck={false}
+            blurOnSubmit={false}
+            returnKeyType="go"
           />
-          <TouchableOpacity style={styles.actionButton} onPress={onSendText}>
-            <Text style={styles.actionButtonText}>↵</Text>
-          </TouchableOpacity>
+          <View style={styles.textActions}>
+            <TouchableOpacity style={styles.actionSmall} onPress={onKbBackspace}>
+              <Text style={styles.actionSmallText}>⌫</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.actionSmall} onPress={clearKb}>
+              <Text style={styles.actionSmallText}>✕</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View style={styles.keyRow}>
@@ -564,6 +635,26 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 18,
     fontWeight: '700',
+  },
+  textActions: {
+    flexDirection: 'row',
+    marginLeft: 8,
+  },
+  actionSmall: {
+    width: 36,
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: '#2a2a2a',
+    borderWidth: 1,
+    borderColor: BORDER,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 6,
+  },
+  actionSmallText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
   keyRow: {
     flexDirection: 'row',

@@ -14,7 +14,7 @@ import { Worklets } from 'react-native-worklets-core';
 import type { HandDetectionResult } from 'expo-vision-camera-v4-mediapipe';
 import { useSettingsStore, useGestureStore } from './src/store';
 import { GESTURE_LABELS, GESTURE_COLORS, HAND_CONNECTIONS } from './src/constants';
-import { GestureType, HandLandmarks } from './src/types/gesture';
+import { HandLandmarks } from './src/types/gesture';
 import { GestureEngine, GestureResult } from './src/engine/gestures';
 import { FilterPair2D, AccelCurve } from './src/engine/filters';
 import { useProEntitlement } from './src/hooks/useProEntitlement';
@@ -26,6 +26,35 @@ import { remote } from './src/services/remoteClient';
 const { TouchController, KeyboardController, SystemController } = NativeModules;
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+const MOVE_INTERVAL_MS = 33;
+const TAP_THRESHOLD_MS = 450;
+const PALM_BACK_FRAMES = 5;
+
+function palmScale(lm: any[]): number {
+  if (!lm || lm.length < 21) return 0;
+  const wrist = lm[0];
+  const mcp = lm[9];
+  const dx = (wrist?.x ?? 0) - (mcp?.x ?? 0);
+  const dy = (wrist?.y ?? 0) - (mcp?.y ?? 0);
+  return Math.hypot(dx, dy);
+}
+
+function isOpenPalm(lm: any[]): boolean {
+  if (!lm || lm.length < 21) return false;
+  const pts: [number, number][] = lm.map((p: any) => [p.x, p.y]);
+  const wrist = pts[0];
+  const dist = (a: [number, number], b: [number, number]) =>
+    Math.hypot(a[0] - b[0], a[1] - b[1]);
+  if (dist(wrist, pts[9]) < 0.05) return false;
+  const pairs: [number, number][] = [
+    [8, 6],
+    [12, 10],
+    [16, 14],
+    [20, 18],
+  ];
+  return pairs.every(([tip, pip]) => dist(pts[tip], wrist) > dist(pts[pip], wrist));
+}
 
 export default function App() {
 const [landmarks, setLandmarks] = useState<HandLandmarks | null>(null);
@@ -75,6 +104,24 @@ const [landmarks, setLandmarks] = useState<HandLandmarks | null>(null);
   const curveRef = useRef<AccelCurve | null>(null);
   const lastFrameTime = useRef(performance.now());
   const frameCount = useRef(0);
+  const viewMappingRef = useRef<{
+    ox: number;
+    oy: number;
+    dispW: number;
+    dispH: number;
+  } | null>(null);
+  const frameDimsRef = useRef<{ w: number; h: number } | null>(frameDims);
+  const filteredPalmRef = useRef<[number, number]>([0, 0]);
+  const lastDragPosRef = useRef<[number, number]>([0, 0]);
+  const pointerRef = useRef<{
+    button: 'left' | 'right' | 'middle';
+    x: number;
+    y: number;
+    pressedAt: number;
+  } | null>(null);
+  const lastMoveSentRef = useRef(0);
+  const palmsFramesRef = useRef(0);
+  const palmsSentRef = useRef(false);
 
   // Initialize gesture engine
   useEffect(() => {
@@ -83,109 +130,92 @@ const [landmarks, setLandmarks] = useState<HandLandmarks | null>(null);
     curveRef.current = new AccelCurve(1.2, 3.0, 1400.0, 1.7);
   }, [filterMinCutoff, filterBeta]);
 
-  // Process hand detection result
-  const processHands = useCallback(
-    (hands: any[], handedness: any[], imgW: number, imgH: number) => {
-      if (!engineRef.current || !filtersRef.current || !curveRef.current) return;
-      if (imgW <= 0 || imgH <= 0) return;
-
-      try {
-        const engine = engineRef.current;
-        const filters = filtersRef.current;
-
-        for (let i = 0; i < hands.length; i++) {
-          const handLandmarks = hands[i];
-
-          // Convert to our format
-          const points: [number, number, number][] = handLandmarks.map(
-            (point: any) => [point.x, point.y, point.z]
-          );
-
-          // Process with gesture engine in image pixels so scale thresholds apply
-          const result = engine.update(points, imgW, imgH);
-
-          // Apply filters
-          const [fx, fy] = filters.filter(
-            result.landmarks.palmCenter[0],
-            result.landmarks.palmCenter[1]
-          );
-
-          // Update state
-          setGesture(result.landmarks.gesture);
-          incrementGestureCount();
-          setLandmarks(result.landmarks);
-
-          // Handle actions via native modules
-          if (result.event && TouchController && SystemController) {
-            handleAction(result.event, result.value);
-          }
-        }
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        setDebugInfo((prev) =>
-          prev && prev.error === msg ? prev : { plugin: true, hands: 0, error: `JS: ${msg}` }
-        );
-        console.error('processHands error:', e);
+  const toScreen = useCallback(
+    (px: number, py: number): [number, number] => {
+      const vm = viewMappingRef.current;
+      const fd = frameDimsRef.current;
+      if (!vm || !fd || fd.w <= 0 || fd.h <= 0) {
+        return [Math.round(px), Math.round(py)];
       }
+      const x = vm.ox + vm.dispW - (vm.dispW / fd.w) * px;
+      const y = vm.oy + (vm.dispH / fd.h) * py;
+      return [
+        Math.round(Math.max(0, Math.min(SCREEN_WIDTH, x))),
+        Math.round(Math.max(0, Math.min(SCREEN_HEIGHT, y))),
+      ];
     },
-    [setGesture, incrementGestureCount]
+    []
   );
 
-  // Handle gesture actions
+  // Rota de ações: transição de gesto -> comando nativo / PC remoto.
   const handleAction = useCallback(
     async (event: string, value: number | null) => {
+      if (!proEntitlement.isPro) {
+        // Versão gratuita: apenas pré-visualiza gestos, não envia comandos.
+        setShowPro(true);
+        return;
+      }
+
+      const [palmX, palmY] = filteredPalmRef.current;
+
+      if (remoteStatus === 'connected' && forwardGestures) {
+        // Modo "PC remoto": os gestos da câmara comandam o PC via WebSocket.
+        remote.gesture(
+          event,
+          Math.max(0, Math.min(1, palmX / SCREEN_WIDTH)),
+          Math.max(0, Math.min(1, palmY / SCREEN_HEIGHT)),
+          value === null ? undefined : value ?? 0
+        );
+        return;
+      }
+
       try {
-        if (!proEntitlement.isPro) {
-          // Versão gratuita: apenas pré-visualiza gestos, não envia comandos.
-          setShowPro(true);
-          return;
-        }
-        if (remoteStatus === 'connected' && forwardGestures) {
-          // Modo "PC remoto": os gestos da câmara comandam o PC via WebSocket.
-          let x: number | undefined;
-          let y: number | undefined;
-          if (landmarks && frameDims) {
-            x = Math.max(0, Math.min(1, landmarks.palmCenterPx[0] / frameDims.w));
-            y = Math.max(0, Math.min(1, landmarks.palmCenterPx[1] / frameDims.h));
-          }
-          remote.gesture(event, x, y, value === null ? undefined : value ?? 0);
-          return;
-        }
         switch (event) {
-          case 'tap':
-            // Get palm position and tap there
-            if (landmarks) {
-              const x = landmarks.palmCenterPx[0];
-              const y = landmarks.palmCenterPx[1];
-              await TouchController?.tap(x, y);
+          case 'left_down':
+            // Pinça/punho pressiona: inicia toque/arrasto na posição da palma.
+            if (TouchController) {
+              pointerRef.current = {
+                button: 'left',
+                x: palmX,
+                y: palmY,
+                pressedAt: Date.now(),
+              };
+              lastDragPosRef.current = [palmX, palmY];
+              await TouchController.dragStart(palmX, palmY);
             }
             break;
+          case 'left_up': {
+            const held = pointerRef.current;
+            pointerRef.current = null;
+            if (!held || held.button !== 'left' || !TouchController) break;
+            if (Date.now() - held.pressedAt < TAP_THRESHOLD_MS) {
+              // Pinça rápida = clique esquerdo.
+              await TouchController.tap(held.x, held.y);
+            } else {
+              // Pinça/punho prolongado = solta o arrasto.
+              await TouchController.dragEnd();
+            }
+            break;
+          }
           case 'right_click':
-            // Long press for right click
-            if (landmarks) {
-              const x = landmarks.palmCenterPx[0];
-              const y = landmarks.palmCenterPx[1];
-              await TouchController?.longPress(x, y, 0.5);
-            }
-            break;
-          case 'drag':
-            // Start drag
-            if (landmarks) {
-              const x = landmarks.palmCenterPx[0];
-              const y = landmarks.palmCenterPx[1];
-              await TouchController?.dragStart(x, y);
+            if (TouchController) {
+              await TouchController.longPress(palmX, palmY, 0.5);
             }
             break;
           case 'scroll':
-            // Handle scroll
             if (value !== null && TouchController) {
-              await TouchController?.swipe(
+              await TouchController.swipe(
                 SCREEN_WIDTH / 2,
                 SCREEN_HEIGHT / 2,
                 SCREEN_WIDTH / 2,
                 SCREEN_HEIGHT / 2 - value * 10,
                 0.1
               );
+            }
+            break;
+          case 'volume':
+            if (SystemController && typeof value === 'number' && value !== 0) {
+              await SystemController.adjustVolume(value > 0 ? 1 : -1);
             }
             break;
           case 'goBack':
@@ -216,7 +246,101 @@ const [landmarks, setLandmarks] = useState<HandLandmarks | null>(null);
         console.error('Action error:', error);
       }
     },
-    [landmarks, frameDims, proEntitlement.isPro, remoteStatus, forwardGestures]
+    [proEntitlement.isPro, remoteStatus, forwardGestures]
+  );
+
+  // Processa o resultado da deteção (mão dominante + gestos + ações).
+  const processHands = useCallback(
+    (hands: any[], handedness: any[], imgW: number, imgH: number) => {
+      if (!engineRef.current || !filtersRef.current || !curveRef.current) return;
+      if (imgW <= 0 || imgH <= 0) return;
+
+      try {
+        // Duas mãos abertas (palmas) sustentadas -> voltar.
+        if (hands.length >= 2 && hands.every(isOpenPalm)) {
+          palmsFramesRef.current += 1;
+          if (palmsFramesRef.current >= PALM_BACK_FRAMES && !palmsSentRef.current) {
+            palmsSentRef.current = true;
+            handleAction('goBack', null);
+          }
+        } else {
+          palmsFramesRef.current = 0;
+          palmsSentRef.current = false;
+        }
+
+        // Mão dominante: a de maior palma (mais próxima da câmara).
+        let bestRaw = hands[0];
+        for (const raw of hands) {
+          if (palmScale(raw) > palmScale(bestRaw)) bestRaw = raw;
+        }
+        const points: [number, number, number][] = bestRaw.map((p: any) => [
+          p.x,
+          p.y,
+          p.z,
+        ]);
+        const result = engineRef.current.update(points, imgW, imgH);
+
+        // Filtra e mapeia a palma para coordenadas de ecrã (espelhado + aspect-fit).
+        const [fx, fy] = filtersRef.current.filter(
+          result.landmarks.palmCenter[0],
+          result.landmarks.palmCenter[1]
+        );
+        filteredPalmRef.current = toScreen(fx, fy);
+
+        // Atualiza estado
+        setGesture(result.landmarks.gesture);
+        incrementGestureCount();
+        setLandmarks(result.landmarks);
+
+        // Ações de transição
+        if (result.event) {
+          handleAction(result.event, result.value);
+        }
+
+        // Deslocamento contínuo enquanto o botão está pressionado (arrastar).
+        if (
+          proEntitlement.isPro &&
+          !isPaused &&
+          pointerRef.current?.button === 'left'
+        ) {
+          const now = Date.now();
+          const dtMs = Math.max(now - lastMoveSentRef.current, 16);
+          if (dtMs >= MOVE_INTERVAL_MS) {
+            const target = filteredPalmRef.current;
+            const prev = lastDragPosRef.current;
+            const g =
+              curveRef.current.apply(
+                (target[0] - prev[0]) / (dtMs / 1000),
+                (target[1] - prev[1]) / (dtMs / 1000)
+              ) *
+              (moveGain / 2);
+            const nx = Math.max(0, Math.min(SCREEN_WIDTH, prev[0] + (target[0] - prev[0]) * g));
+            const ny = Math.max(0, Math.min(SCREEN_HEIGHT, prev[1] + (target[1] - prev[1]) * g));
+            TouchController?.dragMove(nx, ny);
+            lastDragPosRef.current = [nx, ny];
+            lastMoveSentRef.current = now;
+          }
+        } else {
+          lastMoveSentRef.current = Date.now();
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        setDebugInfo((prev) =>
+          prev && prev.error === msg ? prev : { plugin: true, hands: 0, error: `JS: ${msg}` }
+        );
+        console.error('processHands error:', e);
+      }
+    },
+    [
+      toScreen,
+      handleAction,
+      setGesture,
+      incrementGestureCount,
+      proEntitlement.isPro,
+      isPaused,
+      moveGain,
+      setDebugInfo,
+    ]
   );
 
   // Update FPS from the worklet via runOnJS (no React functions/refs are shared into the worklet)
@@ -353,6 +477,11 @@ const [landmarks, setLandmarks] = useState<HandLandmarks | null>(null);
       dispH,
     };
   }, [frameDims]);
+
+  useEffect(() => {
+    viewMappingRef.current = viewMapping;
+    frameDimsRef.current = frameDims;
+  }, [viewMapping, frameDims]);
 
   // Render hand overlay
   const renderHandOverlay = () => {
@@ -549,6 +678,7 @@ const [landmarks, setLandmarks] = useState<HandLandmarks | null>(null);
             <Text style={styles.helpItem}>☝️ Um dedo = Mover (1D)</Text>
             <Text style={styles.helpItem}>👍 Polegar = Play/Pausa</Text>
             <Text style={styles.helpItem}>🤙 Shaka = Colar</Text>
+            <Text style={styles.helpItem}>✋✋ Duas mãos abertas = Voltar</Text>
             <TouchableOpacity
               style={styles.helpCloseButton}
               onPress={() => setShowHelp(false)}

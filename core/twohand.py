@@ -1,4 +1,5 @@
 import math
+import os
 import subprocess
 import time
 
@@ -8,6 +9,8 @@ from core.log import get_logger
 log = get_logger("twohand")
 
 CREATE_NO_WINDOW = 0x08000000
+
+IS_WINDOWS = os.name == "nt"
 
 
 class ClapDetector:
@@ -109,8 +112,13 @@ class MagnifierCtl:
         self._bad_since = None
 
     def _launch_magnifier(self):
+        if not IS_WINDOWS:
+            return True
         try:
-            subprocess.Popen(["magnify.exe"], creationflags=CREATE_NO_WINDOW)
+            kwargs = {}
+            if IS_WINDOWS:
+                kwargs["creationflags"] = CREATE_NO_WINDOW
+            subprocess.Popen(["magnify.exe"], **kwargs)
             time.sleep(0.4)
             return True
         except Exception:

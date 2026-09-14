@@ -82,13 +82,16 @@ class MouseCtl:
 
     @staticmethod
     def _enable_dpi_awareness():
-        """Garante que o processo reporte PIXELS FISICOS em qualquer maquina.
+        """Windows: garante que o processo reporte PIXELS FISICOS em qualquer maquina.
 
         Sem isto, em monitores com scaling (125%/150%), GetSystemMetrics devolve
         a resolucao logica (ex.: 1280x720 para um ecrã 1920x1080 a 150%), mas o
         pynput continua a mover-se em pixels fisicos -> cursor com velocidade e
         clamp errados. Preferimos Per-Monitor (2); se falhar, System DPI aware (1).
+        Em Linux/macOS não há equivalente: saímos de imediato.
         """
+        if not _IS_WINDOWS:
+            return
         made = False
         try:
             made = ctypes.windll.shcore.SetProcessDpiAwareness(2) == 0
@@ -109,26 +112,45 @@ class MouseCtl:
     def _screen_size():
         """Dimensoes em pixels fisicos de TODOS os monitores (area virtual).
 
-        Usa o monitor virtual para que, em maquinas com 2+ monitores, o cursor
-        nao fique limitado/deslocado pelo monitor primario. Retorna sempre
-        resolucao fisica (ex.: 1920x1080 mesmo com scaling 150%).
+        Windows: usa o monitor virtual para que, em maquinas com 2+ monitores,
+        o cursor nao fique limitado/deslocado pelo monitor primario.
+        Linux: consulta o ecra primario via libX11 (sem dependencias novas).
+        Retorna sempre resolucao fisica (ex.: 1920x1080 mesmo com scaling 150%).
         """
+        if _IS_WINDOWS:
+            try:
+                user32 = ctypes.windll.user32
+                w = int(user32.GetSystemMetrics(78))  # SM_CXVIRTUALSCREEN
+                h = int(user32.GetSystemMetrics(79))  # SM_CYVIRTUALSCREEN
+                if w > 0 and h > 0:
+                    return (w, h)
+            except Exception as e:
+                log.debug("Sem monitor virtual, a usar prim\u00e1rio: %s", e)
+            try:
+                user32 = ctypes.windll.user32
+                return (
+                    int(user32.GetSystemMetrics(0)),
+                    int(user32.GetSystemMetrics(1)),
+                )
+            except Exception:
+                return (1920, 1080)
         try:
-            user32 = ctypes.windll.user32
-            w = int(user32.GetSystemMetrics(78))  # SM_CXVIRTUALSCREEN
-            h = int(user32.GetSystemMetrics(79))  # SM_CYVIRTUALSCREEN
-            if w > 0 and h > 0:
-                return (w, h)
+            x11 = ctypes.CDLL("libX11.so.6")
+            x11.XOpenDisplay.restype = ctypes.c_void_p
+            x11.XScreenOfDisplay.restype = ctypes.c_void_p
+            dpy = x11.XOpenDisplay(None)
+            if dpy:
+                scr = x11.XScreenOfDisplay(ctypes.c_void_p(dpy), 0)
+                if scr:
+                    w = int(x11.XWidthOfScreen(ctypes.c_void_p(scr)))
+                    h = int(x11.XHeightOfScreen(ctypes.c_void_p(scr)))
+                    x11.XCloseDisplay(ctypes.c_void_p(dpy))
+                    if w > 0 and h > 0:
+                        return (w, h)
+                x11.XCloseDisplay(ctypes.c_void_p(dpy))
         except Exception as e:
-            log.debug("Sem monitor virtual, a usar prim\u00e1rio: %s", e)
-        try:
-            user32 = ctypes.windll.user32
-            return (
-                int(user32.GetSystemMetrics(0)),
-                int(user32.GetSystemMetrics(1)),
-            )
-        except Exception:
-            return (1920, 1080)
+            log.debug("Sem ecr\u00e3 X11 (%s); a usar 1920x1080.", e)
+        return (1920, 1080)
 
     def _send_down(self, flags):
         if self._sendinput:

@@ -6,11 +6,18 @@ import urllib.request
 import wave
 
 import numpy as np
-import sounddevice as sd
 
 from core.log import get_logger
 
 log = get_logger("tts")
+
+
+def _get_sd():
+    try:
+        import sounddevice as _sd
+        return _sd
+    except Exception:
+        return None
 
 
 def _download(url, path):
@@ -160,6 +167,9 @@ class Speaker:
             if self.engine_name == "piper" and self._pv is not None:
                 try:
                     data, sr = self._synth_piper(text)
+                    sd = _get_sd()
+                    if sd is None:
+                        raise OSError("sounddevice não disponível (libportaudio2?)")
                     self._speaking = True
                     try:
                         sd.play(data, sr)

@@ -11,7 +11,14 @@ def _read_machine_guid() -> str:
             val, _ = winreg.QueryValueEx(k, "MachineGuid")
             return str(val)
     except Exception:
-        return ""
+        pass
+    for p in ("/etc/machine-id", "/var/lib/dbus/machine-id"):
+        try:
+            with open(p) as fh:
+                return fh.read().strip()[:128]
+        except OSError:
+            continue
+    return ""
 
 
 def _wmic(namespace_class: str) -> str:

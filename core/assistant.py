@@ -5,17 +5,37 @@ import subprocess
 import sys
 import time
 import webbrowser
-import winreg
+
+try:
+    import winreg
+except ImportError:  # não-Windows
+    winreg = None
 
 from core.log import get_logger
 
 log = get_logger("assistant")
 
+IS_WINDOWS = os.name == "nt"
 CREATE_NO_WINDOW = 0x08000000
 WM_CLOSE = 0x0010
 
 
+def _popen_kwargs(cwd=None):
+    """Devolve kwargs de subprocess.Popen válidos na plataforma.
+
+    ``creationflags`` é exclusivo do Windows; no POSIX levantaria ValueError.
+    """
+    kwargs = {}
+    if cwd:
+        kwargs["cwd"] = cwd
+    if IS_WINDOWS:
+        kwargs["creationflags"] = CREATE_NO_WINDOW
+    return kwargs
+
+
 def _windows_with_title(hint):
+    if not IS_WINDOWS:
+        return []
     user32 = ctypes.windll.user32
     found = []
 
@@ -37,6 +57,8 @@ def _windows_with_title(hint):
 
 
 def _find_browser():
+    if not IS_WINDOWS:
+        return None
     candidates = []
     for exe in ("chrome.exe", "msedge.exe", "firefox.exe"):
         for root in (winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER):
@@ -83,15 +105,9 @@ class Assistant3D:
         script = os.path.join(self.server_dir, "server.py")
         if not os.path.isfile(script):
             return False
-        py = sys.executable
-        pyw = py.replace("python.exe", "pythonw.exe")
-        exe = pyw if os.path.isfile(pyw) else py
+        exe = sys.executable
         try:
-            subprocess.Popen(
-                [exe, script],
-                cwd=self.server_dir,
-                creationflags=CREATE_NO_WINDOW,
-            )
+            subprocess.Popen([exe, script], **_popen_kwargs(cwd=self.server_dir))
         except Exception:
             return False
         deadline = time.time() + 12.0
@@ -111,10 +127,15 @@ class Assistant3D:
                 return "ASSISTENTE (navegador)"
             exe = _find_browser()
             if exe:
-                subprocess.Popen(
-                    [exe, "--app=" + self.url, "--window-size=1280,860"],
-                    creationflags=CREATE_NO_WINDOW,
-                )
+                try:
+                    subprocess.Popen(
+                        [exe, "--app=" + self.url, "--window-size=1280,860"],
+                        **_popen_kwargs(),
+                    )
+                except Exception as e:
+                    log.debug("Falha ao abrir browser em app-mode: %s", e)
+                    webbrowser.open(self.url)
+                    return "ASSISTENTE (navegador)"
                 return "ASSISTENTE 3D"
             webbrowser.open(self.url)
             return "ASSISTENTE (navegador)"

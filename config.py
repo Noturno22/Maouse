@@ -148,7 +148,7 @@ class Config:
     model_path: str = "models/hand_landmarker.task"
     model_url: str = (
         "https://storage.googleapis.com/mediapipe-models/hand_landmarker/"
-        "hand_landmarker/float16/1/hand_landmarker.task"
+        "hand_landmarker/float16/latest/hand_landmarker.task"
     )
 
     ai_enabled: bool = True
