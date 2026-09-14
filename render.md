@@ -1,16 +1,11 @@
 # Render Blueprint — implanta o license server da Mãouse a partir deste repo.
 # Uso: liga este repo ao Render (Blueprints) ou usa "New + > Blueprint".
-#
-# ESTADO ATUAL: plan FREE = DEMO (dados efémeros).
-#   - No free o Render NÃO suporta disco persistente: /data/license.db reseta a cada
-#     redeploy e o serviço adormece após ~15 min sem tráfego (cold-start na 1ª chamada).
-#   - PRODUÇÃO (1ª venda): descomenta o bloco `disk:` abaixo e muda plan: free -> starter.
-#
+# Um disco persistente é montado em /data — a base SQLite fica lá.
 services:
   - type: web
     name: maouse-license-server
     runtime: docker
-    repo: https://github.com/Noturno22/Maouse.git
+    repo: https://github.com/Noturno22/AirMouse.git
     plan: free
     dockerfilePath: ./license-server/Dockerfile
     envVars:
@@ -46,12 +41,11 @@ services:
         sync: false
       - key: AIRMOUSE_MOBILE_DEV_ALLOW
         value: "0"
-      # Caminho da base de dados (efémero no free; persistente no starter com disco).
+      # Base de dados persistente no disco.
       - key: AIRMOUSE_LS_DB
         value: /data/license.db
+    disk:
+      name: maouse-license-data
+      mountPath: /data
+      sizeGB: 1
     healthCheckPath: /health
-    # PRODUÇÃO (1ª venda): descomentar o bloco e mudar plan: free -> starter (único com disco).
-    # disk:
-    #   name: maouse-license-data
-    #   mountPath: /data
-    #   sizeGB: 1

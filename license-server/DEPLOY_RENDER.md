@@ -1,9 +1,11 @@
-# Deploy do License Server no Render (Free Tier)
+# Deploy do License Server no Render
 
-> Guia operacional **v1.1** para pôr o license server online e fazer o *bake* do
+> Guia operacional **v2.0** para pôr o license server online e fazer o *bake* do
 > URL de produção no desktop e no mobile.
-> **Pré-requisito:** o código já está pronto (41 testes a passar, ruff limpo) e o
+> **Pré-requisito:** o código já está pronto (67 testes a passar, ruff limpo) e o
 > `render.yaml` + `Dockerfile` existem. Isto requer **a tua conta Render** (execução manual aqui).
+>
+> **Estado atual:** plano **free** (demo, dados efémeros). Para produção, ver §9.
 
 ---
 
@@ -34,8 +36,8 @@ Antes de começares, fica registado o que já está confirmado e corrigido:
 | **Blueprint (recomendado)** | Primeira vez: liga o repo e aplica `render.yaml` | Dashboard Render → *New +* → *Blueprint* → escolhe o repo |
 | Manual | Já tens um serviço e só queres ligar o Dockerfile | *New +* → *Web Service* → runtime Docker |
 
-> Nota: qualquer das vias vai tentar aceder `https://github.com/Noturno22/AirMouse.git`.
-> Se o repo for private, liga a conta GitHub ao Render e usa **GitHub deploy**, não a URL.
+> Nota: o repo é **`Noturno22/Maouse`** (renomeado de AirMouse). Qualquer das vias vai
+> aceder a esse repo. Se o repo for privado, liga a conta GitHub ao Render e usa **GitHub deploy**.
 
 ---
 
@@ -49,7 +51,8 @@ O `render.yaml` já define `AIRMOUSE_MOBILE_PRODUCT_ID=maouse_mobile_pro`,
 ### Obrigatórias
 | Var | Valor |
 |---|---|
-| `AIRMOUSE_LS_ADMIN_TOKEN` | Token forte aleatório (ex.: `openssl rand -hex 24`). Usado nos endpoints `/admin/*`. |
+| `AIRMOUSE_LS_ADMIN_TOKEN` | Token forte aleatório (ex.: `openssl rand -hex 24`). Usado como **senha de login** do painel admin e nos endpoints `/admin/*`. |
+| `AIRMOUSE_LS_ADMIN_SESSION_SECRET` | Chave forte aleatória (ex.: `openssl rand -hex 24`). Usada para assinar os cookies de sessão do painel admin. |
 | `AIRMOUSE_LS_PRIVATE_KEY` | Conteúdo **integral** de `license-server/private.pem` |
 | `AIRMOUSE_LS_PUBLIC_KEY` | Conteúdo **integral** de `license-server/public.pem` |
 
@@ -74,8 +77,12 @@ O `render.yaml` já define `AIRMOUSE_MOBILE_PRODUCT_ID=maouse_mobile_pro`,
 
 ## 3. Disco persistente
 
-- O `render.yaml` monta **1 GB** em `/data` e aponta `AIRMOUSE_LS_DB=/data/license.db`.
-  Não percas isto se trocares de plano (Free tem disco único; mantém-se persistente entre redeploys).
+- O `render.yaml` aponta `AIRMOUSE_LS_DB=/data/license.db`.
+- **Plano free:** o Render **não suporta disco persistente** — `/data` é efémero e a base
+  reseta a cada redeploy. Adequado para demo/testes. O serviço também adormece após
+  ~15 min sem tráfego (a 1ª chamada demora ~30–60 s a acordar).
+- **Plano starter (US$7/mês):** o bloco `disk:` no `render.yaml` deve ser descomentado e o
+  `plan:` mudado para `starter` — o disco passa a ser persistente entre redeploys.
 
 ---
 
@@ -87,6 +94,15 @@ Após o deploy, no painel Render copia a URL (`https://<service>.onrender.com`).
 curl https://<service>.onrender.com/health
 # → {"status":"ok", ...}  (200)
 ```
+
+### Painel admin
+
+O painel admin fica em `https://<service>.onrender.com/admin/login`.
+
+- **Senha de login:** valor de `AIRMOUSE_LS_ADMIN_TOKEN` (o mesmo token usado em `/admin/*`).
+- **Áreas disponíveis:** dashboard, clientes/chaves (CRUD), chat, emails, estatísticas.
+- **Dados:** no plano free, os dados do painel (clientes, chaves, chats) são efémeros e
+  perdem-se a cada redeploy. No plano starter com disco, são persistentes.
 
 Teste rápido do endpoint mobile em **modo dev** (só se `AIRMOUSE_MOBILE_DEV_ALLOW=1`):
 
@@ -139,11 +155,30 @@ Depois de o serviço estar online:
 
 ---
 
-## 7. Redeploys futuros
+## 8. Redeploys futuros
 
 - Push no branch ligado → Render faz auto-deploy (build incremental da imagem Docker).
 - Alterações de env var → *Manual Deploy > Clear build cache & deploy*.
 - **Nunca** rodar com `--reload` (1 worker no Dockerfile; SQLite + estado em memória por worker).
+
+---
+
+## 9. Antes da 1ª venda (produção) — 3 passos
+
+O plano **free é só demo** (dados efémeros + cold-start). Antes de haver uma venda real,
+ativa o plano **starter** (US$7/mês) para ter dados persistentes e respostas imediatas:
+
+1. **Editar `license-server/render.yaml`:**
+   - Mudar `plan: free` → `plan: starter`.
+   - Descomentar o bloco `disk:` (descomentado, não o bloco `# disk:`).
+2. **Push para `main`** → o Render deteta a mudança e pergunta se queres fazer deploy.
+3. **Deploy** → os dados anteriores (free) são perdidos (disco novo). A partir daí, tudo é
+   persistente: leases, chaves, clientes, chat, emails, configurações do painel.
+
+> **Notas:**
+> - Após o deploy, copia a URL e segue os passos §5 (mobile) e §6 (desktop) para *bake* do
+>   URL no build. O painel admin fica em `/admin/login` e continua a funcionar sem alterações.
+> - Se não houver disco, o banco reseta a cada push — não é aceitável para clientes reais.
 
 ---
 

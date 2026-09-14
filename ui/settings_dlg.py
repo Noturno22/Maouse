@@ -11,7 +11,6 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QPlainTextEdit,
     QPushButton,
-    QSlider,
     QSpinBox,
     QStackedWidget,
     QVBoxLayout,
@@ -23,6 +22,7 @@ from core.licensing import Tier, is_pro_locked
 from i18n import tr
 from ui.icon_kits import menu_icon
 from ui.theme import FONT_MONO, FONT_PRIMARY, MAIN_STYLESHEET
+from ui.tune_slider import TuneSlider
 
 
 # ── Sidebar item (checkable button) ────────────────────────────────
@@ -52,26 +52,6 @@ def _group(title, caption):
     return g, lay
 
 
-def _slider_block(parent_lay, name, value_text, on_change, lo, hi, val):
-    row = QHBoxLayout()
-    name_lbl = QLabel(name)
-    name_lbl.setObjectName("SettingsLabel")
-    row.addWidget(name_lbl)
-    row.addStretch(1)
-    value = QLabel(value_text)
-    value.setObjectName("SliderValue")
-    value.setFont(FONT_MONO)
-    row.addWidget(value)
-    parent_lay.addLayout(row)
-
-    sl = QSlider(Qt.Horizontal)
-    sl.setRange(int(lo), int(hi))
-    sl.setValue(int(val))
-    sl.valueChanged.connect(lambda v: value.setText(on_change(v)))
-    parent_lay.addWidget(sl)
-    return sl, value
-
-
 class SettingsDialog(QDialog):
 
     def __init__(self, cfg, smooth_name, parent=None, license_mgr=None):
@@ -79,6 +59,7 @@ class SettingsDialog(QDialog):
         self._cfg = cfg
         self._smooth_name = smooth_name
         self._tier = license_mgr.tier if license_mgr is not None else Tier.FREE
+        self._license_mgr = license_mgr
         self.setWindowTitle("Definições — Mãouse")
         self.setObjectName("SettingsDialog")
         self.setStyleSheet(MAIN_STYLESHEET)
@@ -212,10 +193,10 @@ class SettingsDialog(QDialog):
         pl.addWidget(sub)
 
         g, gl = _group("Ganho do cursor", "Quão rápido o cursor segue a mão.")
-        self._gain_sl, self._gain_lbl = _slider_block(
-            gl, "Rácio de movimento", f"{self._cfg.move_gain:.1f}",
-            lambda v: f"{v / 10:.1f}", 6, 50, self._cfg.move_gain * 10,
-        )
+        self._gain_sl = TuneSlider("Rácio de movimento", lambda v: f"{v / 10:.1f}")
+        self._gain_sl.setRange(6, 50)
+        self._gain_sl.setValue(int(self._cfg.move_gain * 10))
+        gl.addWidget(self._gain_sl)
         pl.addWidget(g)
 
         s, sl = _group("Suavidade", "Entre um movimento suave e um reativo.")
@@ -229,14 +210,16 @@ class SettingsDialog(QDialog):
         pl.addWidget(s)
 
         p2, p2l = _group("Estabilidade", "Zona morta e estabilidade do gesto.")
-        self._dead_sl, self._dead_lbl = _slider_block(
-            p2l, "Zona morta do cursor", f"{self._cfg.deadzone_px:.0f}px",
-            lambda v: f"{v}px", 0, 20, self._cfg.deadzone_px,
+        self._dead_sl = TuneSlider("Zona morta do cursor", lambda v: f"{v}px")
+        self._dead_sl.setRange(0, 20)
+        self._dead_sl.setValue(int(self._cfg.deadzone_px))
+        p2l.addWidget(self._dead_sl)
+        self._stable_sl = TuneSlider(
+            "Estabilidade do gesto", lambda v: f"{v} frames"
         )
-        self._stable_sl, self._stable_lbl = _slider_block(
-            p2l, "Estabilidade do gesto", f"{self._cfg.gesture_stable_frames} frames",
-            lambda v: f"{v} frames", 1, 6, self._cfg.gesture_stable_frames,
-        )
+        self._stable_sl.setRange(1, 6)
+        self._stable_sl.setValue(int(self._cfg.gesture_stable_frames))
+        p2l.addWidget(self._stable_sl)
         pl.addWidget(p2)
         pl.addStretch()
         self._stack.addWidget(panel)
@@ -437,15 +420,19 @@ class SettingsDialog(QDialog):
         sub = QLabel(
             "Botão de TV no ecrã principal para ativar o modo dedicado a"
             " trading (abre o TradingView + comando remoto pelo telemóvel)."
+            " Exclusivo para assinantes Pro."
         )
         sub.setObjectName("HeroSubtitle")
         sub.setWordWrap(True)
         pl.addWidget(sub)
 
         tm, tml = _group("Modo Trading Master", None)
-        self._tv_btn_ch = QCheckBox("Mostrar o botão 'Modo Trading Master' no ecrã principal")
-        self._tv_btn_ch.setChecked(self._cfg.tv_button_enabled)
-        tml.addWidget(self._tv_btn_ch)
+        self._tv_btn_ch, tv_lay = self._pro_checkbox(
+            "trading_master",
+            "Mostrar o botão 'Modo Trading Master' no ecrã principal",
+            self._cfg.tv_button_enabled,
+        )
+        tml.addLayout(tv_lay)
         tv_hint = QLabel(
             "Atalhos de voz -> teclado do TradingView, um por linha no"
             " formato 'chave = combo' (ex: h = alt+h, s = ctrl+k)."
@@ -455,6 +442,25 @@ class SettingsDialog(QDialog):
         tv_hint.setObjectName("MicHint")
         tv_hint.setWordWrap(True)
         tml.addWidget(tv_hint)
+        self._tv_master_locked = is_pro_locked(self._tier, "trading_master")
+        if self._tv_master_locked:
+            buy_lay = QHBoxLayout()
+            buy_hint = QLabel(
+                "Trading Master é um produto pago (€149,90) — o modo abre o"
+                " TradingView e ativa o controlo remoto por telemóvel."
+            )
+            buy_hint.setObjectName("MicHint")
+            buy_hint.setWordWrap(True)
+            buy_lay.addWidget(buy_hint, 1)
+            self._tv_buy_btn = QPushButton("SUBSCREVER TRADING MASTER (€149,90)")
+            self._tv_buy_btn.setObjectName("ProCta")
+            self._tv_buy_btn.setCursor(Qt.PointingHandCursor)
+            self._tv_buy_btn.clicked.connect(self._buy_trading_master)
+            buy_lay.addWidget(self._tv_buy_btn)
+            tml.addLayout(buy_lay)
+        else:
+            self._tv_buy_btn = None
+        tv_hint.setEnabled(not self._tv_master_locked)
         self._tv_combos_edit = QPlainTextEdit()
         self._tv_combos_edit.setObjectName("KeyField")
         self._tv_combos_edit.setFont(FONT_MONO)
@@ -463,6 +469,7 @@ class SettingsDialog(QDialog):
             "\n".join(f"{k} = {v}" for k, v in self._cfg.tv_tool_combos.items())
         )
         tml.addWidget(self._tv_combos_edit)
+        self._tv_combos_edit.setEnabled(not self._tv_master_locked)
         pl.addWidget(tm)
         pl.addStretch()
         self._stack.addWidget(panel)
@@ -474,6 +481,12 @@ class SettingsDialog(QDialog):
         self._cfg.remote_token = generate_token()
         self._remote_token_edit.setText(self._cfg.remote_token)
         self._refresh_remote_info()
+
+    def _buy_trading_master(self):
+        from ui.license_dlg import PADDLE_VENDOR_ID
+
+        if self._license_mgr is not None:
+            self._license_mgr.open_checkout("trading_master", PADDLE_VENDOR_ID)
 
     def _refresh_remote_info(self):
         from core.remote import generate_token, lan_ips

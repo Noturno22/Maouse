@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 from dataclasses import dataclass, field
 
 # Atalhos de voz -> teclado do TradingView (modo trading master).
@@ -226,9 +227,65 @@ SMOOTH_PRESETS = (
     ("NORMAL", 1.4, 0.028),
     ("REACTIVO", 2.2, 0.05),
 )
-SETTINGS_FILE = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "settings.json"
-)
+
+
+def user_data_dir():
+    """Directorio do utilizador, escrevivel SEM admin (ex.: Program Files nao e).
+
+    Usado para settings.json e downloads de modelos (Vosk/Piper/gestos).
+    """
+    base = os.environ.get("LOCALAPPDATA") or os.environ.get("APPDATA")
+    if not base:
+        base = os.path.expanduser("~")
+    d = os.path.join(base, "AirMouse")
+    try:
+        os.makedirs(d, exist_ok=True)
+    except OSError:
+        d = os.path.dirname(os.path.abspath(__file__))
+    return d
+
+
+def user_models_dir():
+    """Directorio onde os modelos descarregados sao gravados (escrevivel)."""
+    d = os.path.join(user_data_dir(), "models")
+    try:
+        os.makedirs(d, exist_ok=True)
+    except OSError:
+        pass
+    return d
+
+
+def bundle_root():
+    """Raiz dos assets empacotados: PyInstaller onedir poe-os em ``_internal``
+    (``sys._MEIPASS``). Em dev e a raiz do repositorio (junto do config.py)."""
+    if getattr(sys, "frozen", False):
+        return getattr(sys, "_MEIPASS", os.path.dirname(sys.executable))
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+def resolve_asset(rel):
+    """Caminho real de um asset empacotado (ex.: ``models/hand_landmarker.task``).
+
+    Procura no bundle (``_internal`` quando congelado, raiz do repo em dev) e,
+    em alternativa, no caminho relativo ao cwd. Devolve ``None`` se nao existir.
+    """
+    if os.path.isabs(rel):
+        return rel if os.path.exists(rel) else None
+    for cand in (os.path.join(bundle_root(), rel), rel):
+        if os.path.exists(cand):
+            return cand
+    return None
+
+
+def _settings_path():
+    """Windows: junto aos restantes dados do utilizador (%LOCALAPPDATA%),
+    escrevivel mesmo dentro de Program Files. Linux/macOS: junto ao repo."""
+    if os.name == "nt":
+        return os.path.join(user_data_dir(), "settings.json")
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.json")
+
+
+SETTINGS_FILE = _settings_path()
 
 
 def load_settings(cfg):

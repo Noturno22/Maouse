@@ -32,7 +32,7 @@ class Tier(Enum):
     PRO = "pro"
 
 
-PRO_LOCKED = ("snap", "voice", "two_hands", "tts", "ai", "autotune", "low_light")
+PRO_LOCKED = ("snap", "voice", "two_hands", "tts", "ai", "autotune", "low_light", "trading_master")
 
 # Produtos Paddle (Pay Links). Preencher com os IDs reais dos preços quando a
 # entidade UE e o catálogo Paddle existirem. Mantido por compat (checkout).

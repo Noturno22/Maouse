@@ -10,7 +10,19 @@ Motor de precisão profissional: filtragem One Euro + curva de aceleração + pa
 
 ## Instalação (uma vez)
 Faz duplo clique em **`setup.bat`** — cria o ambiente virtual e instala tudo.
-O modelo `hand_landmarker.task` (~8 MB) descarrega automaticamente na primeira execução.
+
+### Instalador 1-clique (Windows)
+Faz duplo clique em **`build.bat`** → gera `dist\Maouse-Setup-1.0.0.exe`.
+O instalador já inclui os modelos críticos (`hand_landmarker.task` e
+`gesture_mlp.npz`) — arranca offline, sem downloads. Voz (Vosk ~49 MB) e TTS
+(Piper ~60 MB) são descarregados na primeira utilização para
+`%LOCALAPPDATA%\AirMouse\models` (diretório do utilizador, sempre escrevível).
+Nota: o instalador ainda NÃO está assinado digitalmente (aviso SmartScreen);
+a assinatura será adicionada quando houver um certificado EV.
+
+### Desenvolvimento
+Modelo `hand_landmarker.task` (~8 MB) descarrega automaticamente na primeira
+execução se não estiver em `models\`.
 
 ## Uso
 Faz duplo clique em **`start.bat`** (ou corre `.venv\Scripts\python.exe main.py`).

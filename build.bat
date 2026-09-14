@@ -53,15 +53,20 @@ if errorlevel 1 exit /b 1
 echo [4/6] A construir executavel (pode demorar varios minutos) ...
 .venv\Scripts\python.exe -m PyInstaller airmouse.spec --noconfirm
 if errorlevel 1 exit /b 1
-xcopy /E /I /Y models "dist\AirMouse\models" >nul
+rem Modelos críticos (hand_landmarker.task, gesture_mlp.npz) entram pelo
+rem airmouse.spec. Vosk/Piper são descarregados em %LOCALAPPDATA%\AirMouse.
 xcopy /E /I /Y assets\fonts "dist\AirMouse\assets\fonts" >nul
 xcopy /E /I /Y assets\brand "dist\AirMouse\assets\brand" >nul
 
 rem ── Assinar o AirMouse.exe (antes de o empacotar no instalador) ───────
-if defined PFX_PATH if defined SIGNTOOL (
-    echo [5/6] A assinar AirMouse.exe (SHA256 + timestamp) ...
-    "%SIGNTOOL%" sign /f "%PFX_PATH%" /p "%PFX_PASS%" /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /d "Maouse" "dist\AirMouse\AirMouse.exe"
-    if errorlevel 1 echo AVISO: falhou a assinatura do AirMouse.exe (continuando sem ela).
+if defined PFX_PATH (
+    if defined SIGNTOOL (
+        echo [5/6] A assinar AirMouse.exe - SHA256 + timestamp ...
+        "%SIGNTOOL%" sign /f "%PFX_PATH%" /p "%PFX_PASS%" /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /d "Maouse" "dist\AirMouse\AirMouse.exe"
+        if errorlevel 1 echo AVISO: falhou a assinatura do AirMouse.exe - a continuar sem ela.
+    ) else (
+        echo [5/6] Assinatura do AirMouse.exe ignorada.
+    )
 ) else (
     echo [5/6] Assinatura do AirMouse.exe ignorada.
 )
