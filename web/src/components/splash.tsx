@@ -33,15 +33,19 @@ export function Splash() {
         fading ? "pointer-events-none opacity-0" : "opacity-100"
       }`}
     >
-      <Image
-        src="/icon.png"
-        alt=""
-        width={148}
-        height={148}
-        unoptimized
-        preload
-        className="splash-logo rounded-2xl"
-      />
+      <div className="relative flex items-center justify-center">
+        <span className="splash-glow absolute h-56 w-56 rounded-full bg-neon/20 blur-3xl" />
+        <span className="orbit-ring h-40 w-40" />
+        <Image
+          src="/icon.png"
+          alt=""
+          width={148}
+          height={148}
+          unoptimized
+          preload
+          className="splash-logo relative z-10 rounded-2xl shadow-[0_0_60px_rgba(80,200,255,0.45)]"
+        />
+      </div>
     </div>
   );
 }

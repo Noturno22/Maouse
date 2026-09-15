@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono, Space_Grotesk } from "next/font/google";
+import { BackgroundFX } from "@/components/effects";
 import "./globals.css";
 
 const inter = Inter({
@@ -45,8 +46,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="pt"
       className={`${inter.variable} ${spaceGrotesk.variable} ${jetBrainsMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-night font-sans text-ice">
-        {children}
+      <body className="noise min-h-full flex flex-col bg-night font-sans text-ice">
+        <BackgroundFX />
+        <div className="relative z-10 flex flex-1 flex-col">{children}</div>
       </body>
     </html>
   );

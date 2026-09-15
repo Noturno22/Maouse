@@ -65,8 +65,8 @@ export function AccentIcon({ name, accent }: { name: IconKey; accent: AccentKey 
 
 export function Tag({ children }: { children: ReactNode }) {
   return (
-    <span className="inline-flex items-center gap-2 rounded-full border border-line bg-panel px-3 py-1 font-mono text-xs tracking-widest text-neon uppercase">
-      <span className="h-1.5 w-1.5 rounded-full bg-neon" />
+    <span className="inline-flex items-center gap-2 rounded-full border border-line bg-panel/70 px-3 py-1 font-mono text-xs tracking-widest text-neon uppercase">
+      <span className="pulse-dot relative inline-flex h-1.5 w-1.5 rounded-full bg-neon text-neon" />
       {children}
     </span>
   );
@@ -89,6 +89,7 @@ export function SectionHeader({
       <h2 className="mt-5 font-display text-3xl font-bold tracking-tight text-ice sm:text-4xl">
         {title}
       </h2>
+      <div className="mx-auto mt-5 h-px w-24 bg-gradient-to-r from-transparent via-neon/80 to-transparent" />
       <p className="mt-4 text-base leading-7 text-tech">{sub}</p>
     </div>
   );
@@ -122,7 +123,7 @@ export function DownloadButton({
 }) {
   const [nagged, setNagged] = useState(false);
 
-  const base = `group relative inline-flex items-center justify-center gap-2 rounded-lg bg-neon font-display font-semibold text-night shadow-[0_0_24px_rgba(80,200,255,0.35)] transition-all hover:bg-ice hover:shadow-[0_0_36px_rgba(80,200,255,0.55)] ${big ? "px-7 py-4 text-base" : "px-5 py-3 text-sm"} ${className}`;
+  const base = `btn-shine group relative inline-flex items-center justify-center gap-2 rounded-lg bg-neon font-display font-semibold text-night shadow-[0_0_24px_rgba(80,200,255,0.35)] transition-all hover:bg-ice hover:shadow-[0_0_36px_rgba(80,200,255,0.55)] ${big ? "px-7 py-4 text-base" : "px-5 py-3 text-sm"} ${className}`;
 
   if (DOWNLOAD_URL) {
     return (

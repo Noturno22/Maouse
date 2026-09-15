@@ -21,6 +21,10 @@
   --color-royal: #4682ff;
   --color-teal: #78c8b4;
   --color-gold: #ffc832;
+
+  --animate-float-y: float-y 7s ease-in-out infinite;
+  --animate-spin-slow: spin-slow 14s linear infinite;
+  --animate-soft-pulse: soft-pulse 2.4s ease-in-out infinite;
 }
 
 :root {
@@ -29,44 +33,149 @@
 
 html {
   scroll-behavior: smooth;
+  scroll-padding-top: 5.5rem;
 }
 
 body {
   background: #0a0a12;
   color: #f0f4f8;
+  overflow-x: hidden;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
 }
 
 ::selection {
-  background: rgba(80, 200, 255, 0.4);
+  background: rgba(80, 200, 255, 0.45);
+  color: #fff;
 }
 
-@keyframes drift {
+/* --- Scrollbar moderno --- */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: #0a0a12;
+}
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(80, 200, 255, 0.35), rgba(180, 120, 255, 0.35));
+  border-radius: 999px;
+  border: 2px solid #0a0a12;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(80, 200, 255, 0.6), rgba(180, 120, 255, 0.6));
+}
+
+:focus-visible {
+  outline: 2px solid rgba(80, 200, 255, 0.6);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ============================================================
+   MOTION PRIMITIVES
+   ============================================================ */
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(26px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes shimmer-text {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
+}
+
+@keyframes drift-slow {
   0%,
   100% {
     transform: translate3d(0, 0, 0) scale(1);
-    opacity: 0.5;
   }
   50% {
-    transform: translate3d(-30px, 20px, 0) scale(1.12);
-    opacity: 0.9;
+    transform: translate3d(40px, -30px, 0) scale(1.15);
   }
 }
 
-.hero-orb {
-  animation: drift 14s ease-in-out infinite;
+@keyframes float-y {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-16px);
+  }
+}
+
+@keyframes spin-slow {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.75);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+@keyframes grid-pan {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 44px 44px;
+  }
+}
+
+@keyframes shine-sweep {
+  from {
+    transform: translateX(-160%) skewX(-20deg);
+  }
+  to {
+    transform: translateX(320%) skewX(-20deg);
+  }
 }
 
 @keyframes scanline {
   0% {
-    top: -10%;
+    top: -12%;
   }
   100% {
-    top: 110%;
+    top: 112%;
   }
 }
 
-.demo-scan {
-  animation: scanline 7s linear infinite;
+@keyframes border-run {
+  from {
+    background-position: 0% 50%;
+  }
+  to {
+    background-position: 200% 50%;
+  }
 }
 
 @keyframes splash-pop {
@@ -84,11 +193,277 @@ body {
   }
 }
 
+@keyframes soft-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+/* ============================================================
+   UTILITIES — glass, glow, grid, shine, reveal
+   ============================================================ */
+
+.glass {
+  background: rgba(26, 26, 46, 0.55);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(80, 200, 255, 0.14);
+}
+
+.glass-strong {
+  background: rgba(16, 16, 28, 0.72);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid rgba(80, 200, 255, 0.18);
+}
+
+.text-gradient {
+  background: linear-gradient(
+    100deg,
+    var(--color-neon) 0%,
+    var(--color-royal) 30%,
+    var(--color-violet) 55%,
+    var(--color-neon) 80%
+  );
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer-text 6s linear infinite;
+}
+
+.text-gradient-gold {
+  background: linear-gradient(100deg, #ffc832, #ff8a3c, #ffc832);
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer-text 5s linear infinite;
+}
+
+.bg-grid {
+  background-image: linear-gradient(rgba(80, 200, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(80, 200, 255, 0.05) 1px, transparent 1px);
+  background-size: 44px 44px;
+  animation: grid-pan 22s linear infinite;
+  -webkit-mask-image: radial-gradient(ellipse 90% 70% at 50% 30%, black 25%, transparent 78%);
+  mask-image: radial-gradient(ellipse 90% 70% at 50% 30%, black 25%, transparent 78%);
+}
+
+.noise::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0.04;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Reveal on scroll (estado inicial: invisível) */
+.reveal {
+  opacity: 0;
+  transform: translateY(30px);
+  filter: blur(8px);
+  transition:
+    opacity 0.8s ease,
+    transform 0.9s cubic-bezier(0.16, 1, 0.3, 1),
+    filter 0.8s ease;
+  transition-delay: var(--reveal-delay, 0ms);
+  will-change: transform, opacity;
+}
+
+.reveal.is-in {
+  opacity: 1;
+  transform: none;
+  filter: none;
+}
+
+/* Brilho que varre botões primários */
+.btn-shine {
+  position: relative;
+  overflow: hidden;
+}
+.btn-shine::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 55%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.35),
+    transparent
+  );
+  transform: translateX(-160%) skewX(-20deg);
+  pointer-events: none;
+}
+.btn-shine:hover::after {
+  animation: shine-sweep 0.9s ease;
+}
+
+/* Card com borda animada (grau que corre) */
+.border-animated {
+  position: relative;
+  border-radius: 1rem;
+}
+.border-animated::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    120deg,
+    rgba(80, 200, 255, 0.6),
+    rgba(180, 120, 255, 0.5),
+    rgba(80, 200, 255, 0.15),
+    rgba(180, 120, 255, 0.6)
+  );
+  background-size: 300% 300%;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: border-run 6s linear infinite;
+  pointer-events: none;
+}
+
+/* Utilidade para anel pulsante (dots/badges) */
+.pulse-dot {
+  position: relative;
+}
+.pulse-dot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: currentColor;
+  animation: pulse-ring 2.2s ease-out infinite;
+}
+
+/* Link de nav com sublinhado animado */
+.nav-link {
+  position: relative;
+}
+.nav-link::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 100%;
+  bottom: -4px;
+  height: 1px;
+  background: linear-gradient(90deg, var(--color-neon), var(--color-violet));
+  transition: right 0.3s ease;
+}
+.nav-link:hover::after {
+  right: 0;
+}
+
+/* Barra de progresso de scroll */
+.scroll-progress {
+  transform-origin: left;
+  transition: transform 0.15s linear;
+}
+
+/* FAQ — resposta abre com animação */
+details .faq-answer {
+  opacity: 0;
+  max-height: 0;
+  overflow: hidden;
+  transition: opacity 0.35s ease, max-height 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+details[open] .faq-answer {
+  opacity: 1;
+  max-height: 320px;
+}
+
+.orbit-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  border: 1px dashed rgba(80, 200, 255, 0.25);
+  animation: spin-slow 14s linear infinite;
+}
+
+.soft-pulse {
+  animation: soft-pulse 2.4s ease-in-out infinite;
+}
+
+/* Card com spotlight que segue o rato */
+.spotlight-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  opacity: 0;
+  transition: opacity 0.45s ease;
+  background: radial-gradient(
+    380px circle at var(--mx, 50%) var(--my, 50%),
+    rgba(80, 200, 255, 0.13),
+    rgba(180, 120, 255, 0.06) 45%,
+    transparent 70%
+  );
+  pointer-events: none;
+}
+.spotlight-card:hover::before {
+  opacity: 1;
+}
+
+/* --- Reutilizados do design atual --- */
+.hero-orb {
+  animation: drift 14s ease-in-out infinite;
+}
+
+@keyframes drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.5;
+  }
+  50% {
+    transform: translate3d(-30px, 20px, 0) scale(1.12);
+    opacity: 0.9;
+  }
+}
+
+.demo-scan {
+  animation: scanline 7s linear infinite;
+}
+
 .splash-logo {
   animation: splash-pop 0.9s ease-out both;
 }
 
+.splash-glow {
+  animation: soft-pulse 2.2s ease-in-out infinite;
+}
+
+/* ============================================================
+   REDUZIR MOVIMENTO — respeitar preferência do utilizador
+   ============================================================ */
 @media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .reveal {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
   .splash-logo {
     animation: none;
   }
