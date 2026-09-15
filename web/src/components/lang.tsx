@@ -6,7 +6,7 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from "react";
-import { copy, type Copy, type Lang } from "@/lib/i18n";
+import { copy, LANGS, type Copy, type Lang } from "@/lib/i18n";
 
 interface LangValue {
   lang: Lang;
@@ -20,10 +20,14 @@ type Listener = () => void;
 const listeners = new Set<Listener>();
 let current: Lang = "pt";
 
+function isLang(value: string | null): value is Lang {
+  return value !== null && (LANGS as string[]).includes(value);
+}
+
 function readStored(): Lang {
   try {
     const stored = localStorage.getItem("maouse_lang");
-    return stored === "en" || stored === "pt" ? stored : current;
+    return isLang(stored) ? stored : current;
   } catch {
     return current;
   }

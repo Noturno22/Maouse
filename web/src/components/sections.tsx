@@ -9,14 +9,7 @@ import {
   Wordmark,
 } from "@/components/ui";
 import { Reveal, SpotlightCard } from "@/components/effects";
-
-function sectionId(lang: "pt" | "en", key: "features" | "pricing" | "privacy" | "matrix" | "faq" | "progress") {
-  const ids: Record<string, Record<typeof key, string>> = {
-    pt: { features: "beneficios", pricing: "precos", privacy: "privacidade", matrix: "matriz", faq: "faq", progress: "progresso" },
-    en: { features: "benefits", pricing: "pricing", privacy: "privacy", matrix: "compatibility", faq: "faq", progress: "roadmap" },
-  };
-  return ids[lang][key];
-}
+import { sectionId } from "@/lib/sections";
 
 export function Features() {
   const { lang, t } = useLang();

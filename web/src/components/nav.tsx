@@ -3,32 +3,28 @@
 import { useEffect, useState } from "react";
 import { useLang } from "@/components/lang";
 import { Wordmark } from "@/components/ui";
-import type { Lang } from "@/lib/i18n";
+import { LANGS, LANG_NATIVE, type Lang } from "@/lib/i18n";
 
 function LangToggle() {
   const { lang, set, t } = useLang();
-  const opts: Lang[] = ["pt", "en"];
   return (
-    <div
-      role="group"
-      aria-label={t.nav.langLabel}
-      className="flex items-center rounded-full border border-line bg-panel/70 p-0.5"
-    >
-      {opts.map((o) => (
-        <button
-          key={o}
-          type="button"
-          onClick={() => set(o)}
-          aria-pressed={lang === o}
-          className={`rounded-full px-2.5 py-1 font-mono text-xs uppercase transition-colors ${
-            lang === o
-              ? "bg-neon font-semibold text-night shadow-[0_0_14px_rgba(80,200,255,0.5)]"
-              : "text-tech hover:text-ice"
-          }`}
-        >
-          {o}
-        </button>
-      ))}
+    <div className="relative inline-flex items-center">
+      <select
+        value={lang}
+        onChange={(e) => set(e.target.value as Lang)}
+        aria-label={t.nav.langLabel}
+        title={t.nav.langLabel}
+        className="cursor-pointer appearance-none rounded-full border border-line bg-panel/70 py-1.5 pr-7 pl-3 font-mono text-xs text-ice outline-none transition-colors hover:border-neon/40 focus:border-neon/60 focus:shadow-[0_0_0_3px_rgba(80,200,255,0.15)]"
+      >
+        {LANGS.map((code) => (
+          <option key={code} value={code}>
+            {LANG_NATIVE[code]}
+          </option>
+        ))}
+      </select>
+      <span className="pointer-events-none absolute right-2.5 text-tech" aria-hidden="true">
+        ▾
+      </span>
     </div>
   );
 }

@@ -26,26 +26,30 @@
 
 ## 2. Divisão oficial (~US$222)
 
-| # | Direção | Item | Custo | Prioridade | Quando |
-|---|---|---|---|---|---|
-| 1 | **Assinatura de código** | SSL.com IV (Individual, cloud signing) | **US$129/ano** | 🔴 Não-negociável — bloqueador desktop n.º 1 | **Agora** |
-| 2 | **Domínio da marca** | `maouse.app` | **US$12/ano** | 🔴 Não-negociável — landing + "App Publisher URL" | **Agora** |
-| 3 | **License server** | Render **free tier** | **US$0** | 🟢 Hoje, zero | **Já** (validar fluxo) |
-| 4 | **Email transacional** | Resend / SMTP free tier | **US$0** | 🟢 Hoje, zero | **Já** (entrega de chave `MAO-`) |
-| 5 | **Pagamentos** | Paddle (Merchant of Record) | **US$0** (% por venda ~5%+$0,50) | 🟢 Hoje, zero | **Já** (checkout ativo) |
-| **Subtotal obrigatório** | | | **US$141** | | |
-| **Reserva de contingência** | | | **~US$81** | 🟡 Só aplicar com critério | §3 abaixo |
+| # | Direção | Item | Custo | Prioridade | Quando | Estado |
+|---|---|---|---|---|---|---|
+| 1 | **Assinatura de código** | SSL.com IV (Individual) — pago | **US$129/ano** | 🔴 Não-negociável — bloqueador desktop n.º 1 | **Agora** | 🟡 **pago, em validação** (`SSLCOM_VALIDACAO.md`) |
+| 2 | **Domínio da marca** | `maouse.app` — comprado | **US$14.342/ano** | 🔴 Não-negociável | **Agora** | ✅ |
+| 3 | **License server** | Render **free tier** | **US$0** | 🟢 Hoje, zero | **Já** (validar fluxo) | ⬜ |
+| 4 | **Email transacional** | Resend / SMTP free tier | **US$0** | 🟢 Hoje, zero | **Já** (entrega de chave `MAO-`) | ⬜ |
+| 5 | **Pagamentos** | Paddle (Merchant of Record) | **US$0** (% por venda ~5%+$0,50) | 🟢 Hoje, zero | **Já** (checkout ativo) | ⬜ |
+| 6 | **Loja mobile** | Play Developer (ativo — da reserva) | **US$25 (1x)** | 🟡 Decidido pelo Roberto | **Já** | ✅ |
+| **Subtotal obrigatório** | | | **US$143.34** | | | |
+| **Reserva de contingência** | | | **~US$53.66** | 🟡 Só aplicar com critério | §3 abaixo |
 
 ---
 
-## 3. Reserva de contingência (~US$81) — ordem de aplicação
+## 3. Reserva de contingência (~US$53.66) — ordem de aplicação
+
+> Reserva inicial ~US$81, já com **US$25 gastos na Play Developer** (decisão de lançar
+> mobile em paralelo) e **+US$2.342 do domínio** (real custou US$14.342 vs US$12 orçado)
+> → resta **~US$53.66**.
 
 | Ordem | Quando aplicar | Item | Custo | Critério |
 |---|---|---|---|---|
-| 1ª | Sempre que houver fees escondidas do signing | Buffer cloud/token/rees — re-emissão ou eSigner | **US$15–30** | Só se o fornecedor cobrar extra pelo cloud signing |
-| 2ª | Se a loja mobile for prioridade imediata | Conta dev Google Play | **US$25** (1x) | Só se decidirmos lançar mobile em paralelo (senão → Fase B/receita) |
-| 3ª | Quando houver vendas recorrentes constantes | Render **instance paga** (1.º mês) | **US$7** (→ US$84/ano) | O free tier dorme (~15 min) e atrasa o webhook → só pago quando doer |
-| 4ª | Reverter o resto para o fundo | Saldo retido (não gasto) | **US$19–39** | Não gastar sem decisão; devolver à tesouraria |
+| 1ª | Sempre que houver fees escondidas do signing | Buffer cloud/token/rees — re-emissão ou eSigner | **US$15–30** | Só se o fornecedor cobrar extra pelo signing |
+| 2ª | Quando houver vendas recorrentes constantes | Render **instance paga** (1.º mês) | **US$7** (→ US$84/ano) | O free tier dorme (~15 min) e atrasa o webhook → só pago quando doer |
+| 3ª | Reverter o resto para o fundo | Saldo retido (não gasto) | **US$16–38** | Não gastar sem decisão; devolver à tesouraria |
 
 > **Regra:** nada na reserva é gasto "porque existe". Cada item dispara **só quando o critério
 > da tabela acontecer** — se nenhum critério ocorrer, o saldo permanece guardado.
@@ -67,8 +71,9 @@
 ## 5. Resumo executivo
 
 - **Total:** 260.000 Kz ≈ **US$222** — todo destinado à **Pista A (destravar cobrança)**.
-- **Gasto obrigatório: US$141** (cert $129 + domínio $12) → depois disso "pronto a vender" no servidor.
-- **Reserva: ~US$81** — Play ($25) e Render pago ($7/1.º mês) só quando os critérios §3 dispararem; evita pedir 2.ª ronda por despesa corrente.
+- **Gasto até agora: US$168.34** (cert $129 + domínio $14.342 + Play $25) → **reserva ~US$53.66**.
+- **Cert em validação na SSL.com** (ref# `co-3c1laihs7ca`); a entrega "pronto a vender" completa-se quando a validação aprovar e o `.exe` sair assinado.
+- **Reserva restante: ~US$53.66** — eSigner/Render pago só quando os critérios §3 dispararem; evita pedir 2.ª ronda por despesa corrente.
 - **Fora destes fundos:** Pista B (€1.900–3.700), cano institucional (€1.650–5.400), reserva de caixa (~€4k) — financiados por receita / Fase B do Roberto / piloto pago / subsídio, **não equity**.
 
 ---

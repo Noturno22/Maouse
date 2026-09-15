@@ -3,6 +3,7 @@
 import { useLang } from "@/components/lang";
 import { DownloadButton, Icon } from "@/components/ui";
 import { Counter, Reveal } from "@/components/effects";
+import { anchor } from "@/lib/sections";
 
 function DemoStage() {
   const { t } = useLang();
@@ -77,7 +78,7 @@ function DemoStage() {
 
 export function Hero() {
   const { lang, t } = useLang();
-  const benefitsId = lang === "pt" ? "#beneficios" : "#benefits";
+  const mediaId = anchor(lang, "media");
 
   return (
     <section id="download" className="relative overflow-hidden">
@@ -116,7 +117,7 @@ export function Hero() {
           <div className="mt-10 flex flex-wrap items-center gap-4">
             <DownloadButton label={t.hero.download} big />
             <a
-              href={benefitsId}
+              href={mediaId}
               className="btn-shine inline-flex items-center gap-2 rounded-lg border border-line bg-panel/70 px-6 py-4 font-display text-base font-semibold text-ice backdrop-blur transition-all hover:border-neon/50 hover:text-neon hover:shadow-[0_0_24px_rgba(80,200,255,0.2)]"
             >
               {t.hero.secondary}

@@ -63,7 +63,7 @@ Recomendado: comprar o domínio da marca (ex. `maouse.pt` / `maouse.app`) ~$12/a
 
 ### 3.1 License server no Render
 O license server (webhook Paddle → chave → email) está deployado via Dockerfile + blueprint
-(`license-server/Dockerfile` + `license-server/render.yaml`). É este servidor que recebe o
+(`license-server/Dockerfile` + `render.yaml` na raiz). É este servidor que recebe o
 pagamento e emite a chave `MAO-`.
 
 | Item | Custo | Notas |

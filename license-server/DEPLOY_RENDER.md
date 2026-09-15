@@ -1,11 +1,16 @@
 # Deploy do License Server no Render
 
-> Guia operacional **v2.0** para pôr o license server online e fazer o *bake* do
+> Guia operacional **v2.1** para pôr o license server online e fazer o *bake* do
 > URL de produção no desktop e no mobile.
 > **Pré-requisito:** o código já está pronto (67 testes a passar, ruff limpo) e o
-> `render.yaml` + `Dockerfile` existem. Isto requer **a tua conta Render** (execução manual aqui).
+> `render.yaml` (na **raiz** do repo) + `Dockerfile` existem. Isto requer **a tua conta Render** (execução manual aqui).
 >
 > **Estado atual:** plano **free** (demo, dados efémeros). Para produção, ver §9.
+>
+> **Correção v2.1 (2026-09-15):** o `render.yaml` foi **movido para a raiz do repo**
+> (`render.yaml`, não `license-server/render.yaml`) — o Render só deteta Blueprints
+> com `render.yaml` na raiz por defeito. O `dockerfilePath` aponta para
+> `./license-server/Dockerfile`, que usa paths relativos ao build context da raiz.
 
 ---
 
@@ -15,7 +20,7 @@ Antes de começares, fica registado o que já está confirmado e corrigido:
 
 | Item | Estado | Commit |
 |---|---|---|
-| `render.yaml` + `Dockerfile` existem e estão corretos | ✅ | `5befa60` |
+| `render.yaml` (na raiz) + `Dockerfile` existem e estão corretos | ✅ | `5befa60` |
 | Keypair ES256 do servidor == pública embutida no cliente | ✅ (via `tools/check_keypair.py`) | `abb0c60` |
 | `AIRMOUSE_LS_PRIVATE_KEY` aceita **conteúdo PEM** direto no env (Render) | ✅ fix + teste | `41c66a7` |
 | `AIRMOUSE_LS_PUBLIC_KEY` aceita **conteúdo PEM** direto no env | ✅ já suportava | — |
@@ -33,7 +38,7 @@ Antes de começares, fica registado o que já está confirmado e corrigido:
 
 | Via | Quando | Comando/UI |
 |---|---|---|
-| **Blueprint (recomendado)** | Primeira vez: liga o repo e aplica `render.yaml` | Dashboard Render → *New +* → *Blueprint* → escolhe o repo |
+| **Blueprint (recomendado)** | Primeira vez: liga o repo e aplica `render.yaml` (na raiz) | Dashboard Render → *New +* → *Blueprint* → escolhe o repo |
 | Manual | Já tens um serviço e só queres ligar o Dockerfile | *New +* → *Web Service* → runtime Docker |
 
 > Nota: o repo é **`Noturno22/Maouse`** (renomeado de AirMouse). Qualquer das vias vai
@@ -168,7 +173,7 @@ Depois de o serviço estar online:
 O plano **free é só demo** (dados efémeros + cold-start). Antes de haver uma venda real,
 ativa o plano **starter** (US$7/mês) para ter dados persistentes e respostas imediatas:
 
-1. **Editar `license-server/render.yaml`:**
+1. **Editar `render.yaml` (raiz do repo):**
    - Mudar `plan: free` → `plan: starter`.
    - Descomentar o bloco `disk:` (descomentado, não o bloco `# disk:`).
 2. **Push para `main`** → o Render deteta a mudança e pergunta se queres fazer deploy.

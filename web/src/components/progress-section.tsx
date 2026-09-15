@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useLang } from "@/components/lang";
 import { SectionHeader } from "@/components/ui";
 import { Reveal } from "@/components/effects";
+import { sectionId } from "@/lib/sections";
+import { LANG_LOCALE, type Lang } from "@/lib/i18n";
 import type { Fase, Marco, ProgressData, ProgressStatus } from "@/lib/progress";
 
 const STATUS_TEXT: Record<ProgressStatus, string> = {
@@ -31,10 +33,10 @@ function StatusBadge({ status, label }: { status: ProgressStatus; label: string 
   );
 }
 
-function formatDate(iso: string | null, lang: "pt" | "en"): string {
+function formatDate(iso: string | null, lang: Lang): string {
   if (!iso) return "—";
   try {
-    return new Date(iso).toLocaleDateString(lang === "pt" ? "pt-PT" : "en-GB", {
+    return new Date(iso).toLocaleDateString(LANG_LOCALE[lang], {
       day: "2-digit",
       month: "short",
       year: "numeric",
@@ -80,14 +82,14 @@ export function ProgressSection() {
   const statusLabel = (s: ProgressStatus) => t.progress.byStatus[s];
 
   return (
-    <section id={lang === "pt" ? "progresso" : "roadmap"} className="scroll-mt-24 border-t border-line/60 py-20 lg:py-28">
+    <section id={sectionId(lang, "progress")} className="scroll-mt-24 border-t border-line/60 py-20 lg:py-28">
       <div className="mx-auto max-w-6xl px-5 sm:px-8">
         <Reveal>
           <SectionHeader tag={t.progress.tag} title={t.progress.title} sub={t.progress.sub} />
         </Reveal>
 
         {error ? (
-          <p className="mt-8 text-center text-sm text-error">Não foi possível carregar a progressão.</p>
+          <p className="mt-8 text-center text-sm text-error">{t.progress.error}</p>
         ) : data ? (
           <>
             <Reveal delay={80}>
@@ -149,7 +151,7 @@ export function ProgressSection() {
             )}
           </>
         ) : (
-          <p className="mt-8 text-center font-mono text-sm text-tech">A carregar…</p>
+          <p className="mt-8 text-center font-mono text-sm text-tech">{t.progress.loading}</p>
         )}
       </div>
     </section>
