@@ -1,6 +1,5 @@
 import threading
 
-import pystray
 from PIL import Image, ImageDraw
 
 from core.log import get_logger
@@ -26,6 +25,8 @@ class TrayIcon:
         self.icon = None
 
     def _menu(self):
+        import pystray
+
         return pystray.Menu(
             pystray.MenuItem(
                 lambda item: "Retomar" if self.app.is_paused() else "Pausar",
@@ -57,6 +58,8 @@ class TrayIcon:
 
     def start(self):
         try:
+            import pystray
+
             self.icon = pystray.Icon(
                 "Mãouse",
                 icon=_build_icon_image(True),

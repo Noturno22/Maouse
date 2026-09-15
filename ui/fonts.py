@@ -25,7 +25,9 @@ def font_dir():
     candidates = [os.path.join(here, "assets", "fonts")]
     if getattr(sys, "frozen", False):
         candidates.insert(0, os.path.join(os.path.dirname(sys.executable), "assets", "fonts"))
-        candidates.insert(1, os.path.join(os.path.dirname(sys.executable), "_internal", "assets", "fonts"))
+        candidates.insert(
+            1, os.path.join(os.path.dirname(sys.executable), "_internal", "assets", "fonts")
+        )
     candidates.append(os.path.join(os.getcwd(), "assets", "fonts"))
     for c in candidates:
         if os.path.isdir(c):

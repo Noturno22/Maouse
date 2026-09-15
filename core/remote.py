@@ -30,7 +30,10 @@ import secrets
 import socket
 import threading
 
-from pynput.mouse import Button
+try:
+    from pynput.mouse import Button
+except Exception:
+    Button = None
 
 from config import Config
 from core.log import get_logger
