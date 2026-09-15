@@ -1,6 +1,5 @@
 import ctypes
 import os
-import sys
 
 from pynput.keyboard import Controller as _KBController
 from pynput.keyboard import Key as _Key
