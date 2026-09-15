@@ -97,7 +97,7 @@ def test_assist_point_returns_center_when_near():
 
 def test_toggle_flips_enabled_and_status():
     eng = _mk_engine(enabled=True)
-    assert eng.status in ("ON", "off")  # status depende de _AUTO_OK
+    assert eng.status in ("ON", "off", "indisponivel")  # status depende de _AUTO_OK
     en = eng.enabled
     toggled = eng.toggle()
     assert eng.enabled == (not en)

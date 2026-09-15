@@ -1,8 +1,12 @@
 import ctypes
 import os
 
-from pynput.keyboard import Controller as _KBController
-from pynput.keyboard import Key as _Key
+try:
+    from pynput.keyboard import Controller as _KBController
+    from pynput.keyboard import Key as _Key
+except Exception:
+    _KBController = None
+    _Key = None
 
 VK_VOLUME_UP = 0xAF
 VK_VOLUME_DOWN = 0xAE
@@ -10,11 +14,14 @@ VK_MEDIA_PLAY_PAUSE = 0xB3
 
 _KEYEVENTF_KEYUP = 0x0002
 
-_VK_KEY_MAP = {
-    VK_VOLUME_UP: _Key.media_volume_up,
-    VK_VOLUME_DOWN: _Key.media_volume_down,
-    VK_MEDIA_PLAY_PAUSE: _Key.media_play_pause,
-}
+if _Key is not None:
+    _VK_KEY_MAP = {
+        VK_VOLUME_UP: _Key.media_volume_up,
+        VK_VOLUME_DOWN: _Key.media_volume_down,
+        VK_MEDIA_PLAY_PAUSE: _Key.media_play_pause,
+    }
+else:
+    _VK_KEY_MAP = {}
 
 IS_WINDOWS = os.name == "nt"
 

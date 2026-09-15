@@ -17,11 +17,18 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt -r requirements-build.txt -r license-server/requirements.txt ruff
 
+      - name: Install system libraries (Qt, audio, display)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libegl1 libgl1 libxkbcommon0 libfontconfig1 libdbus-1-3 \
+            libportaudio2 xvfb
+
       - name: Lint (ruff)
         run: ruff check . --exclude .venv
 
       - name: Test (client)
-        run: pytest tests -q
+        run: QT_QPA_PLATFORM=offscreen xvfb-run -a pytest tests -q
 
       - name: Test (license server)
         run: pytest license-server/tests -q

@@ -3,7 +3,12 @@ import os
 import time
 from ctypes import wintypes
 
-from pynput.mouse import Button, Controller
+try:
+    from pynput.mouse import Button, Controller
+except Exception:
+    # Headless (CI/Linux sem X11): import tolerado, só falha na construção.
+    Button = None
+    Controller = None
 
 from core.log import get_logger
 
@@ -73,6 +78,8 @@ def sendinput_available():
 class MouseCtl:
     def __init__(self):
         self._enable_dpi_awareness()
+        if Controller is None:
+            raise RuntimeError("pynput indispon\u00edvel (sem sess\u00e3o gr\u00e1fica?)")
         self.mouse = Controller()
         self.screen_w, self.screen_h = self._screen_size()
         self._scroll_acc = 0.0
