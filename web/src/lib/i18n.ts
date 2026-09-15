@@ -1,3 +1,5 @@
+import type { ProgressStatus } from "@/lib/progress";
+
 export type Lang = "pt" | "en";
 
 export interface SiteLink {
@@ -18,6 +20,16 @@ export interface Plan {
 export interface Copy {
   meta: { title: string; description: string };
   nav: { product: string; links: SiteLink[]; cta: string; langLabel: string };
+  progress: {
+    tag: string;
+    title: string;
+    sub: string;
+    phases: string;
+    milestones: string;
+    goals: string;
+    updated: string;
+    byStatus: Record<ProgressStatus, string>;
+  };
   hero: {
     badge: string;
     titleA: string;
@@ -130,9 +142,24 @@ const pt: Copy = {
       { label: "Privacidade", href: "#privacidade" },
       { label: "Compatibilidade", href: "#matriz" },
       { label: "FAQ", href: "#faq" },
+      { label: "Progresso", href: "#progresso" },
     ],
     cta: "Testar grátis",
     langLabel: "Idioma",
+  },
+  progress: {
+    tag: "Progresso",
+    title: "Estamos a construir Mãouse à vista de todos.",
+    sub: "Fases, marcos e metas acompanhados em tempo real — assim sabes exatamente onde estamos no caminho para a 1.ª venda e para a expansão na Europa.",
+    phases: "Fases",
+    milestones: "Marcos",
+    goals: "Metas",
+    updated: "Atualizado a",
+    byStatus: {
+      pendente: "Pendente",
+      em_curso: "Em curso",
+      concluido: "Concluído",
+    },
   },
   hero: {
     badge: "Windows 10/11 · beta fechado #Maouse",
@@ -394,9 +421,24 @@ const en: Copy = {
       { label: "Privacy", href: "#privacy" },
       { label: "Compatibility", href: "#compatibility" },
       { label: "FAQ", href: "#faq" },
+      { label: "Roadmap", href: "#roadmap" },
     ],
     cta: "Try for free",
     langLabel: "Language",
+  },
+  progress: {
+    tag: "Progress",
+    title: "We’re building Mãouse out in the open.",
+    sub: "Phases, milestones and goals tracked in real time — so you always know exactly where we are on the road to the first sale and the European expansion.",
+    phases: "Phases",
+    milestones: "Milestones",
+    goals: "Goals",
+    updated: "Updated",
+    byStatus: {
+      pendente: "Pending",
+      em_curso: "In progress",
+      concluido: "Done",
+    },
   },
   hero: {
     badge: "Windows 10/11 · closed beta #Maouse",
