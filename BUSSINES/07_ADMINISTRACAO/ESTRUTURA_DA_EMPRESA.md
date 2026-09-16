@@ -16,7 +16,7 @@
 | # | Sócio | Papel | Participação (plano) | Capital investido | Estado |
 |---|---|---|---|---|---|
 | 1 | **Luar Studio Angola** (fundador) | Fundador · Sócio-função (produto, IA, estratégia) | 100% | €0 | ✅ Ativo — detém tudo (pré-papel) |
-| 2 | — | — | — | — | Sócio futuro (quando houver contrato) |
+| 2 | **Fortuna** (GitHub `josefortunafortuna54-byte`) | Sócio-função (mobile, remote, Linux, CI) | **4%** (plano — com vesting, a formalizar em contrato) | €0 (sócio-função) | ✅ Ativo — colaborador no repositório `Noturno22/Maouse` (commits desde 2026-09-14) · **email: josefortunafortuna54@gmail.com** |
 
 **Notas estruturais (decisão D5):**
 - Estrutura planeada: **holding Angola (raiz/IP)** + **entidade leve UE (Portugal — Soc. Unipessoal)** para vendas EU.
@@ -30,6 +30,7 @@
 | Nome | Função | Tipo | Regime | Estado |
 |---|---|---|---|---|
 | **Fundador** | Sócio-função (produto, IA, estratégia, vendas) | Interno | Tempo integral, salário de subsistência ~€1.500/mês (Y1) | ✅ Ativo |
+| **Fortuna** | Sócio-função (mobile, remote, Linux, CI) | Remoto · colaborador GitHub | **4% equity com vesting** | ✅ Ativo — `josefortunafortuna54@gmail.com` |
 | **Agentes de IA** | Desenvolvimento, revisão, verificação (pipeline de subagentes) | Virtual | Contínuo | ✅ Ativo (sem custo adicional) |
 | — | (futuras contratações: suporte N1/N2, marketing, terapeuta ocupacional consultor) | — | — | 📋 Planeado |
 
@@ -88,6 +89,8 @@
 | 1.1 | 2026-09-13 | **1.º investimento recebido**: Roberto Almeida — 260.000 Kz (≈ US$222), sem comissão acordada | Luar Studio Angola |
 | 1.2 | 2026-09-13 | **Acordo em princípio (opção B)**: Roberto Almeida — 3% equity fixo + papel de parceiro UE (Roterdão); % ainda em discussão | Luar Studio Angola |
 | 1.3 | 2026-09-13 | **Fase B na mesa**: Roberto poderá tratar fundos + execução da Pista B (marca, entidade UE, landing, vídeos) → equity reavaliado para **8–15% com vesting** | Luar Studio Angola |
+| 1.4 | 2026-09-15 | **2.º sócio-função registado**: **Fortuna** (GitHub `josefortunafortuna54-byte`) — mobile, remote e Linux (commits no `Noturno22/Maouse` desde 2026-09-14) · email josefortunafortuna54@gmail.com · participação em definição | Luar Studio Angola |
+| 1.5 | 2026-09-15 | **Equity do Fortuna definido**: **4% com vesting** (sócio-função mobile/remote/Linux/CI) · merge da `feature/touch` (fixes CI) em `main` · cap table pós-entradas: fundador ~88-96%, Roberto 8–15% (a fechar), Fortuna 4% | Luar Studio Angola |
 
 ---
 

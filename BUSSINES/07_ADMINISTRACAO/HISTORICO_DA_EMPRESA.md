@@ -12,6 +12,7 @@
 - **Fase:** pré-fundada. **Sem papel formal** — sem registo legal concluído, sem capital
   social investido, sem contrato social assinado.
 - **Produto:** Mãouse (rato por gestos + voz via webcam) — código de produção, 239+ testes verdes.
+- **Estrutura:** 2 sócios-função (fundador Luar Studio Angola + Fortuna — mobile/remote/Linux/CI, 4% com vesting).
 - **Financiamento:** 1.º investimento recebido — **260.000 Kz (≈ US$222)** de Roberto Almeida
   (Rotterdam), como apoio; condições/comissão ainda por acordar.
 
@@ -28,6 +29,7 @@
 | 2026-09-13 | **Pitch simples criado** | Investidores | `06_INVESTIDORES/PITCH_INVESTIDOR_SIMPLES.md` — versão de 1 página, **reposicionada para o público em geral** (foco consumer, institucional como acelerador) |
 | 2026-09-13 | **Área administrativa criada** | Administração | `07_ADMINISTRACAO/` — registo histórico + controlo da estrutura (sócios, funcionários, investidores) |
 | 2026-09-13 | **1.º investimento externo recebido** | Financiamento | **Roberto Almeida (Rotterdam)** — apoio de 260.000 Kz ≈ US$222; comissão/condições ainda não faladas |
+| 2026-09-15 | **2.º sócio-função no projeto** | Administração | **Fortuna** (GitHub `josefortunafortuna54-byte`, email josefortunafortuna54@gmail.com) — mobile/remote/Linux/CI · **4% equity com vesting** (a formalizar) · trabalho já em `main` + merge `feature/touch` |
 
 ---
 
