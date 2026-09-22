@@ -53,6 +53,10 @@ export interface Copy {
     loading: string;
     error: string;
     byStatus: Record<ProgressStatus, string>;
+    statusHint: string;
+    inProgressLabel: string;
+    todoLabel: string;
+    doneLabel: string;
   };
   hero: {
     badge: string;
@@ -202,6 +206,10 @@ const pt: Copy = {
       em_curso: "Em curso",
       concluido: "Concluído",
     },
+    statusHint: "Como ler:",
+    inProgressLabel: "Em curso",
+    todoLabel: "A fazer",
+    doneLabel: "Feito",
   },
   hero: {
     badge: "Windows 10/11 · beta fechado #Maouse",
@@ -546,6 +554,10 @@ const ptbr: Copy = {
       em_curso: "Em andamento",
       concluido: "Concluído",
     },
+    statusHint: "Como ler:",
+    inProgressLabel: "Em andamento",
+    todoLabel: "A fazer",
+    doneLabel: "Feito",
   },
   hero: {
     badge: "Windows 10/11 · beta fechado #Maouse",
@@ -890,6 +902,10 @@ const en: Copy = {
       em_curso: "In progress",
       concluido: "Done",
     },
+    statusHint: "How to read:",
+    inProgressLabel: "In progress",
+    todoLabel: "To do",
+    doneLabel: "Done",
   },
   hero: {
     badge: "Windows 10/11 · closed beta #Maouse",
@@ -1232,6 +1248,10 @@ const es: Copy = {
       em_curso: "En curso",
       concluido: "Completado",
     },
+    statusHint: "Cómo leer:",
+    inProgressLabel: "En curso",
+    todoLabel: "Por hacer",
+    doneLabel: "Hecho",
   },
   hero: {
     badge: "Windows 10/11 · beta cerrada #Maouse",
@@ -1574,6 +1594,10 @@ const fr: Copy = {
       em_curso: "En cours",
       concluido: "Terminé",
     },
+    statusHint: "Comment lire :",
+    inProgressLabel: "En cours",
+    todoLabel: "À faire",
+    doneLabel: "Fait",
   },
   hero: {
     badge: "Windows 10/11 · bêta fermée #Maouse",
@@ -1916,6 +1940,10 @@ const de: Copy = {
       em_curso: "Läuft",
       concluido: "Abgeschlossen",
     },
+    statusHint: "So liest du es:",
+    inProgressLabel: "In Arbeit",
+    todoLabel: "Offen",
+    doneLabel: "Erledigt",
   },
   hero: {
     badge: "Windows 10/11 · geschlossene Beta #Maouse",
@@ -2258,6 +2286,10 @@ const it: Copy = {
       em_curso: "In corso",
       concluido: "Completato",
     },
+    statusHint: "Come leggere:",
+    inProgressLabel: "In corso",
+    todoLabel: "Da fare",
+    doneLabel: "Fatto",
   },
   hero: {
     badge: "Windows 10/11 · beta chiusa #Maouse",

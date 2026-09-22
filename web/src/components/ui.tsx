@@ -95,15 +95,23 @@ export function SectionHeader({
   );
 }
 
-export function Wordmark({ compact = false }: { compact?: boolean }) {
+export function Wordmark({
+  compact = false,
+  size,
+}: {
+  compact?: boolean;
+  size?: number;
+}) {
+  const height = size ?? (compact ? 28 : 44);
+  const width = Math.round((height * 2172) / 724);
   return (
     <span className="inline-flex items-center">
       <Image
-        src="/icon.png"
+        src="/logo.png"
         alt="Mãouse"
-        width={compact ? 56 : 96}
-        height={compact ? 56 : 96}
-        className="rounded-lg"
+        width={width}
+        height={height}
+        className="h-auto w-auto"
         unoptimized
       />
     </span>

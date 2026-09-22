@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useLang } from "@/components/lang";
-import { SectionHeader } from "@/components/ui";
-import { Reveal } from "@/components/effects";
+import { Icon, SectionHeader } from "@/components/ui";
+import { Counter, Reveal } from "@/components/effects";
 import { sectionId } from "@/lib/sections";
 import { LANG_LOCALE, type Lang } from "@/lib/i18n";
-import type { Fase, Marco, ProgressData, ProgressStatus } from "@/lib/progress";
+import type { Fase, Marco, Meta, ProgressData, ProgressStatus } from "@/lib/progress";
 
 const STATUS_TEXT: Record<ProgressStatus, string> = {
   pendente: "text-tech",
@@ -19,6 +19,9 @@ const STATUS_DOT: Record<ProgressStatus, string> = {
   em_curso: "pulse-dot relative",
   concluido: "",
 };
+
+const LEGEND_ORDER: ProgressStatus[] = ["concluido", "em_curso", "pendente"];
+const GROUP_ORDER: ProgressStatus[] = ["em_curso", "pendente", "concluido"];
 
 function StatusBadge({ status, label }: { status: ProgressStatus; label: string }) {
   return (
@@ -46,15 +49,101 @@ function formatDate(iso: string | null, lang: Lang): string {
   }
 }
 
+function ProgressBar({ pct, className = "" }: { pct: number; className?: string }) {
+  const width = Math.min(100, Math.max(0, pct));
+  return (
+    <div className={`h-1.5 w-full overflow-hidden rounded-full bg-night ${className}`}>
+      <div
+        className="h-full rounded-full bg-gradient-to-r from-success to-neon transition-all duration-700"
+        style={{ width: `${width}%` }}
+      />
+    </div>
+  );
+}
+
+function StateDot({ estado }: { estado: ProgressStatus }) {
+  if (estado === "concluido") {
+    return (
+      <span className="mt-1 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-success/30 bg-success/10 text-success">
+        <Icon name="check" className="h-3 w-3" />
+      </span>
+    );
+  }
+  if (estado === "em_curso") {
+    return <span className="pulse-dot relative mt-2.5 inline-flex h-2 w-2 shrink-0 rounded-full bg-warn" />;
+  }
+  return <span className="mt-2.5 inline-flex h-2 w-2 shrink-0 rounded-full bg-tech/50" />;
+}
+
+function StatCard({ value, label, children }: { value: string; label: string; children?: ReactNode }) {
+  return (
+    <div className="rounded-2xl border border-line bg-panel/50 p-5 backdrop-blur">
+      <p className="font-display text-3xl font-bold text-ice">
+        <Counter value={value} />
+      </p>
+      <p className="mt-1 font-mono text-[11px] tracking-widest text-tech uppercase">{label}</p>
+      {children}
+    </div>
+  );
+}
+
 function MarcoRow({ marco, label }: { marco: Marco; label: string }) {
   return (
     <li className="flex items-start justify-between gap-3 py-2 transition-colors hover:bg-white/[0.03]">
-      <span className="text-sm leading-6 text-ice">
-        <span className="mr-2 inline-block h-1.5 w-1.5 translate-y-[-1px] rounded-full bg-current text-neon/60 align-middle" />
-        {marco.titulo}
-        {marco.nota ? <span className="block pl-3.5 text-xs text-tech">{marco.nota}</span> : null}
+      <span className="flex items-start gap-2.5 text-sm leading-6 text-ice">
+        <StateDot estado={marco.estado} />
+        <span>
+          {marco.titulo}
+          {marco.nota ? <span className="block text-xs text-tech">{marco.nota}</span> : null}
+        </span>
       </span>
       <StatusBadge status={marco.estado} label={label} />
+    </li>
+  );
+}
+
+function MarcoGroup({
+  label,
+  marcos,
+  statusLabel,
+}: {
+  label: string;
+  marcos: Marco[];
+  statusLabel: (s: ProgressStatus) => string;
+}) {
+  if (marcos.length === 0) return null;
+  return (
+    <li>
+      <p className="flex items-center gap-2 px-1 pt-4 font-mono text-[11px] tracking-widest text-tech uppercase">
+        {label}
+        <span className="rounded-md border border-line bg-night px-1.5 py-0.5 font-mono text-[10px] text-neon">
+          {marcos.length}
+        </span>
+      </p>
+      <ul className="divide-y divide-line/40">
+        {marcos.map((m) => (
+          <MarcoRow key={m.id} marco={m} label={statusLabel(m.estado)} />
+        ))}
+      </ul>
+    </li>
+  );
+}
+
+function MetaRow({ meta, label }: { meta: Meta; label: string }) {
+  return (
+    <li className="flex items-start justify-between gap-3 py-2.5 transition-colors hover:bg-white/[0.03]">
+      <span className="flex items-start gap-2.5 text-sm leading-6 text-ice">
+        <StateDot estado={meta.estado} />
+        <span>
+          {meta.titulo}
+          {meta.prazo ? (
+            <span className="ml-2 inline-block rounded-md border border-line bg-night px-1.5 py-0.5 font-mono text-[11px] text-neon">
+              {meta.prazo}
+            </span>
+          ) : null}
+        </span>
+      </span>
+      <StatusBadge status={meta.estado} label={label} />
     </li>
   );
 }
@@ -81,6 +170,9 @@ export function ProgressSection() {
 
   const statusLabel = (s: ProgressStatus) => t.progress.byStatus[s];
 
+  const groupLabel = (s: ProgressStatus) =>
+    s === "em_curso" ? t.progress.inProgressLabel : s === "pendente" ? t.progress.todoLabel : t.progress.doneLabel;
+
   return (
     <section id={sectionId(lang, "progress")} className="scroll-mt-24 border-t border-line/60 py-20 lg:py-28">
       <div className="mx-auto max-w-6xl px-5 sm:px-8">
@@ -99,9 +191,56 @@ export function ProgressSection() {
               </p>
             </Reveal>
 
+            <Reveal delay={120}>
+              <div className="mt-8 flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
+                <span className="font-mono text-[11px] tracking-widest text-tech uppercase">
+                  {t.progress.statusHint}
+                </span>
+                {LEGEND_ORDER.map((s) => (
+                  <StatusBadge key={s} status={s} label={statusLabel(s)} />
+                ))}
+              </div>
+            </Reveal>
+
+            {(() => {
+              const totalMarcos = data.marcos.length;
+              const doneMarcos = data.marcos.filter((m) => m.estado === "concluido").length;
+              const activeMarcos = data.marcos.filter((m) => m.estado === "em_curso").length;
+              const totalMetas = data.metas.length;
+              const doneMetas = data.metas.filter((g) => g.estado === "concluido").length;
+              const pctGlobal = totalMarcos ? Math.round((doneMarcos / totalMarcos) * 100) : 0;
+              return (
+                <div className="mt-10 grid gap-4 sm:grid-cols-3">
+                  <Reveal delay={160}>
+                    <StatCard value={`${doneMarcos}/${totalMarcos}`} label={t.progress.milestones}>
+                      <div className="mt-4">
+                        <div className="flex items-center justify-between font-mono text-[11px] text-tech">
+                          <span>{t.progress.doneLabel}</span>
+                          <span>{pctGlobal}%</span>
+                        </div>
+                        <ProgressBar pct={pctGlobal} className="mt-1.5" />
+                      </div>
+                    </StatCard>
+                  </Reveal>
+                  <Reveal delay={200}>
+                    <StatCard value={`${activeMarcos}`} label={t.progress.inProgressLabel} />
+                  </Reveal>
+                  <Reveal delay={240}>
+                    <StatCard value={`${doneMetas}/${totalMetas}`} label={t.progress.goals} />
+                  </Reveal>
+                </div>
+              );
+            })()}
+
             <div className="mt-10 grid gap-6 md:grid-cols-2">
               {data.fases.map((fase: Fase, i: number) => {
                 const marcos = data.marcos.filter((m) => m.fase_id === fase.id);
+                const done = marcos.filter((m) => m.estado === "concluido").length;
+                const pct = marcos.length ? Math.round((done / marcos.length) * 100) : 0;
+                const groups = GROUP_ORDER.map((s) => ({
+                  status: s,
+                  items: marcos.filter((m) => m.estado === s),
+                })).filter((g) => g.items.length > 0);
                 return (
                   <Reveal key={fase.id} delay={i * 110}>
                     <div className="relative flex h-full flex-col overflow-hidden rounded-2xl border border-line bg-panel/50 p-6 backdrop-blur transition-all duration-300 hover:border-neon/30 hover:shadow-[0_0_50px_rgba(80,200,255,0.15)]">
@@ -112,11 +251,27 @@ export function ProgressSection() {
                       </div>
                       <p className="mt-2 text-sm leading-6 text-tech">{fase.resumo}</p>
                       {marcos.length > 0 && (
-                        <ul className="mt-4 flex-1 divide-y divide-line/60 border-t border-line/60">
-                          {marcos.map((m) => (
-                            <MarcoRow key={m.id} marco={m} label={statusLabel(m.estado)} />
-                          ))}
-                        </ul>
+                        <>
+                          <div className="mt-4">
+                            <div className="flex items-center justify-between font-mono text-[11px] text-tech">
+                              <span>
+                                {t.progress.doneLabel} · {done}/{marcos.length}
+                              </span>
+                              <span>{pct}%</span>
+                            </div>
+                            <ProgressBar pct={pct} className="mt-1.5" />
+                          </div>
+                          <ul className="mt-4 flex-1 border-t border-line/60">
+                            {groups.map((g) => (
+                              <MarcoGroup
+                                key={g.status}
+                                label={groupLabel(g.status)}
+                                marcos={g.items}
+                                statusLabel={statusLabel}
+                              />
+                            ))}
+                          </ul>
+                        </>
                       )}
                     </div>
                   </Reveal>
@@ -127,23 +282,19 @@ export function ProgressSection() {
             {data.metas.length > 0 && (
               <Reveal delay={120}>
                 <div className="mt-10 rounded-2xl border border-line bg-panel/50 p-6 backdrop-blur">
-                  <h3 className="font-display text-lg font-semibold text-ice">
-                    <span className="mr-2 inline-flex h-2 w-2 rounded-full bg-gold align-middle shadow-[0_0_14px_rgba(255,200,50,0.7)]" />
-                    {t.progress.goals}
-                  </h3>
+                  <div className="flex items-center justify-between gap-3">
+                    <h3 className="font-display text-lg font-semibold text-ice">
+                      <span className="mr-2 inline-flex h-2 w-2 rounded-full bg-gold align-middle shadow-[0_0_14px_rgba(255,200,50,0.7)]" />
+                      {t.progress.goals}
+                    </h3>
+                    <span className="rounded-md border border-line bg-night px-2 py-0.5 font-mono text-[11px] text-neon">
+                      {data.metas.filter((g) => g.estado === "concluido").length}/{data.metas.length}{" "}
+                      {t.progress.doneLabel.toLowerCase()}
+                    </span>
+                  </div>
                   <ul className="mt-3 divide-y divide-line/60">
                     {data.metas.map((meta) => (
-                      <li key={meta.id} className="flex items-start justify-between gap-3 py-2.5 transition-colors hover:bg-white/[0.03]">
-                        <span className="text-sm leading-6 text-ice">
-                          {meta.titulo}
-                          {meta.prazo ? (
-                            <span className="ml-2 rounded-md border border-line bg-night px-1.5 py-0.5 font-mono text-[11px] text-neon">
-                              {meta.prazo}
-                            </span>
-                          ) : null}
-                        </span>
-                        <StatusBadge status={meta.estado} label={statusLabel(meta.estado)} />
-                      </li>
+                      <MetaRow key={meta.id} meta={meta} label={statusLabel(meta.estado)} />
                     ))}
                   </ul>
                 </div>

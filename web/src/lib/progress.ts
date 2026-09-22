@@ -73,7 +73,8 @@ export function sanitizeProgress(raw: unknown): ProgressData {
           prazo: (g as Meta).prazo ? cleanString((g as Meta).prazo, 80) : undefined,
         }))
     : [];
-  return { fases, marcos, metas, updatedAt: null };
+  const updatedAt = typeof (src as { updatedAt?: unknown }).updatedAt === "string" ? String(src.updatedAt).trim().slice(0, 50) : null;
+  return { fases, marcos, metas, updatedAt };
 }
 
 export const SEED_PROGRESS: ProgressData = {
@@ -83,7 +84,7 @@ export const SEED_PROGRESS: ProgressData = {
       nome: "Fase A — Lançamento e 1.ª venda (Angola)",
       estado: "em_curso",
       resumo:
-        "Produto tecnicamente pronto a vender. O 1.º investimento (≈ US$222) cobre os bloqueadores da Pista A (Paddle real, domínio, servidor, assinatura de código, Play) para o produto ficar “vendável”.",
+        "Produto tecnicamente pronto a vender. O 1.º investimento (260.000 Kz ≈ US$222) cobre os bloqueadores da Pista A (Paddle, assinatura de código, domínio maouse.app, Play) para o produto ficar “vendável”. Gasto ≈ US$168 → reserva restante ≈ US$53.66.",
     },
     {
       id: "fase-b",
@@ -107,6 +108,20 @@ export const SEED_PROGRESS: ProgressData = {
       titulo: "Painel admin no license server",
       estado: "concluido",
       nota: "2026-09-13",
+    },
+    {
+      id: "ma-dominio",
+      fase_id: "fase-a",
+      titulo: "Domínio maouse.app comprado (Cloudflare)",
+      estado: "concluido",
+      nota: "comprado 2026-09-15 · US$14.34/ano",
+    },
+    {
+      id: "ma-dominio-live",
+      fase_id: "fase-a",
+      titulo: "maouse.app no ar — DNS + HTTPS ativos",
+      estado: "concluido",
+      nota: "2026-09-22 · CNAME → Vercel (Cloudflare) + certificado TLS",
     },
     {
       id: "ma-assinatura",
@@ -180,6 +195,11 @@ export const SEED_PROGRESS: ProgressData = {
       prazo: "2026-09",
     },
     {
+      id: "g-reserva",
+      titulo: "Reserva do 1.º investimento em caixa: ≈ US$53.66 (gasto US$168.34 de US$222)",
+      estado: "em_curso",
+    },
+    {
       id: "g-equity",
       titulo: "Fechar % de equity do Roberto (8–15% com vesting ligado à entrega)",
       estado: "em_curso",
@@ -202,5 +222,5 @@ export const SEED_PROGRESS: ProgressData = {
       estado: "pendente",
     },
   ],
-  updatedAt: null,
+  updatedAt: "2026-09-22",
 };

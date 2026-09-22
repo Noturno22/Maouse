@@ -312,10 +312,20 @@ export function Footer() {
       <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8">
         <div className="grid gap-12 lg:grid-cols-[1.2fr_2fr]">
           <div>
-            <Wordmark />
-            <p className="mt-4 font-display text-lg">
+            <Wordmark size={64} />
+            <p className="mt-6 font-display text-lg">
               <span className="text-gradient">{t.footer.tagline}</span>
             </p>
+            <a
+              href="https://maouse.app"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-5 inline-flex items-center gap-2 rounded-full border border-neon/40 bg-neon/10 px-3.5 py-1.5 font-mono text-xs text-neon transition-all hover:bg-neon hover:text-night hover:shadow-[0_0_24px_rgba(80,200,255,0.45)]"
+              aria-label="maouse.app"
+            >
+              <span className="inline-flex h-1.5 w-1.5 rounded-full bg-current" />
+              maouse.app
+            </a>
             <div className="mt-4 flex flex-wrap gap-2">
               {t.footer.hashtags.map((tag) => (
                 <span
