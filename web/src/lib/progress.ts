@@ -213,7 +213,8 @@ export const SEED_PROGRESS: ProgressData = {
       id: "mb-criadores",
       fase_id: "fase-b",
       titulo: "Vídeos demo e criadores",
-      estado: "pendente",
+      estado: "em_curso",
+      nota: "roteiros das 4 peças-mestras prontos 2026-09-23",
     },
   ],
   metas: [
@@ -251,5 +252,5 @@ export const SEED_PROGRESS: ProgressData = {
       estado: "pendente",
     },
   ],
-  updatedAt: "2026-09-22",
+  updatedAt: "2026-09-23",
 };
