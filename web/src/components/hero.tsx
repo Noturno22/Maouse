@@ -8,7 +8,7 @@ import { anchor } from "@/lib/sections";
 function DemoStage() {
   const { t } = useLang();
   return (
-    <Reveal className="relative">
+    <Reveal className="relative overflow-hidden">
       <div className="hero-orb absolute -top-16 -right-10 h-72 w-72 rounded-full bg-neon/25 blur-3xl" />
       <div className="hero-orb absolute -bottom-16 -left-10 h-56 w-56 rounded-full bg-violet/25 blur-3xl [animation-delay:-6s]" />
 

@@ -84,14 +84,14 @@ export const SEED_PROGRESS: ProgressData = {
       nome: "Fase A — Lançamento e 1.ª venda (Angola)",
       estado: "em_curso",
       resumo:
-        "Produto tecnicamente pronto a vender. O 1.º investimento (260.000 Kz ≈ US$222) cobre os bloqueadores da Pista A (Paddle, assinatura de código, domínio maouse.app, Play) para o produto ficar “vendável”. Gasto ≈ US$168 → reserva restante ≈ US$53.66.",
+        "Produto tecnicamente pronto a vender. O 1.º investimento (260.000 Kz ≈ US$222) cobre os bloqueadores da Pista A (Paddle, assinatura de código, domínio maouse.app, Play). Gasto ≈ US$168.34 → reserva restante ≈ US$53.66. Cert SSL.com pago e em validação; pipeline de assinatura pronto; landing premium no ar; subscrição Pro em preparação na landing.",
     },
     {
       id: "fase-b",
       nome: "Fase B — Expansão UE (Pista B)",
       estado: "em_curso",
       resumo:
-        "Com Roberto (Rotterdam): marca EUIPO/USPTO, entidade UE (Portugal), landing maouse.app, vídeos demo e criadores (~€1.900–3.700). Equity proposto 8–15% com vesting ligado à entrega.",
+        "Com Roberto (Rotterdam): marca EUIPO/USPTO, entidade UE (Portugal), vídeos demo e criadores (~€1.900–3.700). Equity proposto 8–15% com vesting ligado à entrega. Fortuna registado como 2.º sócio-função (4% vesting, mobile/remote/Linux).",
     },
   ],
   marcos: [
@@ -124,11 +124,32 @@ export const SEED_PROGRESS: ProgressData = {
       nota: "2026-09-22 · CNAME → Vercel (Cloudflare) + certificado TLS",
     },
     {
+      id: "ma-assinatura-pipeline",
+      fase_id: "fase-a",
+      titulo: "Pipeline de assinatura digital pronto (eSigner/thumbprint no build)",
+      estado: "concluido",
+      nota: "2026-09-22 · build.bat assina .exe + instalador + upload Vercel Blob",
+    },
+    {
       id: "ma-assinatura",
       fase_id: "fase-a",
-      titulo: "Assinatura digital do .exe (certificado)",
-      estado: "pendente",
-      nota: "Bloqueador #1 — falta o certificado PKI",
+      titulo: "Certificado de assinatura SSL.com (IV) pago — em validação",
+      estado: "em_curso",
+      nota: "Bloqueador #1 · US$129 · ref co-3c1laihs7ca",
+    },
+    {
+      id: "ma-landing",
+      fase_id: "fase-a",
+      titulo: "Landing maouse.app premium + admin",
+      estado: "concluido",
+      nota: "2026-09-15 · glow/glass/spotlight + painel admin /api/progress",
+    },
+    {
+      id: "ma-mobile-dev",
+      fase_id: "fase-a",
+      titulo: "Script de ligação dev mobile (Metro/Expo via ngrok)",
+      estado: "concluido",
+      nota: "2026-09-22 · conectar.bat + @expo/ngrok",
     },
     {
       id: "ma-deploy",
@@ -163,6 +184,13 @@ export const SEED_PROGRESS: ProgressData = {
       estado: "em_curso",
     },
     {
+      id: "mb-fortuna",
+      fase_id: "fase-b",
+      titulo: "Fortuna registado como 2.º sócio-função (4% vesting)",
+      estado: "concluido",
+      nota: "2026-09-16 · mobile/remote/Linux",
+    },
+    {
       id: "mb-ue",
       fase_id: "fase-b",
       titulo: "Entidade UE (Portugal)",
@@ -178,7 +206,8 @@ export const SEED_PROGRESS: ProgressData = {
       id: "mb-landing",
       fase_id: "fase-b",
       titulo: "Landing maouse.app premium",
-      estado: "pendente",
+      estado: "concluido",
+      nota: "ao vivo 2026-09-22",
     },
     {
       id: "mb-criadores",
@@ -201,7 +230,7 @@ export const SEED_PROGRESS: ProgressData = {
     },
     {
       id: "g-equity",
-      titulo: "Fechar % de equity do Roberto (8–15% com vesting ligado à entrega)",
+      titulo: "Fechar % de equity do Roberto (8–15%) — Fortuna 4% registado",
       estado: "em_curso",
     },
     {

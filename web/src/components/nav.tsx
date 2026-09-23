@@ -53,9 +53,9 @@ export function Nav() {
         className="scroll-progress h-0.5 bg-gradient-to-r from-neon via-royal to-violet"
         style={{ transform: `scaleX(${progress})` }}
       />
-      <nav className="relative mx-auto flex max-w-6xl items-center justify-between gap-5 px-5 py-2.5 sm:px-8">
-        <a href="#top" aria-label="Mãouse" className="transition-transform hover:scale-105">
-          <Wordmark compact />
+      <nav className="relative mx-auto flex flex-wrap items-center justify-between gap-x-5 gap-y-2 px-4 py-1 sm:px-10">
+        <a href="#top" aria-label="Mãouse" className="-ml-1 shrink-0 transition-transform hover:scale-105 sm:-ml-2">
+          <Wordmark compact className="h-14 w-auto sm:h-24" />
         </a>
 
         <div className="hidden items-center gap-7 lg:flex">

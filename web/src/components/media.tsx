@@ -84,7 +84,7 @@ export function Media() {
         </Reveal>
 
         <Reveal delay={100}>
-          <div className="relative mt-14">
+          <div className="relative mt-14 overflow-hidden">
             <div className="hero-orb absolute -top-10 -left-10 h-56 w-56 rounded-full bg-neon/15 blur-3xl" />
             <div className="hero-orb absolute -right-10 -bottom-12 h-48 w-48 rounded-full bg-violet/15 blur-3xl [animation-delay:-6s]" />
 

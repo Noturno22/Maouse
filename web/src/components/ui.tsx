@@ -98,11 +98,13 @@ export function SectionHeader({
 export function Wordmark({
   compact = false,
   size,
+  className,
 }: {
   compact?: boolean;
   size?: number;
+  className?: string;
 }) {
-  const height = size ?? (compact ? 28 : 44);
+  const height = size ?? (compact ? 64 : 44);
   const width = Math.round((height * 2172) / 724);
   return (
     <span className="inline-flex items-center">
@@ -111,8 +113,8 @@ export function Wordmark({
         alt="Mãouse"
         width={width}
         height={height}
-        className="h-auto w-auto"
         unoptimized
+        className={className}
       />
     </span>
   );
