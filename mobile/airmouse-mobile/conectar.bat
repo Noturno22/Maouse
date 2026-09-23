@@ -6,10 +6,14 @@ REM  (sao precisas regras de firewall -> pede permissao UAC: "Sim")
 REM ============================================================
 cd /d "%~dp0"
 
-echo [1/3] A criar regras de firewall (Metro 8081 TCP + Expo Discovery UDP)...
+echo [1/3] A criar regras de firewall (Metro 8081 TCP + License 8000 TCP + Expo Discovery UDP)...
 netsh advfirewall firewall delete rule name="Maouse Metro 8081 (TCP)" >nul 2>nul
 netsh advfirewall firewall add rule name="Maouse Metro 8081 (TCP)" dir=in action=allow protocol=TCP localport=8081 profile=private >nul
 netsh advfirewall firewall add rule name="Maouse Metro 8081 (TCP) Pub" dir=in action=allow protocol=TCP localport=8081 profile=public >nul
+
+netsh advfirewall firewall delete rule name="Maouse License 8000 (TCP)" >nul 2>nul
+netsh advfirewall firewall add rule name="Maouse License 8000 (TCP)" dir=in action=allow protocol=TCP localport=8000 profile=private >nul
+netsh advfirewall firewall add rule name="Maouse License 8000 (TCP) Pub" dir=in action=allow protocol=TCP localport=8000 profile=public >nul
 
 netsh advfirewall firewall delete rule name="Maouse Expo Discovery 61120 (UDP)" >nul 2>nul
 netsh advfirewall firewall add rule name="Maouse Expo Discovery 61120 (UDP)" dir=in action=allow protocol=UDP localport=61120 profile=private >nul
