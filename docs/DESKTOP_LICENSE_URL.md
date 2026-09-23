@@ -50,6 +50,16 @@ def _default_endpoints():
 
 > Igualar também `tools/issue_pro_key.py` (`AIRMOUSE_LS_URL` default) se o desktop a usar.
 
+### 2b. Guard de build integrado (não distribuir o placeholder)
+
+O `build.bat` agora corre `tools/check_prod_license_url.py` antes de compilar e
+**aborta** (exit 1) enquanto `PROD_LICENSE_SERVER_URL` for o placeholder — impede
+distribuir um `.exe` que nunca ativaria licenças. Testes: `tests/test_check_prod_license_url.py`.
+
+- Build de release **sem o URL real gravado** → erro claro de aborto.
+- Dev/QA (queres mesmo build com placeholder): define
+  `AIRMOUSE_ALLOW_PLACEHOLDER_URL=1` no ambiente antes do `build.bat`.
+
 ### 3. Rebuildar e assinar o `.exe`
 Depois do bake, correr `build.bat` (que já assina com `cert\maouse.pfx`, ver
 `docs/ASSINATURA_DIGITAL.md`) e redistribuir **simultaneamente** com o novo URL — nunca mudar o

@@ -69,6 +69,18 @@ if defined PFX_PATH (
     echo [ASSINATURA] Sem certificado - o .exe/instalador nao serao assinados.
 )
 
+rem ── Inspeção pré-build: URL real do license-server gravado? ────────────
+rem Impede distribuir um .exe que aponta para o placeholder (não ativa licenças).
+rem Para forçar um build de dev/QA: define AIRMOUSE_ALLOW_PLACEHOLDER_URL=1 no ambiente.
+.venv\Scripts\python.exe tools\check_prod_license_url.py
+if errorlevel 1 (
+    echo.
+    echo ABORTO: grava o URL real do Render em core\licensing.py antes de fazer
+    echo release. Ver docs\DESKTOP_LICENSE_URL.md. Para dev/QA define
+    echo AIRMOUSE_ALLOW_PLACEHOLDER_URL=1 no ambiente antes de correr build.bat.
+    exit /b 1
+)
+
 echo [1/6] A instalar PyInstaller ...
 .venv\Scripts\python.exe -m pip install --upgrade -r requirements-build.txt -q
 if errorlevel 1 exit /b 1
