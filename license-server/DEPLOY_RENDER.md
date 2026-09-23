@@ -134,7 +134,7 @@ curl -s -X POST https://<service>.onrender.com/api/v1/trial/start \
 
 Depois de o serviço estar online (URL real conhecido):
 
-- `mobile/airmouse-mobile/.env`:
+- `mobile/airmouse-mobile/.env` (modelo versionável: `mobile/airmouse-mobile/.env.example`):
   ```bash
   EXPO_PUBLIC_LICENSE_SERVER_URL=https://<service>.onrender.com
   ```
