@@ -195,7 +195,7 @@ answers with software, not peripherals.
 
 ## 7. Lista de entrega — o que tem de existir antes de enviar
 
-- [ ] Peças-mestras #1–#4 (vídeos) em PT-BR + EN, com overlay de marca — roteiros prontos em `ROTEIROS_DAS_PECAS_MAESTRAS.md` (2026-09-23) + variantes pagas em `PUBLICIDADES_VIDEO_ADS.md`
+- [ ] Peças-mestras #1–#4 (vídeos) em PT-BR + EN, com overlay de marca — roteiros prontos em `ROTEIROS_DAS_PECAS_MAESTRAS.md` (2026-09-23) + variantes pagas em `PUBLICIDADES_VIDEO_ADS.md` + TV spots IA em `PUBLICIDADES_CINEMATOGRAFICAS_HIGGSFIELD.md`
 - [ ] Kit = este documento + 1-pager PT-BR + 1-pager EN em PDF
 - [ ] Screenshots com overlay de gestos (fundo escuro, identidade neon)
 - [ ] Logótipo SVG (símbolo) + wordmark — `assets/brand/`
