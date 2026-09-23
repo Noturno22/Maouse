@@ -214,7 +214,7 @@ export const SEED_PROGRESS: ProgressData = {
       fase_id: "fase-b",
       titulo: "Vídeos demo e criadores",
       estado: "em_curso",
-      nota: "roteiros: 4 peças-mestras + 5 video ads + 4 TV spots + 3 CGI Hyper Motion (2026-09-23)",
+      nota: "roteiros: 4 peças + 5 ads + 4 TV spots + 3 HyperMotion + 1 pessoa multi-cenário (2026-09-23)",
     },
   ],
   metas: [
