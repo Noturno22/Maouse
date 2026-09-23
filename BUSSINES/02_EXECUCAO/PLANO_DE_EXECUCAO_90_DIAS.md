@@ -189,7 +189,7 @@ institucional ativo, decisão de direção Y2 tomada com dados.
 
 ---
 
-## 7. Estado atual & ponto de retoma (CHECKPOINT — atualizado 2026-09-01)
+## 7. Estado atual & ponto de retoma (CHECKPOINT — atualizado 2026-09-22)
 
 > **Para retomar:** lê esta secção. Tudo o que está ✅ está feito e fundamentado em documentos;
 > o "Próximo passo" é a decisão mais óbvia que resta. Basta dizer "vamos fazer X".
@@ -210,12 +210,12 @@ institucional ativo, decisão de direção Y2 tomada com dados.
 
 ### 7.2 Bloqueadores de venda (implementação = código)
 
-| # | Bloqueador | Estado (2026-09-03) | Onde implementar |
+| # | Bloqueador | Estado (2026-09-22) | Onde implementar |
 |---|---|---|---|
 | 1 | Licenciamento + gate Free/Pro + trial + leases | ✅ Feito — servidor FastAPI+SQLite em `license-server/`; cliente em `core/licensing.py`/`license_client.py`/`fingerprint.py`; gate em `core/engine.py:process_frame` | Desktop |
 | 1b | **Paddle checkout** (pagamento automático → emissão de chave + email) | ✅ Feito — webhook `transaction.completed` com HMAC + dedup + email (`license-server/paddle.py`) | Desktop (S2) |
 | 2 | Gate + modal de upgrade | ✅ `ui/license_dlg.py` (upgrade/desativação) | Desktop |
-| 3 | `.exe` polido (assinatura/ícone/versão/console=False) | 🔴 Só falta **assinatura de código** (cert EV/OV ×PFX); ícone/versão/console/instalador/pipeline de assinatura automática já ✅ | Desktop (S2) |
+| 3 | `.exe` polido (assinatura/ícone/versão/console=False) | 🟡 **Pipeline de assinatura pronto** (eSigner/thumbprint no `build.bat`, upload instalador p/ Vercel Blob — 2026-09-22); **certificado SSL.com IV VALIDADO** (2026-09-23, ref `co-3c1laihs7ca`); falta **enroll/ativação do eSigner** → `build.bat` assina | Desktop (S2) |
 | 3b | Instalador 1-clique (Inno Setup) | ✅ Feito — `installer.iss` + `dist/Maouse-Setup-1.0.0.exe` (15,6 MB) | Desktop (S1) |
 | 4 | Ações nativas Android + AccessibilityService | ✅ Feito — `AirMouseAccessibilityService` + Touch/Keyboard/System modules ligados no JS; permissões mortas removidas | `mobile/airmouse-mobile/` (S2) |
 | 5 | **IAP mobile + store listing** | 🟡 **IAP ✅ code feito** (expo-iap + validação Google no license-server + paywall `ProGate`); falta **prebuild/upload/listing Play Console** | `mobile/airmouse-mobile/` (S2) |
@@ -229,16 +229,23 @@ institucional ativo, decisão de direção Y2 tomada com dados.
 
 ### 7.4 Próximo passo (escolher UMA via)
 
-- **A) Fechar blockers de execução comercial → 1ª venda paga:**
+- **A) Fechar blockers de execução comercial → 1.ª venda paga:**
   - ✅ Licenciamento + trial + leases + **Paddle automático** + gate + **IAP mobile Pro** (code) já feitos.
-  - 🔴 Falta (execução, não código): **certificado de code-signing** (EV/OV ×PFX → assinar `.exe`/instalador via `build.bat`) + **prebuild/upload/listing mobile Play Console** + **LAB de hardware** na matriz.
+  - 🟡 **Certificado SSL.com IV pago e VALIDADO** (US$129, ref `co-3c1laihs7ca`, 2026-09-23) — falta
+    **ativar o eSigner** (enroll + CodeSignTool no ambiente) e o `build.bat` sai com `.exe`+instalador
+    assinados e instalador no Vercel Blob.
+    **⚠️ Não commitada: subscrição Pro (€4,99/mês) na landing** (`maouse-pro-subscription` +
+    i18n 7 idiomas) está pronta no working tree e deve entrar no próximo commit.
+  - 🔴 Falta (execução, não código): **prebuild/upload/listing mobile Play Console** + **LAB de hardware**.
+  - ⚠️ Substituído mais tarde: a subscrição Pro na landing foi **removida por decisão** — o pricing
+    mantém Pro Lifetime / Família / Acesso (modelo sem assinatura).
 - **B) Testar hardware real** — desbloqueia a matriz e as promessas honestas:
   - Desktop com GPU/NPU (confirmar se sobe aos 25+ fps → ✅).
   - 1º telemóvel low-end Android (risco tela preta).
 
 > Recomendação: como o **gargalo é hardware**, testar um **desktop com GPU** primeiro dá a prova
 > rápida de que o produto sobe a 25+ fps (desbloqueia ✅ no marketing e contratos); em paralelo
-> trata-se do **certificado de code-signing** (bloqueador desktop nº1) e do **upload/listing mobile**.
+> trata-se da **ativação do eSigner do certificado SSL.com** (bloqueador desktop nº1) e do **upload/listing mobile**.
 
 ---
 

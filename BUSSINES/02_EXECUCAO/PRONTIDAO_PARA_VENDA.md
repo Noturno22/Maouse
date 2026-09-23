@@ -16,7 +16,7 @@ gate no `process_frame`). O **pagamento automático Paddle está operacional** (
 emissão de chave + email). Mas **faltam etapas de execução comercial** para capturar a primeira
 venda paga:
 
-- 🔴 **O `.exe` não está assinado** (o único que falta no #1: versão/ícone/console já estão ✅) → SmartScreen/AV.
+- 🟡 **O `.exe` está com pipeline de assinatura pronto** (eSigner/thumbprint no `build.bat` + upload instalador p/ Vercel Blob) e o **certificado SSL.com IV pago e VALIDADO** (2026-09-23) — falta **ativar o eSigner** (enroll + CodeSignTool) e o build sai assinado (único passo que faltava no #1: versão/ícone/console já estão ✅) → SmartScreen/AV.
 - ✅ **Ações nativas Android funcionam** — `AccessibilityService` + Touch/Keyboard/System modules ligados no JS (2026-09-03).
 - ✅ **IAP mobile Pro implementado** (expo-iap + validação Google Play no license-server) — falta o upload/listing Play Console.
 - ✅ **Paddle checkout integrado** — webhook `transaction.completed` emite a chave `MAO-` e envia por email (2026-09-03).
@@ -38,7 +38,7 @@ venda paga:
 | Item | Estado | Detalhe verificado |
 |---|---|---|
 | Build `.exe` (PyInstaller) | ✅ | `dist\AirMouse\AirMouse.exe` (18 MB) existe; build smokes sem erros |
-| **Code-signing** | 🔴 | `Get-AuthenticodeSignature` → **NotSigned**; falta apenas o **certificado** ×PFX (signtool já existe; `build.bat` assina automaticamente quando o cert estiver presente) |
+| **Code-signing** | 🟡 | `Get-AuthenticodeSignature` → **NotSigned** no último build; **pipeline de assinatura pronto** — `build.bat` + `upload_installer.ps1` assinam `.exe`/instalador via **eSigner/thumbprint** (2026-09-22); certificado **SSL.com IV pago (US$129) e VALIDADO** (ref `co-3c1laihs7ca`, 2026-09-23); falta **ativar o eSigner** (enroll + CodeSignTool + `ESIGNER_*`) para o `build.bat` produzir build assinado |
 | Metadados do `.exe` (versão/empresa/ícone) | ✅ | `console=False`, `icon=maouse.ico`, VersionInfo via `version_info.txt` → `FileVersion 1.0.0`; `ProductName Mãouse`; `CompanyName Luar Studio Angola` (verificado no exe real) |
 | Instalador (1-clique) | ✅ | Inno Setup `installer.iss` existe; `dist/Maouse-Setup-1.0.0.exe` (159 MB) gerado com sucesso; `VersionInfo*` + `SetupIconFile` + code-signing condicional via `/DPfxPath` |
 | **Licenciamento/chave/ativação** | ✅ (⚠️ 1 gap prod) | `core/licensing.py` + `core/license_client.py` + `core/fingerprint.py` + `license-server/` completo (FastAPI+SQLite+ES256) — trial 30min server-authoritative, chaves MAO-, ativação por fingerprint, leases JWT. **Fluxo e2e verificado contra servidor real (2026-09-04): PASS.** ⚠️ **Gap de produção:** o `.exe` NÃO embute o URL do license-server — sem env `AIRMOUSE_LICENSE_URLS` cai no placeholder `https://licenses.maouse.example.com` (cliente não tem env vars); tem de ser **gravado um default real no build** assim que o servidor for deployado (ver `license-server/DEPLOY_RENDER.md`) |
@@ -80,7 +80,7 @@ venda paga:
 
 | # | Bloqueador | Estado | Página do plano |
 |---|---|---|---|
-| 1 | **Assinatura digital do `.exe`** (certificado **OV é suficiente desde 2026** — EV já não salta o SmartScreen automaticamente; EV só p/ drivers de kernel). Metadados/ícone/`console=False` e instalador já ✅; `build.bat` + signtool assinam automaticamente quando existir o `.pfx` em `cert\maouse.pfx` — ver guia `docs/ASSINATURA_DIGITAL.md` | 🔴 Falta o certificado (passo comercial/PKI) | S2 |
+| 1 | **Assinatura digital do `.exe`** (certificado **OV é suficiente desde 2026** — EV já não salta o SmartScreen automaticamente; EV só p/ drivers de kernel). Metadados/ícone/`console=False` e instalador já ✅; `build.bat` + signtool assinam automaticamente (**pipeline eSigner/thumbprint pronto 2026-09-22**); **certificado SSL.com IV pago e VALIDADO (2026-09-23)** — falta **enroll/ativação do eSigner**; ver guia `docs/ASSINATURA_DIGITAL.md` | 🟡 Certificado validado; eSigner por ativar (US$129, ref `co-3c1laihs7ca`) | S2 |
 | 2 | **Store listing mobile** (posicionamento acessibilidade + privacy policy + icons Mãouse + upload Play Console do código com IAP) | 🔴 Falta (o **code-side IAP já está ✅**: expo-iap + validação Google no license-server + paywall Pro) | S2 |
 | 3 | **LAB de compatibilidade** (mover o gargalo de hardware para `HARDWARE/`): matriz Validado/Aceite/Não-validado preenchida em ≥5 devices por categoria crítica — evita prometer universalidade e **previne reembolsos (D7)** | 🟡 Em recolha (diretriz: ≥ i3 4ª geração) | S1–S2 |
 

@@ -18,7 +18,7 @@ O instalador já inclui os modelos críticos (`hand_landmarker.task` e
 (Piper ~60 MB) são descarregados na primeira utilização para
 `%LOCALAPPDATA%\AirMouse\models` (diretório do utilizador, sempre escrevível).
 Nota: o instalador ainda NÃO está assinado digitalmente (aviso SmartScreen);
-a assinatura será adicionada quando houver um certificado EV.
+a assinatura será adicionada quando o certificado EV for ativado no eSigner.
 
 ### Desenvolvimento
 Modelo `hand_landmarker.task` (~8 MB) descarrega automaticamente na primeira

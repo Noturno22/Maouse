@@ -2,6 +2,47 @@
 
 > **Continuar daqui mais tarde.** Este ficheiro guarda tudo o que foi decidido e feito, e o que falta.
 
+## Estado atual (2026-09-22) — Sprint 2: produto vendável / 1.ª venda
+
+> Posição no `PLANO_DE_EXECUCAO_90_DIAS.md`: **Sprint 2 (dias 31–60)**. Execução comercial em
+> curso; trabalho em aberto nos 3 bloqueadores da `PRONTIDAO_PARA_VENDA.md` (§4).
+
+### ✅ Feito recentemente (14–22 set)
+
+1. **`maouse.app` ao vivo** — domínio comprado (Cloudflare, US$14.34/ano) + DNS/HTTPS ativos
+   (CNAME → Vercel, 2026-09-22) · landing premium a servir em `https://maouse.app`.
+2. **Landing premium** — redesign glow/glass/spotlight, wordmark com logo, contacto +
+   painel de progresso público (`/api/progress` com updatedAt + marcos) e admin.
+3. **Pipeline de assinatura de código pronto** (`build.bat` + `upload_installer.ps1` +
+   `web/scripts/upload.mjs`): assina `.exe`/instalador via **eSigner/thumbprint** e faz
+   **upload do instalador para o Vercel Blob** (5be39c1).
+4. **Certificado SSL.com IV** — pago (US$129) e **VALIDADO** (ref `co-3c1laihs7ca`);
+   ordem aprovada pela SSL.com (2026-09-23, ticket `#133702727`). Falta **ativar o eSigner**
+   e desbloquear o enroll para o `.exe` sair assinado (Passo 4 do `SSLCOM_VALIDACAO.md`).
+5. **Mobile dev** — `conectar.bat` (firewall Metro/Expo) + `@expo/ngrok` para ligação dev.
+6. **Fortuna** registado como **2.º sócio-função** (4% vesting: mobile/remote/Linux).
+7. **render.yaml movido para a raiz** (Blueprint do Render) + registo SSL.com/domínio.
+   *Nota: foi tentada uma subscrição Pro na landing (€4,99/mês) e **removida por decisão** — modelo restante é only lifetime/família/acesso.*
+
+### 🔴 Bloqueadores em aberto (Sprint 2 → 1.ª venda paga)
+
+| # | Bloqueador | Estado |
+|---|---|---|
+| 1 | **Assinatura digital do `.exe`** — pipeline pronto; certificado SSL.com **VALIDADO**; falta **enroll/ativação do eSigner** | 🟡 eSigner por ativar |
+| 2 | **Store listing mobile (Play Console)** — IAP code ✅; falta prebuild/upload/listing | 🔴 |
+| 3 | **LAB de compatibilidade** — matriz ≥5 dispositivos por categoria    | 🟡 1 🟡 (HP i3-5005U 14.6 fps) |
+
+### Reserva financeira (Pista A)
+
+Gasto **US$168.34** de **US$222** (cert US$129 + domínio US$14.342 + Play US$25) →
+**reserva restante ≈ US$53.66** (usa-se só quando os critérios §3 de
+`DIRECIONAMENTO_DOS_FUNDOS.md` dispararem).
+
+### Próximo passo recomendado (do próprio plano §7.4)
+
+Escolher UMA via: **(A)** **ativar o eSigner** no portal SSL.com → configurar CodeSignTool/ESIGNER_* no ambiente → `build.bat` assinado e instalador subido ao Blob; **(B)** prebuild/upload/listing do mobile no Play Console; ou
+**(C)** testar desktop com GPU para provar 25+ fps.
+
 ## O que é
 
 Projeto novo dentro de `DEV\JARVIS\airmouse` — controla o rato do PC com a mão via webcam.
