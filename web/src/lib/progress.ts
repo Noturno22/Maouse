@@ -88,10 +88,10 @@ export const SEED_PROGRESS: ProgressData = {
     },
     {
       id: "fase-b",
-      nome: "Fase B — Expansão UE (Roberto)",
+      nome: "Fase B — Expansão UE (Pista B)",
       estado: "em_curso",
       resumo:
-        "Responsável: Roberto (Rotterdam). Marca EUIPO/USPTO, entidade UE (Portugal), vídeos demo e criadores (~€1.900–3.700). Equity proposto 8–15% com vesting ligado à entrega. Fortuna registado como 2.º sócio-função (4% vesting, mobile/remote/Linux).",
+        "Expansão europeia: marca EUIPO/USPTO, entidade UE (Portugal), landing maouse.app, vídeos demo e criadores (~€1.900–3.700). Equity proposto 8–15% com vesting ligado à entrega. Fortuna registado como 2.º sócio-função (4% vesting, mobile/remote/Linux).",
     },
   ],
   marcos: [
@@ -176,13 +176,6 @@ export const SEED_PROGRESS: ProgressData = {
       titulo: "LAB de compatibilidade (≥5 dispositivos por categoria)",
       estado: "em_curso",
       nota: "i3 4.ª geração como mínimo suportado",
-    },
-    {
-      id: "mb-roberto",
-      fase_id: "fase-b",
-      titulo: "Roberto confirmado como responsável pela Fase B",
-      estado: "concluido",
-      nota: "Confirmado em 2026-09-25",
     },
     {
       id: "mb-fortuna",
