@@ -41,6 +41,7 @@ export function Features() {
 const PADDLE_VENDOR_ID = process.env.NEXT_PUBLIC_PADDLE_VENDOR_ID;
 const LIFETIME_URL = process.env.NEXT_PUBLIC_PADDLE_LIFETIME_URL;
 const FAMILY_URL = process.env.NEXT_PUBLIC_PADDLE_FAMILY_URL;
+const TRADING_MASTER_URL = process.env.NEXT_PUBLIC_PADDLE_TRADING_MASTER_URL;
 const ACCESS_URL = process.env.NEXT_PUBLIC_PADDLE_ACCESS_URL;
 
 export function Pricing() {
@@ -49,6 +50,7 @@ export function Pricing() {
     const overrides: Record<string, string> = {
       lifetime: LIFETIME_URL || "",
       family: FAMILY_URL || "",
+      trading_master: TRADING_MASTER_URL || "",
       access: ACCESS_URL || "",
     };
     if (overrides[id]) return overrides[id] || null;
@@ -56,6 +58,7 @@ export function Pricing() {
     const products: Record<string, string> = {
       lifetime: "maouse-pro-lifetime",
       family: "maouse-family",
+      trading_master: "maouse-trading-master",
       access: "maouse-pro-access",
     };
     return `https://checkout.paddle.com/${PADDLE_VENDOR_ID}?product=${products[id] ?? id}`;
@@ -68,7 +71,7 @@ export function Pricing() {
           <SectionHeader tag={t.pricing.tag} title={t.pricing.title} sub={t.pricing.sub} />
         </Reveal>
 
-        <div className="mt-14 grid gap-5 lg:grid-cols-3 lg:items-stretch">
+        <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:items-stretch xl:grid-cols-4">
           {t.pricing.plans.map((plan, i) => {
             const isFree = plan.id === "free";
             const isHighlight = plan.highlight;
@@ -102,12 +105,12 @@ export function Pricing() {
                 <SpotlightCard
                   className={`flex flex-col rounded-2xl p-7 ${
                     isHighlight
-                      ? "-my-4 border-animated bg-panel/70 shadow-[0_0_60px_rgba(80,200,255,0.22)] lg:py-11"
+                      ? "-my-4 border-animated bg-panel/70 shadow-[0_0_60px_rgba(80,200,255,0.22)] xl:py-11"
                       : "border border-line bg-panel/50"
                   }`}
                 >
                   {isHighlight && (
-                    <span className="absolute -top-3 left-1/2 z-10 -translate-x-1/2 whitespace-nowrap rounded-full bg-gradient-to-r from-neon to-royal px-3 py-1 font-mono text-[10px] font-semibold tracking-widest text-night uppercase shadow-[0_0_20px_rgba(80,200,255,0.5)]">
+                    <span className="mb-5 self-center whitespace-nowrap rounded-full border border-neon/40 bg-neon/10 px-3 py-1 font-mono text-[10px] font-semibold tracking-widest text-neon uppercase shadow-[0_0_20px_rgba(80,200,255,0.18)]">
                       {t.pricing.popular}
                     </span>
                   )}
