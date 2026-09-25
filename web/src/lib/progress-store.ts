@@ -24,6 +24,7 @@ export async function writeProgress(data: ProgressData): Promise<void> {
   await put(BLOB_FILE, JSON.stringify(data, null, 2), {
     access: "public",
     addRandomSuffix: false,
+    allowOverwrite: true,
     contentType: "application/json",
   });
 }
