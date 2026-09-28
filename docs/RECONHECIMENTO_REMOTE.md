@@ -536,7 +536,7 @@ Consolidadas e verificadas no repositório em 2026-09-28.
 
 | # | Gravidade | Limitação | Evidência |
 |---|---|---|---|
-| 1 | 🔴 Crítico | **`websockets>=13.0` é um floor inválido.** O código importa `websockets.asyncio.server`, que só existe a partir da 14.0. Instalações limpas rebentam com `ImportError`. | `requirements.txt:5`, `core/remote.py:223` |
+| 1 | ⚪ **Falso positivo** | ~~`websockets>=13.0` é um floor inválido; `websockets.asyncio.server` só existe a partir da 14.0.~~ **Falso.** O namespace `websockets.asyncio` foi introduzido na **13.0** (changelog 13.0: *"introduces a new asyncio implementation"*); a 14.0 foi apenas o que o tornou default. `websockets/asyncio/server.py` existe na tag `13.0` do upstream, com a API `serve` completa. O floor declarado está **correcto**. Ver §1.14.1. | `requirements.txt:5`, `core/remote.py:223` |
 | 2 | 🔴 Crítico | **Multi-monitor sem origem** — cursor encurralado no monitor principal se algum ecrã estiver à esquerda/acima. | `core/mouse_ctl.py:127-143,186-189` |
 | 3 | 🔴 Crítico | **Sem TLS**, e o cliente impede usar `wss://`. | `core/remote.py:227-231`, `remoteClient.ts:36` |
 | 4 | 🔴 Crítico | **Sem rate limit / lockout / allowlist** numa porta aberta à Internet. | `core/remote.py:250` |
@@ -602,7 +602,7 @@ no repositório antes da redacção. Verificações explícitas:
 
 | Afirmação | Verificação | Resultado |
 |---|---|---|
-| `websockets>=13.0` no manifesto | `requirements.txt` | ✅ `websockets>=13.0` |
+| `websockets>=13.0` no manifesto | `requirements.txt` | ✅ a string está lá — **mas ver §1.14.1: o floor está correcto** |
 | `pyproject.toml` incompleto | `pyproject.toml:10-12` | ✅ só `cryptography>=42` |
 | `SM_XVIRTUALSCREEN` ausente | pesquisa 76/77 em `core/`, `ui/`, `main.py` | ✅ só 78/79 presentes |
 | Sem TLS no servidor | pesquisa `ssl`/`wss` em `core/remote.py` | ✅ zero ocorrências |
@@ -623,6 +623,51 @@ real. As_secções [1.4](#14-rato--do-toque-ao-pixel-mobile) e
 [1.6](#16-teclado--do-texto-à-tecla-mobile) descrevem a *lógica implementada*, que pode
 divergir do comportamento percebido. A Onda 0 da Parte 3 existe precisamente para
 fechar esta lacuna.
+
+## 1.14.1 Correção: o item 1 era um falso positivo 🔴
+
+A limitação **#1** desta auditoria foi retractada a 2026-09-28. Afirmava que
+`websockets>=13.0` era um floor inválido porque `websockets.asyncio.server` "só
+existe a partir da 14.0", e classificava-a 🔴 Crítico por "rebenta[r] instalações
+limpas da EAS". **As duas afirmações são falsas.**
+
+**Erro 1 — o namespace existe desde a 13.0, não desde a 14.0.**
+
+| Fonte | O que diz |
+|---|---|
+| Changelog upstream, secção 13.0 (20/Ago/2024) | *"websockets 13.0 introduces a new `asyncio` implementation"* |
+| Changelog upstream, secção 14.0 (9/Nov/2024) | *"The new `asyncio` implementation is now the **default**"* — mudou o default, não criou o namespace |
+| `websockets/asyncio/server.py` na tag `13.0` do GitHub | existe, com `serve`, `Server`, `ServerConnection`, `broadcast` |
+
+O que a 14.0 fez foi passar a ser o default — uma mudança de *aliases*, não de
+disponibilidade. `core/remote.py:223` importa o caminho explícito
+`websockets.asyncio.server`, que é precisamente a forma que **não** depende do
+default. O floor declarado está correcto tal como está.
+
+**Erro 2 — a EAS nunca instala este manifesto.**
+
+`requirements.txt` é o manifesto do **desktop em Python**. Os seus únicos
+consumidores no repositório são `.github/workflows/ci.yml:18` e `setup.bat:12`.
+Verificado: `mobile/` não contém nenhuma referência a `requirements.txt`, `pip`,
+`expo-build-hook` ou `buildHook`; o `eas.json` só define perfis de build, sem
+hooks; e o `mobile/airmouse-mobile/package.json` não tem dependências Python
+nenhuma. A EAS compila React Native com npm — o `pip` do Python nunca entra.
+
+**Como o erro entrou.** A linha 605 da tabela de verificação confirmava que a
+string `websockets>=13.0` estava no ficheiro — e a limitação saltou daí para "logo,
+este floor é inválido". Verificou-se o *token* e assumiu-se a *consequência*. É o
+erro clássico de leitura de manifesto, e vale como regra para o resto do
+documento: **ler a linha do ficheiro não é verificar a consequência.**
+
+**O que fica, e é real.** O item #7 (`pyproject.toml` declara só
+`cryptography>=42`) é o problema de manifesto que continua aberto — não rebenta o
+build do projecto, mas `pip install airmouse` instala um pacote que não arranca.
+Este é o item que merece a correcção de 10 minutos, não o #1.
+
+**Consequência para o registo de contribuição.** O `CONTRIBUICAO_SOCIOS.md`
+atribuía ao domínio do sócio 2 bloqueadores 🔴 de build com base nesta premissa.
+Reverificado: o número real de bloqueadores de build é **zero**. Ver §4.6 desse
+documento.
 
 ---
 
@@ -784,26 +829,41 @@ relógio de baixa frequência.
 
 ## 3.0 Princípio: segurança antes de conforto
 
-Este plano **não** começa por melhorar a sensação do rato. Começa por
-`websockets>=14.0` e por um verificador de asserções nos testes existentes.
+Este plano **não** começa por melhorar a sensação do rato. Começa por um teste
+de asserção que hoje está a dar um falso verde, e por um manifesto de
+empacotamento que mente sobre o produto.
 
-A razão: os itens 1 e 2 das limitações são **bugs que já estão a custar
-instalações**. `websockets>=13.0` rebenta qualquer instalação limpa — que é
-exactamente o que a EAS faz no CI. E o teste que fixa o bug multi-monitor é uma
-corrupção activa do nosso próprio sinal de qualidade.
+A razão: o teste que fixa o bug multi-monitor (#2) é uma **corrupção activa do
+nosso próprio sinal de qualidade** — não é um bug que o utilizador sente, é um bug
+que nos impede de medir. E o `pyproject.toml` (#7) instala um pacote que não
+arranca para quem não use o `setup.bat`.
 
-Correcção de 10 minutos antes de 100 linhas de código novo.
+> ⚠️ **Correcção a este excerto (2026-09-28).** A versão anterior começava por
+> `websockets>=14.0` e dizia que isso "rebenta[va] qualquer instalação limpa — que é
+> exactamente o que a EAS faz no CI". **Ambas as afirmações eram falsas** (ver
+> [§1.14.1](#1141-correção-o-item-1-era-um-falso-positivo-)): o floor do `websockets`
+> já está correcto, e a EAS nunca instala este manifesto Python. A Onda 0.1 foi
+> reescrita em conformidade.
 
 ## 3.1 Onda 0 — Instrumentação e correções de bloqueio
 
-### 0.1 Correcções de dependência ⚠️ desbloqueia a EAS
+### 0.1 Correcções de dependência
 
-- `requirements.txt:5` — `websockets>=13.0` → **`websockets>=14.0`**. O código importa
-  `websockets.asyncio.server` (`core/remote.py:223`), que só existe a partir da 14.0.
-- `pyproject.toml:10-12` — alinhar com `requirements.txt`. Enquanto `pip install .`
-  não instalar pynput e websockets, o manifesto mente sobre o produto.
-- Mover `uiautomation` e `comtypes` para `requirements-windows.txt` (já existe
+- ❌ ~~`requirements.txt:5` — `websockets>=13.0` → `websockets>=14.0`~~ **Cancelado.**
+  O floor já está correcto: `websockets.asyncio` existe desde a 13.0
+  ([§1.14.1](#1141-correção-o-item-1-era-um-falso-positivo-)). Bixar o floor para
+  14.0 não corrigiria nada e subiria o mínimo de Python implícito.
+- ✅ **`pyproject.toml:10-12`** — alinhar com `requirements.txt`. Este é o problema
+  real: enquanto `pip install airmouse` não instalar pynput, mediapipe e
+  websockets, o manifesto mente sobre o produto. É este o que vale a correcção de
+  10 minutos.
+- Mover `uiautomation` e `comtypes` para um `requirements-windows.txt` (já existe
   `requirements-linux.txt` a fazer isto parcialmente).
+- 🟠 **Novo, e não estava na auditoria:** o CI **nunca instala**
+  `requirements-linux.txt` (`ci.yml:18` instala só `requirements.txt`,
+  `requirements-build.txt` e o do license-server). O manifesto Linux pode por isso
+  apodrecer sem que nada earthen. Propõe-se um passo de CI que o instale — é o
+  que impede esta classe de bug de voltar.
 
 ### 0.2 Teste de asserção para a origem virtual
 
@@ -1033,9 +1093,11 @@ A UI mostra quem está ligado e como desligar.
 ## 3.6 Roadmap
 
 ```
-Onda 0  Dependências + asserções + origem virtual + instrumentação
-        └─ desbloqueia EAS, apanha o bug multi-monitor, cria métricas
-           Critério: npm ci passa; teste de origem falha antes / passa depois;
+Onda 0  Manifesto + asserções + origem virtual + instrumentação
+        └─ pip install passa a_arrancar, apanha o bug multi-monitor, cria métricas
+           Critério: pip install airmouse && python -c "import core.remote" passa;
+                    requirements-linux.txt é instalado pelo CI;
+                    teste de origem falha antes / passa depois;
                     eval_remote.py produz RTT p50/p95/p99
 
 Onda 1  Escala + filtro + aceleração + aspecto + emissão fixa
@@ -1088,7 +1150,8 @@ Definir em números **antes** de escrever código da Onda 1.
 | Corrigir o teste multi-monitor invalida a asserção actual | Onda 0.2 escreve o teste **antes** da correcção, propositadamente a falhar |
 | Onda 1 pode *piorar* o feel actual se não medida | Onda 0.5 cria a métrica **antes** de mexer no ganho |
 | Escalar o remote a Pro pode alienar utilizadores Free | Decisão de negócio, não técnica — registar em `BUSSINES/` |
-| `websockets>=14.0` pode revelar incompatibilidades | Testar em venv limpo antes de fazer o merge |
+| Alinhar `pyproject.toml` pode divergir de `requirements.txt` | Gerar as dependências do `pyproject.toml` a partir do `requirements.txt`, ou adicionar um teste que compare os dois |
+| `requirements-linux.txt` não é instalado por ninguém | Passo de CI que o instale; sem isso o manifesto Linux apodrece em silêncio |
 
 **Não-objetivos (por agora):**
 

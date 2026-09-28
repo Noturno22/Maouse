@@ -93,7 +93,7 @@ limitações**. As atribuíveis ao domínio do sócio:
 
 | Gravidade | Item | Referência |
 |---|---|---|
-| 🔴 | `websockets>=13.0` inválido (importa o namespace que só existe na 14.0) — rebenta instalações limpas da EAS | `requirements.txt:5`, `core/remote.py:223` |
+| ~~🔴~~ | ~~`websockets>=13.0` inválido — rebenta instalações limpas da EAS~~ **RETRACTADO**: premissa falsa, ver §4.6 | — |
 | 🔴 | Multi-monitor sem origem virtual (cursor encurralado) | `core/mouse_ctl.py:127-143,186-189` |
 | 🔴 | Sem TLS + cliente remove `wss://` | `core/remote.py:227-231`, `remoteClient.ts:33-41` |
 | 🔴 | Sem rate limit / lockout / allowlist | `core/remote.py:250` |
@@ -115,8 +115,9 @@ limitações**. As atribuíveis ao domínio do sócio:
 ### 4.4 Pontos fracos / risco
 
 - **Volume muito baixo.** 6 commits em 14 dias de colaboração, num domínio com 24
-  limitações conhecidas e 2 bugs 🔴 que **bloqueiam o build da EAS hoje**
-  (`websockets>=13.0`) e **bloqueiam a funcionalidade central em multi-monitor**.
+  limitações auditadas, das quais **4 🔴 reais** — e que bloqueiam a
+  funcionalidade central em multi-monitor. (O alegado bloqueador de build da EAS
+  foi retractado em §4.6: **zero bloqueadores de build**.)
 - **A propriedade do mobile é na prática do fundador.** `mobile/airmouse-mobile/`
   tem 30 commits do `Noturno22` vs 2 do Fortuna. O domínio "mobile" do papel do
   sócio está, na prática, entregue acima de 90% pelo fundador.
@@ -162,6 +163,44 @@ commits já são públicos e não se reescrevem sem `filter-branch`/force-push, 
 atribuição; para o passado, a atribuição correcta é a tabela de §3, que é
 verificável por qualquer pessoa pelo diff.
 
+### 4.6 ⚪ Retractado: o bloqueador de build da EAS nunca existiu
+
+A versão 1.0 deste documento afirmava, com base na auditoria
+`docs/RECONHECIMENTO_REMOTE.md` §1.11, que o domínio do sócio entregava **2 bugs
+🔴 que bloqueavam o build da EAS** — um deles `websockets>=13.0` em
+`requirements.txt:5`. Fui verificar antes de fazer a alteração, e **a premissa
+era falsa em ambos os pontos.**
+
+**Premissa 1 — o floor do `websockets` é inválido.** Falso. O namespace
+`websockets.asyncio` foi introduzido na **13.0**, não na 14.0: o changelog
+upstream da 13.0 diz *"introduces a new asyncio implementation"*, e a 14.0 foi
+apenas o que a tornou default. O ficheiro `websockets/asyncio/server.py` existe
+na tag `13.0` do GitHub. O `core/remote.py:223` importa o caminho explícito, que
+é justamente a forma que não depende do default. `requirements.txt:5` está
+correcto tal como está.
+
+**Premissa 2 — isso "rebenta instalações limpas da EAS".** Falso. A EAS compila o
+app React Native com npm. O `mobile/` não referencia `requirements.txt`, `pip`,
+`expo-build-hook` nem `buildHook`; o `eas.json` só tem perfis de build, sem hooks;
+e o `package.json` do telemóvel não tem dependências Python. Os únicos consumidores
+de `requirements.txt` são o `ci.yml:18` e o `setup.bat:12` — ambos do desktop.
+A EAS nunca vê este ficheiro.
+
+**Porque isto importa mais do que a correcção técnica.** "Entregou 2 bloqueadores
+🔴" é uma afirmação sobre o desempenho de uma pessoa, e estava a assentar numa
+inferência nunca verificada: a auditoria tinha confirmado que a *string*
+`websockets>=13.0` estava no ficheiro, e saltou daí para "logo este floor está
+partido". O `ci.yml` está verde no mesmo commit que tem esse manifesto — já era
+evidência suficiente de que a premissa não se aguentava, e não foi lida.
+
+**Estado corrigido.** Bloqueadores de build do domínio: **zero**. As 4 limitações
+🔴 que restam (multi-monitor, sem TLS, sem rate limit, bypass do gate Pro) são
+reais, mas são **pré-existentes** — foram encontradas pela auditoria, não
+introduzidas pelo sócio, e nenhuma delas o impede de entregar trabalho.
+
+**O que fica a dever, e é real** (§5.2): teste de origem virtual + multi-monitor,
+testes no mobile, `pyproject.toml`, e os gates de pausa/licença.
+
 ---
 
 ## 5. Recomendações
@@ -188,6 +227,22 @@ verificável por qualquer pessoa pelo diff.
 4. Definir o critério formal de vesting (o que conta para os 4%: commits?
    PRs? marcos?) e registar em `ESTRUTURA_DA_EMPRESA.md`.
 
+### 5.2 Portefólio a cobrar no próximo passo do sócio
+
+Prioridade segundo o plano em `docs/RECONHECIMENTO_REMOTE.md` Parte 3:
+
+1. Teste de origem virtual + correcção do multi-monitor — 🔴, é a falha que o
+   utilizador sente.
+2. Testes mínimos no mobile (o vazio total é inaceitável para um sócio que
+   responde pelo domínio mobile).
+3. Alinhar `pyproject.toml` com as dependências reais, e um passo de CI que
+   instale `requirements-linux.txt`.
+4. Respect dos gates de pausa e licença no canal remoto.
+
+> ❌ **Retirado do topo desta lista:** `websockets>=14.0`, que estava classificado
+> como bloqueador de build da EAS. A premissa era falsa (§4.6) — não é trabalho
+> que se possa cobrar a ninguém.
+
 ### 5.3 Trabalho recente: divergência a esclarecer 🟡
 
 Verificado a 2026-09-28: **o GitHub não regista commits deste sócio desde
@@ -207,16 +262,6 @@ O sócio refere ter trabalhado recentemente. **Perguntas directas a fazer:**
 (§2) só conta artefactos verificáveis; um "fiz trabalho" sem diff não entra no
 cap table.
 
-### 5.2 Portefólio a cobrar no próximo passo do sócio
-
-Prioridade segundo o plano em `docs/RECONHECIMENTO_REMOTE.md` Parte 3:
-
-1. `websockets>=14.0` — **bloqueia o build da EAS** (não é opcional).
-2. Teste de origem virtual + correcção do multi-monitor.
-3. Testes mínimos no mobile (o vazio total é inaceitável para um sócio que
-   responde pelo domínio mobile).
-4. Respect dos gates de pausa e licença no canal remoto.
-
 ---
 
 ## 6. Estado da partnership
@@ -230,7 +275,8 @@ Prioridade segundo o plano em `docs/RECONHECIMENTO_REMOTE.md` Parte 3:
 | Trabalho recente declarado, não encontrado no repositório | 🟡 por esclarecer (§5.3) |
 | Documentação de domínio | `docs/RECONHECIMENTO_REMOTE.md` (ca. 1110 linhas, 3 partes) |
 | Domínio no papel vs. na prática | papel: mobile/remote/Linux/CI · prática: core desktop/CI mixes |
-| Bloqueadores do build atribuíveis ao domínio | **2 🔴** (`websockets>=13.0`) |
+| Bloqueadores de build atribuíveis ao domínio | **0** — o alegado foi retractado (§4.6) |
+| Limitações 🔴 reais no domínio (4, todas pré-existentes) | multi-monitor · sem TLS · sem rate limit · bypass Pro |
 | Testes no mobile | **0** |
 
 ---
@@ -239,6 +285,7 @@ Prioridade segundo o plano em `docs/RECONHECIMENTO_REMOTE.md` Parte 3:
 |---|---|---|---|
 | 1.0 | 2026-09-28 | Criação da área de análise de contribuição; consolidação das entregas verificáveis do sócio-função Fortuna; registo das 24 limitações do domínio remote (auditoria) | Luar Studio Angola |
 | 1.1 | 2026-09-28 | **Verificação por API do GitHub**: a contribuição do sócio é **invisível** (0 commits atribuídos, `author: null`, 1 contributor no repo) por causa do email `teu-email-do-github` — nova §4.5, 🔴. Confirmado que **não há trabalho novo desde 15/set** (repo local e GitHub); o PR #1 merged hoje é o commit de duas semanas — nova §5.3, 🟡, com a pergunta directa a fazer | Luar Studio Angola |
+| 1.2 | 2026-09-28 | **Retractada a acusação de 2 bloqueadores 🔴 de build** (nova §4.6, ⚪). Verificado antes de alterar: `websockets.asyncio` existe desde a **13.0** (o floor de `requirements.txt:5` está correcto) e a EAS nunca lê `requirements.txt`. Bloqueadores de build: **zero**. Corrigidos §4.2, §4.4, §5.2, §6, e a versão 1.6 de `ESTRUTURA_DA_EMPRESA.md` | Luar Studio Angola |
 
 ---
 
