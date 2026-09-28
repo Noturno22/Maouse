@@ -13,6 +13,7 @@ import cv2
 
 from config import SMOOTH_PRESETS, save_settings
 from core.commands import _click_assist, apply_command
+from core.corpus import LABEL_KEYS
 from core.filters import AccelCurve, FilterPair2D
 from core.gestures import Gesture
 from core.hotkeys import (
@@ -40,6 +41,15 @@ from core.twohand import (
 log = get_logger("engine")
 
 MOVE_GESTURES = frozenset({Gesture.OPEN, Gesture.ONE, Gesture.PINCH})
+
+# Teclas de controlo do preview OpenCV. Declaradas aqui para que a tabela de
+# teclas de etiqueta do corpus (core.corpus.LABEL_KEYS) possa ser validada
+# contra elas: uma colisao faria o operador sair do programa ao tentar marcar
+# um gesto.
+PREVIEW_KEYS = frozenset({
+    ord("q"), 27, ord(" "), ord("["), ord("]"), ord(","), ord("."),
+    ord("s"), ord("h"), ord("v"), ord("a"), ord("m"), ord("b"),
+})
 
 
 def _command_hand_frame(results, mirror: bool, frame_w: int):
@@ -109,7 +119,32 @@ def _cursor_hand_frame(results, frame_w: int):
 ALT_HOLD_TIMEOUT_S = 1.3
 
 
-def make_engine_ctx(cfg, smooth_idx, gesture_ai, tuner, ctx):
+def _active_hand_index(hands, width: int, height: int, palm_center) -> int:
+    """Indice, em ``hands``, da deteccao que corresponde a ``palm_center``.
+
+    O ``HandPool`` pode descartar duplicados e trocar os labels, portanto nao ha
+    correspondencia posicional garantida entre as mao que o tracker devolveu e
+    as do dicionario de resultados. Para gravar o corpus com honestidade
+    precisamos de saber qual das deteccoes cruas e a mao do cursor: casa-se a
+    palma usando **exactamente** a mesma formula que o ``HandPool``
+    (media de pulso e lambida 9).
+
+    Devolve -1 quando nao casa com nenhuma (ou nao ha mao nenhuma).
+    """
+    if palm_center is None or not hands:
+        return -1
+    for i, hand in enumerate(hands):
+        if len(hand) > 9:
+            cx = (hand[0][0] + hand[9][0]) / 2.0 * width
+            cy = (hand[0][1] + hand[9][1]) / 2.0 * height
+        else:
+            cx, cy = hand[0][0] * width, hand[0][1] * height
+        if abs(cx - palm_center[0]) < 0.5 and abs(cy - palm_center[1]) < 0.5:
+            return i
+    return -1
+
+
+def make_engine_ctx(cfg, smooth_idx, gesture_ai, tuner, ctx, recorder=None):
     """Constrói o contexto de motores/estado partilhado entre UIs.
 
     Toda a lógica de reconhecimento/movimento vive aqui (intacta). Tanto o
@@ -185,6 +220,9 @@ def make_engine_ctx(cfg, smooth_idx, gesture_ai, tuner, ctx):
         last_accept_t=None, last_hand_t=None, dt_ema=0.05,
         exposure_tried=False, gray_check=0,
         right_peace_prev=False,
+        # Corpus de landmarks para avaliacao offline (Onda 0). None = OFF, e
+        # entao o engine corre exactamente como antes.
+        recorder=recorder,
     )
 
 
@@ -280,6 +318,14 @@ def process_frame(cfg, cam, tracker, mouse, gesture_ai, voice, tuner, ctx, state
 
     all_frames = {s: r[0] for s, r in results.items()}
     E.ui["hands"] = len(results)
+
+    # Corpus de avaliacao (Onda 0): grava a MAO DO CURSOR com a etiqueta que o
+    # operador escolheu. Fora desta sessao, ou sem --record, nada disto corre.
+    if E.recorder is not None:
+        idx = _active_hand_index(
+            hands, w, h, hand_frame.palm_center if hand_frame is not None else None
+        )
+        E.recorder.observe(hands, sides, idx, ts_ms)
 
     # Liberta o Alt+Tab seguro por timeout (mesmo que a mao desapareca).
     if E.alt_hold and now > E.alt_hold_until:
@@ -630,8 +676,9 @@ def process_frame(cfg, cam, tracker, mouse, gesture_ai, voice, tuner, ctx, state
             "done": False, "to_render": True}
 
 
-def run_loop(cfg, cam, tracker, mouse, smooth_idx, gesture_ai, voice, tuner, ctx, state):
-    E = make_engine_ctx(cfg, smooth_idx, gesture_ai, tuner, ctx)
+def run_loop(cfg, cam, tracker, mouse, smooth_idx, gesture_ai, voice, tuner, ctx,
+             state, recorder=None):
+    E = make_engine_ctx(cfg, smooth_idx, gesture_ai, tuner, ctx, recorder)
     E.emitter = SmoothEmitter(mouse, cfg.emitter_rate_hz)
     E.emitter.start()
     state["smooth_name"] = E.smooth_name
@@ -714,10 +761,33 @@ def run_loop(cfg, cam, tracker, mouse, smooth_idx, gesture_ai, voice, tuner, ctx
                     if ctx.speaker:
                         ctx.speaker.say(str(note))
 
+                # Etiqueta do ground truth para o corpus (Onda 0). Precedido
+                # dos controlos acima de proposito: qualquer colisao faria a
+                # tecla de gesto disparar o comando.
+                if E.recorder is not None:
+                    if key in LABEL_KEYS:
+                        E.recorder.set_label_by_key(key)
+                        E.toast(
+                            f"ETIQUETA: {E.recorder.label} ({E.recorder.frames}f)"
+                        )
+                    elif key == ord("x"):
+                        E.recorder.reset()
+                        E.toast(f"CORPUS LIMPO ({E.recorder.frames}f)")
+                    elif key == ord("k"):
+                        E.toast(f"CORPUS: {E.recorder.frames}f | guardar em sair")
+
             if ctx.exit_requested:
                 break
     finally:
         E.emitter.stop()
+        if E.recorder is not None and E.recorder.path is not None:
+            if E.recorder.flush():
+                log.info(
+                    "Corpus gravado: %s | %d frames | etiqueta %s",
+                    E.recorder.path, E.recorder.frames, E.recorder.label,
+                )
+            else:
+                log.warning("Corpus vazio: nada gravado em %s", E.recorder.path)
         if state["button_down"]:
             mouse.release_left()
             state["button_down"] = False

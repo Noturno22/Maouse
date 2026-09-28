@@ -102,6 +102,49 @@ def parse_args():
         action="store_true",
         help="remove a licenca Pro (volta a Free) e sai.",
     )
+    # Onda 0: medir antes de optimizar. --record grava um corpus de landmarks
+    # com etiquetas; --replay corre esse corpus e imprime as metricas. Sao
+    # mutuamente exclusivos porque o replay tem de correr sem camera e sem
+    # rato (e o record sem camera nao teria o que gravar).
+    modo = parser.add_mutually_exclusive_group()
+    modo.add_argument(
+        "--record",
+        type=str,
+        default=None,
+        metavar="FICHEIRO",
+        help="grava um corpus de landmarks com etiquetas para avaliacao",
+    )
+    modo.add_argument(
+        "--replay",
+        type=str,
+        default=None,
+        metavar="FICHEIRO",
+        help="reproduz um corpus e mostra as metricas (dry-run, sem camera/rato)",
+    )
+    parser.add_argument(
+        "--record-max-frames",
+        type=int,
+        default=0,
+        metavar="N",
+        help="para a gravacao apos N frames (0 = sem limite)",
+    )
+    parser.add_argument(
+        "--frame-width",
+        type=int,
+        default=640,
+        help="largura de replay do corpus (corresponde a cfg.frame_width)",
+    )
+    parser.add_argument(
+        "--frame-height",
+        type=int,
+        default=480,
+        help="altura de replay do corpus (corresponde a cfg.frame_height)",
+    )
+    parser.add_argument(
+        "--replay-gate",
+        action="store_true",
+        help="com --replay, sai com codigo 1 se algum alvo de aceitacao falhar",
+    )
     return parser
 
 
@@ -197,9 +240,47 @@ def run_gui(cfg, cam, tracker, mouse, smooth_idx, gesture_ai, voice, tuner, spea
     return window
 
 
+def run_replay(args) -> int:
+    """Avalia um corpus gravado e devolve o codigo de saida do portao.
+
+    Dry-run total: sem camera, sem rato, sem interface, sem licenca. E o que
+    torna a Onda 0 utilizavel em CI.
+
+    Imprimir o relatorio NAO e reprovar: o codigo de saida e 1 apenas com
+    ``--gate``, tal como em ``tools/eval_recognition.py``. Sao duas perguntas
+    diferentes — "como esta o reconhecimento?" (sempre se responde) e "esta
+    bom o suficiente?" (so se pergunta quando se quer bloquear).
+    """
+    from tools.eval_recognition import evaluate
+
+    try:
+        report = evaluate(
+            args.replay,
+            width=args.frame_width,
+            height=args.frame_height,
+        )
+    except FileNotFoundError as exc:
+        print(f"ERRO: corpus nao encontrado ({args.replay}): {exc}")
+        return 2
+    except ValueError as exc:
+        print(f"ERRO: corpus invalido ({args.replay}): {exc}")
+        return 2
+    print(report.render())
+    if args.replay_gate and not report.passed:
+        return 1
+    return 0
+
+
 def main():
     args = parse_args().parse_args()
     setup_logging(level=getattr(logging, args.log_level, logging.INFO))
+
+    # --replay corre ANTES de qualquer licenca, camera, rato ou motor: e uma
+    # avaliacao offline pura, e tem de ser possivel correr em CI onde nada
+    # disso existe. O mutex tambem fica de fora de proposito.
+    if args.replay:
+        return run_replay(args)
+
     cfg = Config()
     cfg.selftest_frames = args.frames
 
@@ -237,6 +318,24 @@ def main():
         except Exception:
             pass
     smooth_idx = load_settings(cfg)
+
+    # Onda 0: gravacao de corpus. As teclas de etiqueta vivem no preview
+    # OpenCV, portanto --record desliga a GUI PySide6 e nunca toca no rato.
+    recorder = None
+    if args.record:
+        from core.corpus import CorpusRecorder
+
+        recorder = CorpusRecorder(
+            path=args.record, max_frames=args.record_max_frames
+        )
+        cfg.preview = True
+        args.no_gui = True
+        args.no_voice = True
+        log.info(
+            "A GRAVAR CORPUS: %s | etiqueta %s | teclas 0-9,d,c,g | x limpa | "
+            "Q sai e grava",
+            args.record, recorder.label,
+        )
 
     # Gate Free/Pro — aplicado APÓS load_settings para que os settings do disco
     # NÃO reativem funcionalidades Pro-locked no Free (bug: voice_enabled=true
@@ -424,7 +523,7 @@ def main():
                 log.info("A usar preview OpenCV (sem PySide6).")
                 end_state = run_loop(
                     cfg, cam, tracker, mouse, smooth_idx, gesture_ai, voice,
-                    tuner, ctx, state,
+                    tuner, ctx, state, recorder=recorder,
                 )
             else:
                 end_state = state
@@ -445,7 +544,7 @@ def main():
         else:
             end_state = run_loop(
                 cfg, cam, tracker, mouse, smooth_idx, gesture_ai, voice, tuner, ctx,
-                state,
+                state, recorder=recorder,
             )
             if (
                 (cfg.move_gain, cfg.filter_min_cutoff, cfg.filter_beta) != initial_params

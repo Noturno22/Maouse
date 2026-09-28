@@ -35,3 +35,6 @@ python_version = "3.10"
 exclude = [".venv", "build", "dist"]
 ignore_missing_imports = true
 check_untyped_defs = true
+# tools/ nao tem __init__.py (namespace package): sem esta flag o mypy vê
+# ferramenta.py duas vezes, como "tools.ferramenta" e como "ferramenta".
+namespace_packages = true
