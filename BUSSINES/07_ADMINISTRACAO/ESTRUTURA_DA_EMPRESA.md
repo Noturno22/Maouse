@@ -22,6 +22,7 @@
 - Estrutura planeada: **holding Angola (raiz/IP)** + **entidade leve UE (Portugal — Soc. Unipessoal)** para vendas EU.
 - Sem entidade UE não há vendas B2G/B2B, subsídios EU, VAT nem checkout Paddle — prioridade alta.
 - Qualquer nova entrada de sócio/investidor com equity deve **atualizar esta tabela e a cap table**.
+- **Análise de contribuição do sócio-função Fortuna** (entregas verificáveis, lacunas do domínio, recomendações): ver `CONTRIBUICAO_SOCIOS.md`.
 
 ---
 
@@ -91,6 +92,7 @@
 | 1.3 | 2026-09-13 | **Fase B na mesa**: Roberto poderá tratar fundos + execução da Pista B (marca, entidade UE, landing, vídeos) → equity reavaliado para **8–15% com vesting** | Luar Studio Angola |
 | 1.4 | 2026-09-15 | **2.º sócio-função registado**: **Fortuna** (GitHub `josefortunafortuna54-byte`) — mobile, remote e Linux (commits no `Noturno22/Maouse` desde 2026-09-14) · email josefortunafortuna54@gmail.com · participação em definição | Luar Studio Angola |
 | 1.5 | 2026-09-15 | **Equity do Fortuna definido**: **4% com vesting** (sócio-função mobile/remote/Linux/CI) · merge da `feature/touch` (fixes CI) em `main` · cap table pós-entradas: fundador ~88-96%, Roberto 8–15% (a fechar), Fortuna 4% | Luar Studio Angola |
+| 1.6 | 2026-09-28 | **Abertura da área de análise de contribuição de sócios**: `CONTRIBUICAO_SOCIOS.md` — Fortuna (6 commits verificáveis, 2 🔴 a bloquear o build da EAS no domínio remote) · auditoria profunda do remote em `docs/RECONHECIMENTO_REMOTE.md` | Luar Studio Angola |
 
 ---
 
