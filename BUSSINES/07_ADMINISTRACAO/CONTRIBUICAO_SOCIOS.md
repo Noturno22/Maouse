@@ -99,7 +99,7 @@ limitações**. As atribuíveis ao domínio do sócio:
 | 🔴 | Sem rate limit / lockout / allowlist | `core/remote.py:250` |
 | 🔴 | Bypass do gate Pro no remote | ausência em `core/remote.py` |
 | 🟠 | Zero testes no mobile (sem `test` script, sem jest) | `mobile/airmouse-mobile/package.json` |
-| ~~🟠~~ | ~~`pyproject.toml` sem as dependências reais~~ **feito pelo fundador** 2026-09-28 | `pyproject.toml`, `tests/test_manifests.py` |
+| ⚪ **Sem impacto** | ~~`pyproject.toml` sem as dependências reais~~ — **premissa errada, e anterior ao sócio**: o projecto não é distribuído por pip, logo o item não era bug. Limpo pelo fundador a 2026-09-28 | `pyproject.toml` (secções mortas removidas) |
 | 🟠 | Bypass do toggle de pausa | ausência em `core/remote.py` |
 | 🟠 | Sem auto-reconnect / AppState / fila no mobile | `src/services/remoteClient.ts` |
 | 🟠 | Condição de corrida no `MouseCtl` partilhado | `main.py:310-313` |
@@ -199,12 +199,14 @@ reais, mas são **pré-existentes** — foram encontradas pela auditoria, não
 introduzidas pelo sócio, e nenhuma delas o impede de entregar trabalho.
 
 **O que fica a dever, e é real** (§5.2): teste de origem virtual + multi-monitor,
+**O que fica a dever, e é real** (§5.2): teste de origem virtual + multi-monitor,
 testes no mobile, e os gates de pausa/licença. O `pyproject.toml` foi entretanto
-feito pelo fundador, e no caminho encontrou um 🔴 que é anterior ao sócio e de um
-domínio diferente: o `cryptography` faltava aos dois manifestos e
-`main.py:35` importa `core.licensing` ao nível do módulo, ou seja, o `setup.bat`
-instalava uma aplicação que não arrancava. Detalhe em
-`RECONHECIMENTO_REMOTE.md` §1.14.2.
+limpo pelo fundador — e o resultado foi `⚪ sem impacto`, não um bug corrigido:
+o projecto não é distribuído por pip. O que apareceu no caminho, e é 🔴 de
+domínio diferente, foi o `cryptography` a faltar aos dois manifestos, com
+`main.py:35` a importar `core.licensing` ao nível do módulo — ou seja, o
+`setup.bat` instalava uma aplicação que não arrancava. Detalhe em
+`RECONHECIMENTO_REMOTE.md` §1.14.2 e §1.14.3.
 
 ---
 
@@ -243,10 +245,10 @@ Prioridade segundo o plano em `docs/RECONHECIMENTO_REMOTE.md` Parte 3:
 3. Respect dos gates de pausa e licença no canal remoto.
 
 > ✅ **Feito pelo fundador, não fica a dívida do sócio** (2026-09-28): o
-> `pyproject.toml` alinhado, `cryptography` acrescentado aos dois manifestos,
-> `comtypes` removido, `tests/test_manifests.py` com 12 testes a trancar a
-> divergência, e o CI a instalar `requirements-linux.txt`. Detalhe em
-> `RECONHECIMENTO_REMOTE.md` §1.14.2.
+> `cryptography` acrescentado aos dois manifestos (o 🔴 real), `comtypes`
+> removido, `tests/test_manifests.py` com 7 testes a comparar os manifestos com
+> os imports do código, e o CI a instalar `requirements-linux.txt`. Detalhe em
+> `RECONHECIMENTO_REMOTE.md` §1.14.2 e §1.14.3.
 
 > ❌ **Retirado do topo desta lista:** `websockets>=14.0`, que estava classificado
 > como bloqueador de build da EAS. A premissa era falsa (§4.6) — não é trabalho
@@ -295,6 +297,8 @@ cap table.
 | 1.0 | 2026-09-28 | Criação da área de análise de contribuição; consolidação das entregas verificáveis do sócio-função Fortuna; registo das 24 limitações do domínio remote (auditoria) | Luar Studio Angola |
 | 1.1 | 2026-09-28 | **Verificação por API do GitHub**: a contribuição do sócio é **invisível** (0 commits atribuídos, `author: null`, 1 contributor no repo) por causa do email `teu-email-do-github` — nova §4.5, 🔴. Confirmado que **não há trabalho novo desde 15/set** (repo local e GitHub); o PR #1 merged hoje é o commit de duas semanas — nova §5.3, 🟡, com a pergunta directa a fazer | Luar Studio Angola |
 | 1.2 | 2026-09-28 | **Retractada a acusação de 2 bloqueadores 🔴 de build** (nova §4.6, ⚪). Verificado antes de alterar: `websockets.asyncio` existe desde a **13.0** (o floor de `requirements.txt:5` está correcto) e a EAS nunca lê `requirements.txt`. Bloqueadores de build: **zero**. Corrigidos §4.2, §4.4, §5.2, §6, e a versão 1.6 de `ESTRUTURA_DA_EMPRESA.md` | Luar Studio Angola |
+| 1.3 | 2026-09-28 | Ao verificar o ponto anterior, **encontrado um 🔴 real e mais grave**: `cryptography` faltava a `requirements.txt` e `requirements-linux.txt`, sendo importado por `core/licensing.py` ao nível do módulo — logo o `setup.bat` instalava uma aplicação que não arrancava. Corrigido, com `tests/test_manifests.py` (7 testes) a comparar os manifestos com os imports do código. O `pyproject.toml`, que se supunha estar em causa, deu `⚪ sem impacto`: o projecto não é distribuído por pip | Luar Studio Angola |
+| 1.4 | 2026-09-29 | Corrigida a minha própria correcção: ao tentar alinhar o `pyproject.toml` criei uma **segunda** lista de dependências, que é exactamente o mecanismo que escondia o bug do `cryptography`. Secções `[build-system]`/`[project]`/`[tool.setuptools]` apagadas e 5 dos 12 testes cortados por medirem algo que não existe. **Cortar foi a correcção** | Luar Studio Angola |
 | 1.3 | 2026-09-28 | Ao verificar o ponto anterior, **encontrado um 🔴 real e mais grave**: `cryptography` faltava a `requirements.txt` e `requirements-linux.txt`, sendo importado por `core/licensing.py` ao nível do módulo — logo o `setup.bat` instalava uma aplicação que não arrancava. Corrigido, com `pyproject.toml` alinhado e `tests/test_manifests.py` (12 testes) a trancar a divergência entre manifestos. Detalhe em `RECONHECIMENTO_REMOTE.md` §1.14.2 | Luar Studio Angola |
 
 ---

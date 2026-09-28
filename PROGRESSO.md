@@ -67,18 +67,18 @@
     perguntas diferentes e as duas vigiam.
     **Limite honesto**: o gate mede a fixture **sintética**. Trava contra piora de
     medição, não prova qualidade em mãos reais (Onda 3 §3.1).
-13. **Manifestos de dependências corrigidos, e um 🔴 encontrado pelo caminho.**
-    O `pyproject.toml` declarava **1** dependência em 15 e não empacotava
-    `config.py`/`i18n.py` (módulos de topo que `core/` importa ao nível do
-    módulo) — `pip install airmouse` instalava um pacote que não arrancava.
-    Pior: o `cryptography` **não estava em nenhum manifesto de runtime**, sendo
-    importado por `core/licensing.py` e por `main.py:35` ao nível do módulo —
-    logo o `setup.bat` instalava uma aplicação que **não arrancava**. O CI não o
-    via porque `cryptography` chegava pelo manifesto do license-server, por uma
-    porta das traseiras. Corrigido, e trancado com `tests/test_manifests.py`
-    (12 testes que comparam os manifestos com os imports reais do código, falhando
-    nos dois sentidos) + o CI a instalar `requirements-linux.txt`, que ninguém
-    instalava. Ver `RECONHECIMENTO_REMOTE.md` §1.14.2.
+13. **Um 🔴 de instalação encontrado e corrigido.** O `cryptography` **não
+    estava em nenhum manifesto de runtime**, sendo importado por
+    `core/licensing.py` e por `main.py:35` ao nível do módulo — logo o
+    `setup.bat` instalava uma aplicação que **não arrancava**. Provado por
+    resolução limpa (o manifesto antigo resolvia 59 pacotes; `cryptography`
+    ausente, nada o traz transitivamente). O CI não o via porque
+    `cryptography` chegava pelo manifesto do license-server, por uma porta
+    das traseiras: todos desenvolvem e testam num ambiente onde o bug não
+    existe. Corrigido, e trancado com `tests/test_manifests.py` (7 testes que
+    comparam os manifestos com os imports reais do código, falhando nos dois
+    sentidos) + o CI a instalar `requirements-linux.txt`, que ninguém instalava.
+    Ver `RECONHECIMENTO_REMOTE.md` §1.14.2.
 14. **Um 🔴 de documentação retractado, e uma lição de método.** Três documentos
     afirmavam que `websockets>=13.0` "rebentava o build da EAS". Era falso nos
     dois pontos: o namespace `websockets.asyncio` existe desde a **13.0**, e a EAS
@@ -86,6 +86,16 @@
     se confirmar a *string* no ficheiro e assumir a *consequência* — regra que
     ficou escrita: ler a linha não é verificar a consequência. Ver
     `RECONHECIMENTO_REMOTE.md` §1.14.1 e `CONTRIBUICAO_SOCIOS.md` §4.6.
+
+15. **Duas premissas minhas que eram falsas, e o que sobreviveu delas.** O
+    `pyproject.toml` não era o problema do manifesto: o projecto **não é
+    distribuído por pip** (nada no repositório faz `pip install .`; o produto sai
+    por PyInstaller e as dependências vêm do `setup.bat`). Ao
+    “corrigi-lo” criei uma **segunda lista de dependências** — que é exactamente o
+    mecanismo que escondia o `cryptography`. As secções mortas foram apagadas e
+    **5 dos 12 testes cortados**, por medirem algo que não existe. Regra: um teste
+    que impõe uma ficção é pior do que nenhum teste, porque faz a config morta
+    parecer necessária. Ver `RECONHECIMENTO_REMOTE.md` §1.14.3.
 
 ### 🔴 Bloqueadores em aberto (Sprint 2 → 1.ª venda paga)
 

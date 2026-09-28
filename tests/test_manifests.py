@@ -1,23 +1,27 @@
-"""Coerencia entre o codigo e os manifestos de dependencias.
+"""Coerencia entre o codigo e os manifestos de que a instalacao depende.
 
-Nao e um teste de estilo. Cada teste aqui existe porque ja apanhou um bug real
-ou porque apanharia um que ainda nao aconteceu:
+Nao e um teste de estilo. Cada teste aqui existe porque ja apanhou um bug real:
 
 * `cryptography` era importado por `core/licensing.py` e nao estava em nenhum
-  manifesto de instalacao. O `setup.bat` produzia um ambiente onde
-  `import core.licensing` rebenta. O CI nao via nada porque `cryptography`
-  chegava pelo manifesto do license-server.
-* `pyproject.toml` declarava 1 dependencia em 16 e nao empacotava `config.py`
-  nem `i18n.py` — modulos de topo importados ao nivel do modulo por 6+ ficheiros.
-  `pip install airmouse` instalava um pacote que nao arranca.
+  manifesto de instalacao. O `setup.bat` instalava um ambiente onde a aplicacao
+  nao arrancava — `main.py:35` importa `core.licensing` ao nivel do modulo.
+  O CI nao via nada porque `cryptography` chegava pelo manifesto do
+  license-server, por uma porta das traseiras que ninguem tinha mapeado.
 * `comtypes` estava em `requirements.txt` sem ser importado por lado nenhum
   (vem como dependencia transitiva do `uiautomation`).
 * `requirements-linux.txt` nao era instalado por ninguem, por isso podia
-  apodrecer em silencio — o que e como a alegacao do `websockets>=13.0`
-  sobreviveu duas semanas sem ninguem a testar.
+  apodrecer em silencio — e o `cryptography` em falta era exactamente esse
+  formato de bug.
 
-A regra: o codigo e a fonte. Os manifestos tem de concordar com ele, e nao uns
-com os outros.
+A regra: **o codigo e a fonte.** Os manifestos tem de concordar com os imports
+que o codigo faz de facto, e nao uns com os outros. Um teste que compara duas
+listas de dependencias entre si nao apanha o caso em que as duas estao erradas
+iguais — que e como o `cryptography` sobreviveu.
+
+Deliberadamente **nao** se compara com o `pyproject.toml`: ate 2026-09-28 ele
+tinha `[project].dependencies` com uma lista propria, e comparar as duas listas
+era precisamente o risco que se queria eliminar. O produto e entregue por
+PyInstaller, nao por pip.
 """
 
 from __future__ import annotations
@@ -31,125 +35,84 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools"))
 
 import check_deps  # noqa: E402
 
+# O manifesto Linux omite as dependencias so-Windows de proposito: o
+# `core/snap.py` faz o import guardado, e o produto corre no Linux sem elas.
+_ONLY_WINDOWS_OMISSIONS = {"requirements-linux.txt": check_deps.WINDOWS_ONLY}
+
+
+def _esperado(manifest: str) -> set[str]:
+    """Distribuicoes que `manifest` tem de declarar, ja com as omissoes certas."""
+    return set(check_deps.third_party_dists()) - _ONLY_WINDOWS_OMISSIONS.get(manifest, set())
+
 
 class TestImportsEstaoDeclarados:
-    """Cada import externo tem de estar em TODOS os manifestos de runtime.
+    """Cada import externo tem de estar em todos os manifestos de runtime.
 
     Este e o teste que teria apanhado o `cryptography` em falta.
     """
 
-    def test_pyproject_declara_tudo_o_que_o_codigo_importa(self):
-        required = set(check_deps.third_party_dists())
-        declared = set(check_deps.read_pyproject_dependencies())
-        assert required - declared == set(), (
-            "O codigo importa mas o pyproject.toml nao declara: "
-            f"{sorted(required - declared)}. Um `pip install airmouse` instala um "
-            "pacote que rebenta no primeiro import."
-        )
-
     @pytest.mark.parametrize("manifest", check_deps.RUNTIME_MANIFESTS)
     def test_manifestos_de_runtime_declaram_tudo(self, manifest: str):
-        required = set(check_deps.third_party_dists())
-        # O manifesto Linux omite as dependencias so-Windows de proposito.
-        if manifest == "requirements-linux.txt":
-            required -= check_deps.WINDOWS_ONLY
-        declared = set(check_deps.read_requirements(manifest))
-        assert required - declared == set(), (
-            f"{manifest} nao declara {sorted(required - declared)}, que o codigo "
-            "importa. O `setup.bat` usa este ficheiro — o produto nao arranca."
+        declarado = set(check_deps.read_requirements(manifest))
+        falta = _esperado(manifest) - declarado
+        assert falta == set(), (
+            f"{manifest} nao declara {sorted(falta)}, que o codigo importa. "
+            "O `setup.bat` instala este ficheiro — o produto nao arranca."
         )
+
+    def test_o_scan_encontra_alguma_dependencia(self):
+        """Trava o teste acima contra passar a vazio se a leitura de imports partir.
+
+        Sem isto, um `ast.parse` que passa a devolver arvores vazias daria
+        verde ao manifesto mais incompleto de todos.
+        """
+        assert len(check_deps.third_party_dists()) >= 10
 
 
 class TestSemDependenciasFantasmas:
-    """O que esta declarado e tem de ser usado.
+    """O que esta declarado tem de ser usado.
 
     `comtypes` estava declarado e nao importado: `uiautomation` ja o traz como
-    dependencia transitiva. Declarar dependencias transitivasdirectly e o que
-    transforma um floor legitimo num floor de gueto.
+    dependencia transitiva. Declarar dependencias transitivas directamente e o
+    que transforma um floor legitimo num floor de gueto.
     """
 
     @pytest.mark.parametrize("manifest", check_deps.RUNTIME_MANIFESTS)
     def test_manifestos_nao_declaram_nada_que_o_codigo_nao_use(self, manifest: str):
-        used = set(check_deps.third_party_dists())
-        # O manifesto Linux omite as dependencias so-Windows de proposito.
-        if manifest == "requirements-linux.txt":
-            used -= check_deps.WINDOWS_ONLY
-        declared = set(check_deps.read_requirements(manifest))
-        assert declared - used == set(), (
-            f"{manifest} declara {sorted(declared - used)}, que nada no codigo "
-            "importa. Ou e residuo, ou e dependencia transitiva que devia "
-            "deixar de ser fixada aqui."
-        )
-
-    def test_pyproject_nao_declara_nada_que_o_codigo_nao_use(self):
-        used = set(check_deps.third_party_dists())
-        declared = set(check_deps.read_pyproject_dependencies())
-        assert declared - used == set(), (
-            f"pyproject.toml declara {sorted(declared - used)}, que nada importa."
+        declarado = set(check_deps.read_requirements(manifest))
+        sobra = declarado - _esperado(manifest)
+        assert sobra == set(), (
+            f"{manifest} declara {sorted(sobra)}, que nada no codigo importa. Ou "
+            "e residuo, ou e dependencia transitiva que devia deixar de ser "
+            "fixada aqui."
         )
 
 
-class TestManifestosConcordamComPyproject:
-    """`requirements*.txt` e `pyproject.toml` nao podem divergir.
+class TestManifestosNaoDivergem:
+    """O Windows e o Linux so podem diferir nas dependencias so-Windows.
 
-    Divergencia entre manifestos e a forma silenciosa de um pacote funcionar
-    para quem usa `setup.bat` e nao funcionar para quem faz `pip install`.
+    Divergencia entre manifestos e a forma silenciosa de um produto funcionar
+    para quem instala no Windows e nao funcionar para quem instala no Linux.
     """
 
-    @pytest.mark.parametrize(
-        ("manifest", "omitir"),
-        [("requirements.txt", set()), ("requirements-linux.txt", check_deps.WINDOWS_ONLY)],
-    )
-    def test_mesmo_conjunto_de_distribuicoes(
-        self, manifest: str, omitir: set[str]
-    ):
-        esperado = set(check_deps.read_pyproject_dependencies()) - omitir
-        assert set(check_deps.read_requirements(manifest)) == esperado, (
-            f"{manifest} diverge do pyproject.toml. Divergencia entre manifestos "
-            "e a forma silenciosa de o pacote funcionar para quem usa setup.bat e "
-            "nao funcionar para quem faz pip install."
+    def test_requirements_linux_e_requirements_menos_o_so_windows(self):
+        windows = set(check_deps.read_requirements("requirements.txt"))
+        linux = set(check_deps.read_requirements("requirements-linux.txt"))
+        assert windows - linux == set(check_deps.WINDOWS_ONLY), (
+            f"os dois manifestos diferem em {sorted(windows ^ linux)}, mas a unica "
+            f"diferenca legítima e {sorted(check_deps.WINDOWS_ONLY)}"
+        )
+        assert linux - windows == set(), (
+            f"requirements-linux.txt declara {sorted(linux - windows)}, que o "
+            "manifesto do Windows nao declara. A variante Linux nao pode ser "
+            "mais exigente que a outra."
         )
 
-    def test_windows_only_so_no_manifesto_do_windows(self):
-        """`uiautomation` e opcional em Linux (import guardado em `core/snap.py`)."""
-        linux = check_deps.read_requirements("requirements-linux.txt")
+    def test_a_so_windows_so_esta_no_manifesto_do_windows(self):
         windows = check_deps.read_requirements("requirements.txt")
+        linux = check_deps.read_requirements("requirements-linux.txt")
         for dist in check_deps.WINDOWS_ONLY:
             assert dist in windows, f"{dist} falta em requirements.txt"
             assert dist not in linux, (
                 f"{dist} e so para Windows e nao pode estar em requirements-linux.txt"
             )
-
-    def test_manifesto_windows_marca_a_dependencia_do_windows(self):
-        """A dependencia so-Windows tem de estar marcada no pyproject.
-
-        Sem o marcador, um `pip install airmouse` no Linux tenta instalar
-        `uiautomation` — que e puro mas nao pertence a um produto Linux.
-        """
-        marker = check_deps.read_pyproject_dependencies().get("uiautomation")
-        assert marker is not None, (
-            "uiautomation precisa de `; sys_platform == 'win32'` no pyproject.toml"
-        )
-        assert "win32" in marker
-
-
-class TestModulosDeTopoSaoEmpacotados:
-    """`config` e `i18n` sao modulos de topo, nao pacotes.
-
-    Sao importados ao nivel do modulo (`from config import Config`) por 6+
-    ficheiros de `core/`. Se o pyproject nao os declarar em `py-modules`, o
-    pacote instalado nao os inclui e o primeiro import rebenta.
-    """
-
-    def test_modulos_de_topo_importados_estao_declarados(self):
-        required = check_deps.local_top_level_modules()
-        declared = check_deps.read_pyproject_py_modules()
-        assert required - declared == set(), (
-            f"pyproject.toml nao empacota {sorted(required - declared)} em "
-            "`py-modules`, mas o codigo importa-os. Sao modulos de topo: sem "
-            "esta lista nao viajam dentro do pacote."
-        )
-
-    def test_o_repo_tem_algum_modulo_de_topo_a_embacotar(self):
-        """Impede que o teste passe a vazio se a leitura de imports partir."""
-        assert check_deps.local_top_level_modules() >= {"config", "i18n"}

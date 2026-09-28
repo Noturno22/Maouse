@@ -543,7 +543,7 @@ Consolidadas e verificadas no repositório em 2026-09-28.
 | 4 | 🔴 Crítico | **Sem rate limit / lockout / allowlist** numa porta aberta à Internet. | `core/remote.py:250` |
 | 5 | 🔴 Crítico | **Bypass do gate Pro** — rato e teclado remotos são grátis. | `App.tsx:153` vs ausência em `remote.py` |
 | 6 | 🟠 Alto | **Condição de corrida no `MouseCtl` partilhado** — thread asyncio remota e thread Qt/escala mutam `_frac_x/_frac_y` e `mouse.position` sem lock. | `main.py:310-313` |
-| 7 | ✅ Resolvido | **`pyproject.toml` não declarava as dependências** — só `cryptography>=42`, e não empacotava `config.py`/`i18n.py`. Corrigido a 2026-09-28: o pyproject é agora a fonte de verdade (15 dependências, marcador Windows na `uiautomation`) e `tests/test_manifests.py` bloqueia a divergência. Ver [§1.14.2](#1142-encontrado-enquanto-se-verificava-o-falso-positivo-um-bug-real-mais-grave-). | `pyproject.toml`, `tests/test_manifests.py` |
+| 7 | ⚪ **Sem impacto** | **`pyproject.toml` não declarava as dependências** — só `cryptography>=42`, e não empacotava `config.py`/`i18n.py`. Premissa errada: o projecto não é distribuído por pip (`git grep "pip install \."` vazio; o produto sai por PyInstaller e as dependências vêm do `setup.bat` → `requirements.txt`). As secções mortas foram apagadas a 2026-09-28. Ver [§1.14.3](#1143-o-pyprojecttoml-não-era-o-problema--e-a-primeira-correcção-estava-errada). | `pyproject.toml:1-44` (removido) |
 | 8 | 🟠 Alto | **Bypass do toggle de pausa** — controlo total com a app "pausada". | ausência em `remote.py` |
 | 9 | 🟠 Alto | **`_combo` bloqueia o event loop** 40 ms com `time.sleep`. | `core/remote.py:475` |
 | 10 | 🟠 Alto | **`press`/`release` sem estado de arrasto** — sem `finally` de limpeza, um socket que cai a meio de um arrasto deixa o botão logicamente premido. | `core/remote.py:379-397` |
@@ -604,7 +604,7 @@ no repositório antes da redacção. Verificações explícitas:
 | Afirmação | Verificação | Resultado |
 |---|---|---|
 | `websockets>=13.0` no manifesto | `requirements.txt` | ✅ a string está lá — **mas ver §1.14.1: o floor está correcto** |
-| `pyproject.toml` incompleto | `pyproject.toml:10-12` | ✅ só `cryptography>=42` |
+| `pyproject.toml` incompleto | `pyproject.toml:10-12` | ⚪ **Sem impacto.** Dizia `cryptography>=42` e mais nada — mas o `setup.bat` instala o `requirements.txt`, que era o que estava errado. Ver §1.14.3 |
 | `SM_XVIRTUALSCREEN` ausente | pesquisa 76/77 em `core/`, `ui/`, `main.py` | ✅ só 78/79 presentes |
 | Sem TLS no servidor | pesquisa `ssl`/`wss` em `core/remote.py` | ✅ zero ocorrências |
 | `serve()` sem `ssl=` | `core/remote.py:227-231` | ✅ confirmado |
@@ -704,24 +704,52 @@ pipeline verde ao mesmo tempo: a dependência chegava por uma porta das traseira
 que ninguém mapeou. Todo o mundo desenvolve e testa num ambiente onde o bug não
 existe, que é a forma mais eficaz de um bug de instalação sobreviver.
 
-**Os outros dois achados, menores:**
+**O outro achado, menor.** `comtypes>=1.4` estava em `requirements.txt` sem ser
+importado por lado nenhum. É dependência transitiva do `uiautomation` — que
+declara `requires_dist: ['comtypes>=1.2.1']` — e declará-la directamente é o que
+transforma um floor legítimo num floor de gueto. Removida.
 
-| Achado | Situação |
-|---|---|
-| `comtypes>=1.4` em `requirements.txt` | **Fantasma.** Não é importado por lado nenhum; `uiautomation` já o traz (`uiautomation 2.0.29` declara `requires_dist: ['comtypes>=1.2.1']`). Declarar uma transitiva directamente é o que transforma um floor legítimo num floor de gueto. |
-| `pyproject.toml` declarava **1** dependência em 15, e não empacotava `config.py` nem `i18n.py` | Estes dois são **módulos de topo** (não pacotes), importados ao nível do módulo por 6+ ficheiros de `core/` (`from config import Config`). Com `packages = ["core", "ui"]`, um `pip install airmouse` instalava um pacote onde **qualquer** um desses imports rebenta. |
+### 1.14.3 O `pyproject.toml` não era o problema — e a primeira correcção estava errada
 
-**Correcção (2026-09-28).** O `pyproject.toml` passou a ser a fonte de verdade
-das dependências, com marcador `sys_platform == 'win32'` para a `uiautomation`
-(o `core/snap.py` faz esse import dentro de um `try/except`, por isso o produto
-corre no Linux sem ela). `cryptography>=42` foi acrescentado aos dois manifestos
-e `comtypes` removido. O que faltava a lockar foi um teste: `tests/test_manifests.py`
-compara os três manifestos com os `import` que o código faz de facto
-(`tools/check_deps.py` extrai-os com `ast`), e falha se divergirem em qualquer
-dos dois sentidos — dependencia em falta, ou dependencia que nada usa. E o CI
-passou a instalar `requirements-linux.txt`, que **ninguém instalava** e que por
-isso podia apodrecer em silêncio — que é como este bug existiria hoje se não
-tivesse sido encontrado por outra via.
+Escrevi na primeira versão desta secção que o `pyproject.toml` era um problema
+em aberto e que a correcção era "dar-lhe as 15 dependências". **Estava errado, e
+a premissa estava errada antes da conclusão.**
+
+O projecto **não é distribuído por pip**. Verificado:
+
+- `git grep "pip install \."` não devolve nada em lado nenhum do repositório.
+- O produto é entregue por **PyInstaller** (`build.bat` + `airmouse.spec`, onedir).
+- As dependências são instaladas pelo `setup.bat`, a partir de `requirements.txt`.
+- Não existe `pytest.ini`, `setup.cfg` nem `tox.ini`: o `pyproject.toml`
+  vive, mas por outro motivo — é a configuração do **pytest**, do **ruff** e do
+  **mypy**. Apagá-lo partia a toolchain toda.
+
+E o `name = "airmouse"` mentia sobre o produto, que se chama Maouse. A string
+estava no ficheiro desde o commit que o criou e nunca foi revista.
+
+**Porque isto importa mais do que o `cryptography`.** Ao "corrigir" o
+`pyproject.toml` criei a **segunda lista de dependências** do projecto — e foi
+exactamente esse o mecanismo que escondeu o bug. Um teste que compara duas
+listas entre si só prova que as duas estão iguais; não prova que *qualquer* uma
+estéja certa. O `pyproject.toml` podia declarar `cryptography` durante meses
+e o `requirements.txt` — o ficheiro que o `setup.bat` usa — dizer outra
+coisa, com o produto a não arrancar e o CI verde.
+
+**O que está feito.** As três secções mortas (`[build-system]`, `[project]`,
+`[tool.setuptools]`) foram **apagadas**. O `pyproject.toml` ficou só com a
+configuração de pytest/ruff/mypy, que é o trabalho real dele aqui.
+`requirements.txt` e `requirements-linux.txt` são a **única** fonte de
+verdade, e `tests/test_manifests.py` (7 testes) compara-os com os `import`
+que o código faz de facto — `tools/check_deps.py` extrai-os com `ast` —
+falhando nos dois sentidos: dependência em falta (teria apanhado o
+`cryptography`) e dependência que nada usa (apanha o `comtypes`).
+
+**Os 5 testes que a primeira versão tinha e que foram cortados** — 5 em 12 — não
+mediam nada, porque mediam uma coisa que não existe: `pyproject` a declarar
+dependências, `py-modules` a empacotar `config.py`/`i18n.py` num pacote
+que ninguém constrói. Um teste que impõe uma ficção é pior do que nenhum teste:
+faz a configuração morta parecer necessária, e a próxima pessoa que a apanhar
+não tem como saber que é inerte. **Cortar foi a correcção, não a escrita.**
 
 ---
 
@@ -885,12 +913,12 @@ relógio de baixa frequência.
 
 Este plano **não** começa por melhorar a sensação do rato. Começa por um teste
 de asserção que hoje está a dar um falso verde, e por um manifesto de
-empacotamento que mente sobre o produto.
+instalação que não declarava as dependências de que o produto depende.
 
 A razão: o teste que fixa o bug multi-monitor (#2) é uma **corrupção activa do
 nosso próprio sinal de qualidade** — não é um bug que o utilizador sente, é um bug
-que nos impede de medir. E o `pyproject.toml` (#7) instala um pacote que não
-arranca para quem não use o `setup.bat`.
+que nos impede de medir. E os manifestos de instalação estavam errados (#0): o
+`setup.bat` instalava uma aplicação que não arrancava.
 
 > ⚠️ **Correcção a este excerto (2026-09-28).** A versão anterior começava por
 > `websockets>=14.0` e dizia que isso "rebenta[va] qualquer instalação limpa — que é
@@ -912,20 +940,20 @@ arranca para quem não use o `setup.bat`.
   `core.licensing` ao nível do módulo, logo o `setup.bat` instalava uma aplicação
   que não arrancava.
   [§1.14.2](#1142-encontrado-enquanto-se-verificava-o-falso-positivo-um-bug-real-mais-grave-)
-- ✅ **`pyproject.toml`** passou a ser a fonte de verdade: 15 dependências
-  declaradas, `uiautomation` com marcador `sys_platform == 'win32'`, e
-  `py-modules = ["config", "i18n"]` para os dois módulos de topo que `core/`
-  importa ao nível do módulo. Antes declarava 1 em 15 e não os empacotava.
+- ✅ **`pyproject.toml` limpo**: as secções `[build-system]`, `[project]` e
+  `[tool.setuptools]` foram apagadas — eram mortas, e o nome mentia sobre o
+  produto. O ficheiro fica só com a config de pytest/ruff/mypy, que é o seu
+  trabalho real aqui. Ver **1.14.3** abaixo.
 - ✅ **`comtypes` removido** de `requirements.txt`: é transitiva do
   `uiautomation` e não é importado por lado nenhum.
-- ❌ ~~`websockets>=13.0` → `websockets>=14.0`~~ **Cancelado.** O floor já estava
-  certo: `websockets.asyncio` existe desde a 13.0
-  ([§1.14.1](#1141-correção-o-item-1-era-um-falso-positivo-)).
-- ✅ **Trancado contra recorrência:** `tests/test_manifests.py` (12 testes)
-  compara os três manifestos com os imports reais do código e falha nos dois
-  sentidos — dependencia em falta *e* dependencia que nada usa. E o CI passou a
-  instalar `requirements-linux.txt`, que **ninguém instalava** e que por isso
-  podia apodrecer em silêncio.
+- ❌ ~~`websockets>=13.0` → `websockets>=14.0`~~ **Cancelado.** O floor já
+  estava certo: `websockets.asyncio` existe desde a 13.0 (ver **1.14.1**).
+- ✅ **Trancado contra recorrência:** `tests/test_manifests.py` (7 testes)
+  compara `requirements.txt` e `requirements-linux.txt` com os imports
+  reais do código e falha nos dois sentidos — dependência em falta *e*
+  dependência que nada usa. E o CI passou a instalar
+  `requirements-linux.txt`, que **ninguém instalava** e que por isso podia
+  apodrecer em silêncio.
 
 Fica de fora de propósito: um `requirements-windows.txt` próprio. O
 `requirements-linux.txt` já é a variante sem `uiautomation`, e um teste garante
@@ -1160,8 +1188,10 @@ A UI mostra quem está ligado e como desligar.
 
 ```
 Onda 0  Manifesto + asserções + origem virtual + instrumentação
-        └─ pip install passa a_arrancar, apanha o bug multi-monitor, cria métricas
-           Critério: pip install airmouse && python -c "import core.remote" passa;
+        └─ o manifesto de instalação passa a declarar o que o código usa, apanha o
+           bug multi-monitor, cria métricas
+           Critério: setup.bat numa venv limpa arranca o produto (o cryptography
+                    faltava e a aplicação não arrancava — §1.14.2);
                     requirements-linux.txt é instalado pelo CI;
                     teste de origem falha antes / passa depois;
                     eval_remote.py produz RTT p50/p95/p99
@@ -1216,8 +1246,8 @@ Definir em números **antes** de escrever código da Onda 1.
 | Corrigir o teste multi-monitor invalida a asserção actual | Onda 0.2 escreve o teste **antes** da correcção, propositadamente a falhar |
 | Onda 1 pode *piorar* o feel actual se não medida | Onda 0.5 cria a métrica **antes** de mexer no ganho |
 | Escalar o remote a Pro pode alienar utilizadores Free | Decisão de negócio, não técnica — registar em `BUSSINES/` |
-| Alinhar `pyproject.toml` pode divergir de `requirements.txt` | Gerar as dependências do `pyproject.toml` a partir do `requirements.txt`, ou adicionar um teste que compare os dois |
-| `requirements-linux.txt` não é instalado por ninguém | Passo de CI que o instale; sem isso o manifesto Linux apodrece em silêncio |
+| Um segundo manifesto de dependências divergir do `requirements.txt` em silêncio | **Resolvido** 2026-09-28: o `pyproject.toml` deixou de ter `[project].dependencies` (§1.14.3) e `tests/test_manifests.py` compara os manifestos com os **imports do código**, não uns com os outros. Um teste entre duas listas só prova que são iguais — não que *qualquer* uma esteja certa |
+| `requirements-linux.txt` não é instalado por ninguém | **Resolvido** 2026-09-28: passo de CI que o instala. Era a causa de fundo do `cryptography` em falta — o manifesto Linux podia divergir sem ninguém dar por isso |
 
 **Não-objetivos (por agora):**
 

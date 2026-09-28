@@ -1,47 +1,20 @@
-[build-system]
-requires = ["setuptools>=68"]
-build-backend = "setuptools.build_meta"
-
-[project]
-name = "airmouse"
-version = "0.1.0"
-description = "Controla o cursor do PC por gestos da mao via webcam (Python + PySide6)"
-requires-python = ">=3.10"
-# Esta lista e a fonte de verdade. requirements.txt e requirements-linux.txt
-# tem de bater certo com ela, e `tests/test_manifests.py` falha se nao baterem.
-# Antes de 2026-09-28 esta lista tinha so `cryptography` e os outros 14 pacotes
-# nao eram declarados em lado nenhum — `pip install airmouse` instalava um
-# pacote que rebenta no primeiro import.
-dependencies = [
-    "mediapipe==1.0.1",
-    "opencv-python>=4.10",
-    "numpy>=1.26",
-    "pynput>=1.7.7",
-    "websockets>=13.0",          # o namespace websockets.asyncio existe desde a 13.0
-    "vosk>=0.3.45",
-    "sounddevice>=0.4.6",
-    "faster-whisper>=1.2",
-    "piper-tts>=1.7",
-    "pystray>=0.19",
-    "Pillow>=10.0",
-    # So Windows. `core/snap.py` faz o import dentro de um try/except, por isso
-    # o produto corre no Linux sem ela.
-    "uiautomation>=2.0; sys_platform == 'win32'",
-    "pyttsx3>=2.9",
-    "PySide6>=6.6",
-    # Importado por `core/licensing.py` (verificacao de licenca / gate Pro).
-    # Estava em falta em requirements.txt: o `setup.bat` produzia um ambiente
-    # onde `import core.licensing` rebenta. O CI nao via porque a dependencia
-    # chegava pelo manifesto do license-server.
-    "cryptography>=42",
-]
-
-[tool.setuptools]
-packages = ["core", "ui"]
-# `config.py` e `i18n.py` sao modulos de topo, importados ao nivel do modulo por
-# 6+ ficheiros de `core/` (`from config import Config`). Nao sendo pacotes, so
-# viajam no pacote se forem listados aqui.
-py-modules = ["config", "i18n"]
+# Este ficheiro e a configuracao do pytest, do ruff e do mypy. NAO e um
+# manifesto de dependencias.
+#
+# ate 2026-09-28 tinha aqui [build-system], [project] e [tool.setuptools], com
+# name = "airmouse" e uma lista de dependencias. Estavam mortos:
+#
+#   * o produto e entregue por PyInstaller (build.bat + airmouse.spec), nao por
+#     pip — `git grep "pip install \."` nao devolve nada no repositorio;
+#   * as dependencias sao instaladas pelo setup.bat, a partir de requirements.txt;
+#   * o nome mentia: o projecto e Maouse. A string "airmouse" estava no ficheiro
+#     desde o commit que o criou e nunca foi revista.
+#
+# Manter uma segunda lista de dependencias ao lado do requirements.txt e
+# exactamente o risco que deixou o bug do cryptography invisivel: um manifesto
+# errado enquanto o outro dizia a verdade. requirements.txt e
+# requirements-linux.txt sao a unica fonte de verdade, e
+# tests/test_manifests.py compara-os com os imports reais do codigo.
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -21,17 +21,14 @@ jobs:
       # apodrecia em silencio: e assim que sobreviveu a alegacao de que
       # `websockets>=13.0` rebentava instalacoes limpas da EAS — duas semanas
       # sem ninguem a testar a premissa (ver RECONHECIMENTO_REMOTE.md 1.14.1).
+      # E assim que o `cryptography` em falta passou despercebido: chegava ao
+      # CI pelo manifesto do license-server, por uma porta das traseiras.
       #
       # Este passo e o teste de que o manifesto resolve no runner. A protecao
       # contra divergencia de conteudo, essa, e tests/test_manifests.py, que
-      # compara os tres manifestos com os imports do codigo.
+      # compara os dois manifestos com os imports do codigo.
       - name: Install Linux manifest (requirements-linux.txt)
         run: pip install -r requirements-linux.txt
-
-      # O pyproject.toml e a fonte de verdade das dependencias. Este passo
-      # apanha o caso em que o pacote declara coisas que nao instalam.
-      - name: Build the package metadata
-        run: pip install --dry-run --no-deps .
 
       - name: Install system libraries (Qt, audio, display)
         run: |

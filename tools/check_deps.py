@@ -4,16 +4,22 @@ Existe por causa de um bug real, encontrado a 2026-09-28: `cryptography` e
 importado por `core/licensing.py` (a verificacao de licenca, ou seja, o gate
 Pro do produto) mas **nao estava em nenhum dos manifestos de instalacao**. O
 `setup.bat` produzia um ambiente onde `import core.licensing` rebenta com
-`ModuleNotFoundError`.
+`ModuleNotFoundError` — e, como `main.py:35` importa esse modulo ao nivel do
+modulo, onde a aplicacao inteira nao arrancava.
 
-O CI nao o apanhava porque instalava tr coisa que trazia `cryptography` por
+O CI nao o apanhava porque instalava uma coisa que trazia `cryptography` por
 outro caminho: `license-server/requirements.txt`. Um manifesto pode estar errado
 e o pipeline continua verde — o que e exactamente o que aconteceu.
 
 Este modulo le os imports do codigo com `ast` e expoe-os, para que os testes
-comparam os manifestos com o codigo em vez de uns com os outros. Sem isto
-haveria uma segunda copia da verdade (o `pyproject.toml`) que diverge em
-silencio — que e como o bug aconteceu da primeira vez.
+comparem os manifestos com o **codigo** em vez de uns com os outros. A
+alternativa — um manifesto que declara as dependencias e outro que tambem
+declara, e testes a comparar os dois — e o que deixou o bug passar:havia duas
+listas, e a que o `setup.bat` usava estava errada sem ninguem dar por isso.
+
+O `pyproject.toml` deixa de ter `[project].dependencies` por esta razao: o
+produto e entregue por PyInstaller, nao por pip, e manter a segunda lista era
+justamente o risco.
 """
 
 from __future__ import annotations
@@ -25,9 +31,9 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-# O que o produto empacotavel importa. `main.py`, `config.py` e `i18n.py` sao
-# modulos de topo (fora de `core`/`ui`) e por isso precisam de `py-modules` no
-# pyproject — ver `test_modulos_de_topo_sao_empacotados`.
+# O que o produto importa. `main.py`, `config.py` e `i18n.py` sao modulos de
+# topo, fora de `core`/`ui`, e por isso entram a parte: sao eles que puxam
+# `import config` para dentro de `core/` e para o produto empacotado.
 SOURCE_FILES = ("main.py", "config.py", "i18n.py")
 SOURCE_DIRS = ("core", "ui")
 
@@ -41,20 +47,14 @@ MODULE_TO_DIST = {
 }
 
 # Dependencias so para Windows. O `core/snap.py` faz o import dentro de um
-# try/except, por isso o produto corre no Linux sem elas — mas o manifesto
-# partilhado nao as pode declarar sem marcar.
+# try/except, por isso o produto corre no Linux sem elas — e por isso o
+# `requirements-linux.txt` as omite de proposito.
 WINDOWS_ONLY = frozenset({"uiautomation"})
 
-# Directorios do repo que **nao** fazem parte do produto empacotavel. `tools` e
-# o harness de avaliacao (importado por `main.py --replay`, dentro de uma
-# funcao) e nao runtime: nao se distribui e nao vai em `py-modules`.
-NON_PACKAGED = frozenset(
-    {"tools", "tests", "license_server", "license", "dist", "web", "node_modules"}
-)
-
-# Manifestos de instalacao que tem de bater certo com o `pyproject.toml`.
-# `requirements-build.txt` fica de fora de proposito: `pyinstaller` e uma
-# dependencia de build, nao de runtime.
+# Manifestos de instalacao de que o produto depende. `requirements-build.txt`
+# fica de fora de proposito: `pyinstaller` e dependencia de build, nao de
+# runtime. E `license-server/requirements.txt` tambem: e do servidor, e nao
+# deve contar como cobertura para o cliente.
 RUNTIME_MANIFESTS = ("requirements.txt", "requirements-linux.txt")
 
 
@@ -110,22 +110,6 @@ def third_party_dists() -> dict[str, set[str]]:
     return out
 
 
-def local_top_level_modules() -> set[str]:
-    """Modulos de topo do repo que o codigo importa — precisam de `py-modules`.
-
-    Exclui `core`/`ui` (que sao `packages`, nao `py-modules`), a stdlib, e o
-    que nao e distribuido (`NON_PACKAGED`).
-    """
-    return {
-        name
-        for name in imported_modules()
-        if name not in sys.stdlib_module_names
-        and name not in SOURCE_DIRS
-        and name not in NON_PACKAGED
-        and _module_is_local(name)
-    }
-
-
 def _split_marker(spec: str) -> tuple[str, str | None]:
     """`"foo>=1; sys_platform == 'win32'"` -> `("foo>=1", "sys_platform == 'win32'")`."""
     base, sep, marker = spec.partition(";")
@@ -147,29 +131,3 @@ def read_requirements(filename: str) -> dict[str, str | None]:
         base, marker = _split_marker(line)
         out[_dist_name(base)] = marker
     return out
-
-
-def read_pyproject_dependencies() -> dict[str, str | None]:
-    """`[project].dependencies` -> {distribuicao: marcador ou None}.
-
-    Feito a mao em vez de `tomllib` para o modulo correr tambem em Python 3.10,
-    que e o `requires-python` declarado no proprio pyproject.
-    """
-    text = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
-    match = re.search(r"^dependencies\s*=\s*\[(.*?)\]", text, re.S | re.M)
-    if not match:
-        return {}
-    out: dict[str, str | None] = {}
-    for spec in re.findall(r'"([^"]+)"', match.group(1)):
-        base, marker = _split_marker(spec)
-        out[_dist_name(base)] = marker
-    return out
-
-
-def read_pyproject_py_modules() -> set[str]:
-    """`[tool.setuptools].py-modules` -> conjunto de nomes."""
-    text = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
-    match = re.search(r"^py-modules\s*=\s*\[(.*?)\]", text, re.S | re.M)
-    if not match:
-        return set()
-    return {s.strip() for s in re.findall(r'"([^"]+)"', match.group(1))}
