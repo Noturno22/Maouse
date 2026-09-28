@@ -30,6 +30,15 @@ jobs:
       - name: Test (client)
         run: QT_QPA_PLATFORM=offscreen xvfb-run -a pytest tests -q
 
+      # Onda 0: imprime as metricas de reconhecimento do corpus de regressao
+      # para o log do PR. NAO e o portao: o portao e
+      # tests/test_corpus_fixture.py (TestReplayMatchesBaseline), que corre
+      # acima e falha se alguma classe perder F1. Aqui nao se usa --gate, porque
+      # o alvo de 0.97 ainda nao e atingido (ver TestKnownLimitationShakaVsPinky)
+      # e um job sempre vermelho ensina a ignorar o job.
+      - name: Recognition report (replay do corpus de regressão)
+        run: python main.py --replay tests/fixtures/corpus_regressao_v1.npz
+
       - name: Test (license server)
         run: pytest license-server/tests -q
 
