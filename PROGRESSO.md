@@ -23,6 +23,35 @@
 6. **Fortuna** registado como **2.º sócio-função** (4% vesting: mobile/remote/Linux).
 7. **render.yaml movido para a raiz** (Blueprint do Render) + registo SSL.com/domínio.
    *Nota: foi tentada uma subscrição Pro na landing (€4,99/mês) e **removida por decisão** — modelo restante é only lifetime/família/acesso.*
+8. **Design de gestos profissionais Meta Glass/Quest** — especificações detalhadas para 5 novos gestos de produtividade (zoom suave, rotação 3D, menu radial, swipe three fingers, modo anotar) criadas em `.superpawers\specs\2026-09-28-meta-glass-gestos-pro-design.md`.
+9. **Plano de implementação de gestos profissionais** — roteiro detalhado por semanas para desenvolvimento, testes e integração dos novos gestos criado em `.superpawers\plans\2026-09-28-implementacao-gestos-meta-glass-pro.md`.
+10. **Onda 0 do reconhecimento de mãos — instrumentação e métricas** (`docs/RECONHECIMENTO_MAOS.md`).
+    O que estava em falta há mais tempo do que devia: **não havia forma de medir se o
+    classificador de gestos melhorava ou piorava.** Tudo era impressão. Agora existe:
+    * `--record PATH` grava as landmarks que o tracker produziu **e** o rótulo do gesto
+      em cada frame (`core/corpus.py`, `main.py`).
+    * `--replay PATH` corre o classificador real sobre o corpus gravado **sem câmara, sem
+      rato, sem licença** — corre em qualquer máquina de CI.
+    * `tools/eval_recognition.py` dá F1 por gesto, matriz de confusão, cliques fantasma
+      por hora e latência de clique.
+    * `tests/test_corpus_fixture.py` fixa os números num baseline comitado; mexer num
+      limiar passa a reprovar o CI em vez de aparecer no hardware de um utilizador.
+    * **Medido** (`main.py --replay tests/fixtures/corpus_regressao_v1.npz`): F1 macro
+      **0.8958**, exactidão 0.9310, **0 cliques fantasma** em 3 cliques, latência p50/p95
+      0 ms. 11 de 12 gestos perfeitos. O alvo F1 ≥ 0.97 **não é atingido** — e a Onda 1
+      existe para isso.
+    * **Limite honesto**: o corpus versionado é sintético e determinístico. Trava contra
+      *regressão*, não prova *qualidade*. Gravações com mãos reais não são versionadas;
+      o corpus real por demografia é a Onda 3.
+11. **Defeito encontrado pela Onda 0: `SHAKA` (Ctrl+V) nunca acontece.**
+    O predicado `thumb_out` (`core/gestures.py:187-203`) mede o deslocamento da ponta do
+    polegar contra `landmark 3` e exige `dx > 0.30 × escala` ou `dy > 0.25 × escala`. Mas a
+    falange distal mede ~0.28 de uma escala de 1.10 (mãos reais: ~30 mm contra ~95 mm de
+    palma). O teste mede **anatomia, não intenção**, e varia por utilizador. Medido: **8 de
+    8 `SHAKA` classificados como `PINKY`** → o utilizador recebe **Ctrl+C em vez de Ctrl+V**.
+    A correcção troca a medida (ponta do polegar contra a base do indicador, como o
+    `thumb_out` da Meta) e é o primeiro item da **Onda 1 §1.3**. Ver
+    `HARDWARE/PROBLEMAS_KNOWN.md` §1.4.
 
 ### 🔴 Bloqueadores em aberto (Sprint 2 → 1.ª venda paga)
 
