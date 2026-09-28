@@ -536,13 +536,14 @@ Consolidadas e verificadas no repositório em 2026-09-28.
 
 | # | Gravidade | Limitação | Evidência |
 |---|---|---|---|
+| 0 | 🔴 Crítico | **`cryptography` em falta nos manifestos** — importado por `core/licensing.py` ao nível do módulo, e `main.py:35` importa esse módulo. O `setup.bat` produzia um ambiente onde a aplicação **não arrancava**. Provado por resolução limpa (59 pacotes, `cryptography` ausente, nada o traz transitivamente). **Corrigido** 2026-09-28. | `requirements.txt`, `core/licensing.py:9-10`, `main.py:35` |
 | 1 | ⚪ **Falso positivo** | ~~`websockets>=13.0` é um floor inválido; `websockets.asyncio.server` só existe a partir da 14.0.~~ **Falso.** O namespace `websockets.asyncio` foi introduzido na **13.0** (changelog 13.0: *"introduces a new asyncio implementation"*); a 14.0 foi apenas o que o tornou default. `websockets/asyncio/server.py` existe na tag `13.0` do upstream, com a API `serve` completa. O floor declarado está **correcto**. Ver §1.14.1. | `requirements.txt:5`, `core/remote.py:223` |
 | 2 | 🔴 Crítico | **Multi-monitor sem origem** — cursor encurralado no monitor principal se algum ecrã estiver à esquerda/acima. | `core/mouse_ctl.py:127-143,186-189` |
 | 3 | 🔴 Crítico | **Sem TLS**, e o cliente impede usar `wss://`. | `core/remote.py:227-231`, `remoteClient.ts:36` |
 | 4 | 🔴 Crítico | **Sem rate limit / lockout / allowlist** numa porta aberta à Internet. | `core/remote.py:250` |
 | 5 | 🔴 Crítico | **Bypass do gate Pro** — rato e teclado remotos são grátis. | `App.tsx:153` vs ausência em `remote.py` |
 | 6 | 🟠 Alto | **Condição de corrida no `MouseCtl` partilhado** — thread asyncio remota e thread Qt/escala mutam `_frac_x/_frac_y` e `mouse.position` sem lock. | `main.py:310-313` |
-| 7 | 🟠 Alto | **`pyproject.toml` não declara as dependências** — só `cryptography>=42`. `pip install .` não instala pynput nem websockets. | `pyproject.toml:10-12` |
+| 7 | ✅ Resolvido | **`pyproject.toml` não declarava as dependências** — só `cryptography>=42`, e não empacotava `config.py`/`i18n.py`. Corrigido a 2026-09-28: o pyproject é agora a fonte de verdade (15 dependências, marcador Windows na `uiautomation`) e `tests/test_manifests.py` bloqueia a divergência. Ver [§1.14.2](#1142-encontrado-enquanto-se-verificava-o-falso-positivo-um-bug-real-mais-grave-). | `pyproject.toml`, `tests/test_manifests.py` |
 | 8 | 🟠 Alto | **Bypass do toggle de pausa** — controlo total com a app "pausada". | ausência em `remote.py` |
 | 9 | 🟠 Alto | **`_combo` bloqueia o event loop** 40 ms com `time.sleep`. | `core/remote.py:475` |
 | 10 | 🟠 Alto | **`press`/`release` sem estado de arrasto** — sem `finally` de limpeza, um socket que cai a meio de um arrasto deixa o botão logicamente premido. | `core/remote.py:379-397` |
@@ -659,15 +660,68 @@ este floor é inválido". Verificou-se o *token* e assumiu-se a *consequência*.
 erro clássico de leitura de manifesto, e vale como regra para o resto do
 documento: **ler a linha do ficheiro não é verificar a consequência.**
 
-**O que fica, e é real.** O item #7 (`pyproject.toml` declara só
-`cryptography>=42`) é o problema de manifesto que continua aberto — não rebenta o
-build do projecto, mas `pip install airmouse` instala um pacote que não arranca.
-Este é o item que merece a correcção de 10 minutos, não o #1.
+**O que a investigação encontrou a seguir.** Fui ver o item #7 (`pyproject.toml`
+declara só `cryptography>=42`) e acabei por comparar os manifestos com os
+imports do código — e encontrei um 🔴 que era **real** e pior do que o falso
+positivo. Detalhe em [§1.14.2](#1142-encontrado-enquanto-se-verificava-o-falso-positivo-um-bug-real-mais-grave).
 
 **Consequência para o registo de contribuição.** O `CONTRIBUICAO_SOCIOS.md`
 atribuía ao domínio do sócio 2 bloqueadores 🔴 de build com base nesta premissa.
-Reverificado: o número real de bloqueadores de build é **zero**. Ver §4.6 desse
-documento.
+Reverificado: o número real de bloqueadores de build do *domínio* é **zero** —
+o `cryptography` em falta é um bug de dependências, não um bug do Canal
+remoto, e estava lá antes de o sócio tocar no projecto. Ver §4.6 desse documento.
+
+## 1.14.2 Encontrado enquanto se verificava o falso positivo: um bug real, mais grave 🔴
+
+Ao verificar o item #1, fui verificar o #7, e ao verificar o #7 comparei os três
+manifestos com os imports reais do código. Aí apareceu isto, que é o **oposto**
+do item #1: aqui a auditoria tinha razão quanto ao sintoma, e a gravidade
+estava *sub*avaliada.
+
+**O bug.** `cryptography` é importado por `core/licensing.py` — a verificação de
+licença, ou seja, o gate Pro do produto — mas **não estava em `requirements.txt`
+nem em `requirements-linux.txt`**. O `setup.bat` instala exactamente o
+`requirements.txt`.
+
+**Prova, não inferência.** Resolvi o manifesto antigo num fluxo limpo:
+
+```
+pip install --dry-run --ignore-installed --report ... -r <requirements.txt antigo>
+-> 59 pacotes resolvidos
+-> cryptography no fluxo? False
+```
+
+Nada o traz transitivamente. Confirmado o outro lado: `main.py:35` e
+`core/engine.py:26` fazem `from core.licensing import ...` **ao nível do
+módulo**, não dentro de uma função. Logo, numa instalação limpa feita pelo
+`setup.bat`, a aplicação **não arrancava** — `ModuleNotFoundError` no primeiro
+`import` do entry point. Não é o gate Pro a falhar; é o produto a não arrancar.
+
+**Porque ninguém notou.** O `.venv` de desenvolvimento tem a dependência
+instalada, e o CI também — mas **por outro caminho**: `ci.yml` instala
+`license-server/requirements.txt`, que a declara. Um manifesto errado e um
+pipeline verde ao mesmo tempo: a dependência chegava por uma porta das traseiras
+que ninguém mapeou. Todo o mundo desenvolve e testa num ambiente onde o bug não
+existe, que é a forma mais eficaz de um bug de instalação sobreviver.
+
+**Os outros dois achados, menores:**
+
+| Achado | Situação |
+|---|---|
+| `comtypes>=1.4` em `requirements.txt` | **Fantasma.** Não é importado por lado nenhum; `uiautomation` já o traz (`uiautomation 2.0.29` declara `requires_dist: ['comtypes>=1.2.1']`). Declarar uma transitiva directamente é o que transforma um floor legítimo num floor de gueto. |
+| `pyproject.toml` declarava **1** dependência em 15, e não empacotava `config.py` nem `i18n.py` | Estes dois são **módulos de topo** (não pacotes), importados ao nível do módulo por 6+ ficheiros de `core/` (`from config import Config`). Com `packages = ["core", "ui"]`, um `pip install airmouse` instalava um pacote onde **qualquer** um desses imports rebenta. |
+
+**Correcção (2026-09-28).** O `pyproject.toml` passou a ser a fonte de verdade
+das dependências, com marcador `sys_platform == 'win32'` para a `uiautomation`
+(o `core/snap.py` faz esse import dentro de um `try/except`, por isso o produto
+corre no Linux sem ela). `cryptography>=42` foi acrescentado aos dois manifestos
+e `comtypes` removido. O que faltava a lockar foi um teste: `tests/test_manifests.py`
+compara os três manifestos com os `import` que o código faz de facto
+(`tools/check_deps.py` extrai-os com `ast`), e falha se divergirem em qualquer
+dos dois sentidos — dependencia em falta, ou dependencia que nada usa. E o CI
+passou a instalar `requirements-linux.txt`, que **ninguém instalava** e que por
+isso podia apodrecer em silêncio — que é como este bug existiria hoje se não
+tivesse sido encontrado por outra via.
 
 ---
 
@@ -842,28 +896,40 @@ arranca para quem não use o `setup.bat`.
 > `websockets>=14.0` e dizia que isso "rebenta[va] qualquer instalação limpa — que é
 > exactamente o que a EAS faz no CI". **Ambas as afirmações eram falsas** (ver
 > [§1.14.1](#1141-correção-o-item-1-era-um-falso-positivo-)): o floor do `websockets`
-> já está correcto, e a EAS nunca instala este manifesto Python. A Onda 0.1 foi
-> reescrita em conformidade.
+> já está correcto, e a EAS nunca instala este manifesto Python.
+>
+> E o inverso acabou por ser verdade por outra via: havia um manifest bugado a
+> sério, a fazer a aplicação não arrancar numa instalação limpa — mas o culprit
+> era o `cryptography` em falta, não o `websockets`
+> ([§1.14.2](#1142-encontrado-enquanto-se-verificava-o-falso-positivo-um-bug-real-mais-grave-)).
 
 ## 3.1 Onda 0 — Instrumentação e correções de bloqueio
 
-### 0.1 Correcções de dependência
+### 0.1 Correcções de dependência — ✅ entregue 2026-09-28
 
-- ❌ ~~`requirements.txt:5` — `websockets>=13.0` → `websockets>=14.0`~~ **Cancelado.**
-  O floor já está correcto: `websockets.asyncio` existe desde a 13.0
-  ([§1.14.1](#1141-correção-o-item-1-era-um-falso-positivo-)). Bixar o floor para
-  14.0 não corrigiria nada e subiria o mínimo de Python implícito.
-- ✅ **`pyproject.toml:10-12`** — alinhar com `requirements.txt`. Este é o problema
-  real: enquanto `pip install airmouse` não instalar pynput, mediapipe e
-  websockets, o manifesto mente sobre o produto. É este o que vale a correcção de
-  10 minutos.
-- Mover `uiautomation` e `comtypes` para um `requirements-windows.txt` (já existe
-  `requirements-linux.txt` a fazer isto parcialmente).
-- 🟠 **Novo, e não estava na auditoria:** o CI **nunca instala**
-  `requirements-linux.txt` (`ci.yml:18` instala só `requirements.txt`,
-  `requirements-build.txt` e o do license-server). O manifesto Linux pode por isso
-  apodrecer sem que nada earthen. Propõe-se um passo de CI que o instale — é o
-  que impede esta classe de bug de voltar.
+- 🔴 **`cryptography` acrescentado** a `requirements.txt` e
+  `requirements-linux.txt`. Estava em falta e era fatal: `main.py:35` importa
+  `core.licensing` ao nível do módulo, logo o `setup.bat` instalava uma aplicação
+  que não arrancava.
+  [§1.14.2](#1142-encontrado-enquanto-se-verificava-o-falso-positivo-um-bug-real-mais-grave-)
+- ✅ **`pyproject.toml`** passou a ser a fonte de verdade: 15 dependências
+  declaradas, `uiautomation` com marcador `sys_platform == 'win32'`, e
+  `py-modules = ["config", "i18n"]` para os dois módulos de topo que `core/`
+  importa ao nível do módulo. Antes declarava 1 em 15 e não os empacotava.
+- ✅ **`comtypes` removido** de `requirements.txt`: é transitiva do
+  `uiautomation` e não é importado por lado nenhum.
+- ❌ ~~`websockets>=13.0` → `websockets>=14.0`~~ **Cancelado.** O floor já estava
+  certo: `websockets.asyncio` existe desde a 13.0
+  ([§1.14.1](#1141-correção-o-item-1-era-um-falso-positivo-)).
+- ✅ **Trancado contra recorrência:** `tests/test_manifests.py` (12 testes)
+  compara os três manifestos com os imports reais do código e falha nos dois
+  sentidos — dependencia em falta *e* dependencia que nada usa. E o CI passou a
+  instalar `requirements-linux.txt`, que **ninguém instalava** e que por isso
+  podia apodrecer em silêncio.
+
+Fica de fora de propósito: um `requirements-windows.txt` próprio. O
+`requirements-linux.txt` já é a variante sem `uiautomation`, e um teste garante
+que a divergência entre os dois é exactamente essa — nada mais.
 
 ### 0.2 Teste de asserção para a origem virtual
 

@@ -10,6 +10,10 @@ piper-tts>=1.7
 pystray>=0.19
 Pillow>=10.0
 uiautomation>=2.0
-comtypes>=1.4
 pyttsx3>=2.9
 PySide6>=6.6
+# Gate Pro (core/licensing.py). Estava em falta — o setup.bat instalava um
+# ambiente onde `import core.licensing` rebenta.
+# Substitui `comtypes>=1.4`, que foi removido: e dependencia transitiva do
+# `uiautomation` e nao e importado por lado nenhum.
+cryptography>=42
