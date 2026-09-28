@@ -1003,11 +1003,16 @@ Critério de sucesso a fixar **antes** de escrever código: definir o que é
 >
 > **Duas decisões que valem registo:**
 >
-> 1. **O CI não reprova pela métrica.** O `pytest` reprova pela comparação com
->    o baseline (regressão = mau); o passo de relatório imprime os números sem
->    falhar, porque um job vermelho permanente deixa de ser lido. `--gate` /
->    `--replay-gate` existem para quando o alvo for atingido — activá-los é uma
->    linha em `ci.yml`.
+> 1. ~~**O CI não reprova pela métrica.**~~ **Revisto em 2026-09-28.** A regra
+>    original era: o `pytest` reprova por comparação com o baseline (regressão =
+>    mau) e o passo de relatório imprime sem falhar, porque um job vermelho
+>    permanente deixa de ser lido; `--gate` ficava para quando o alvo fosse
+>    atingido. Corrigida a confusão PINKY/SHAKA (§1.3), o alvo **é** atingido na
+>    fixture e o `--replay-gate` passou a correr no `ci.yml`. A distinção
+>    mantém-se: o baseline trava *piora*, o gate trava *qualidade abaixo do
+>    anunciado*. Ambos os portões vigem, porque respondem a perguntas
+>    diferentes — e ambos medem a fixture sintética, o que fica escrito nas duas
+>    Notas honestas.
 > 2. **Rótulo `SETTLE`.** Um corpus anotado tem de marcar os primeiros frames de
 >    cada segmento (o gesto destino já começou, mas o debounce ainda não
 >    fechou). Sem essa distinção, o F1 mede *quantos segmentos o corpus tem* em
@@ -1016,7 +1021,9 @@ Critério de sucesso a fixar **antes** de escrever código: definir o que é
 >
 > **Limite explícito:** o corpus versionado é sintético e determinístico
 > (`tools/make_corpus_fixture.py`). Trava contra regressão; não prova qualidade.
-> Gravações com mãos reais não são versionadas — é a Onda 3 que as traz.
+> Gravações com mãos reais não são versionadas — é a Onda 3 que as traz. Por isso
+> o 1.0000 de hoje **não** é um número para a landing: é o número que diz que a
+> medição está sã, nada mais.
 
 ### 0.1 Gravar e reproduzir
 
@@ -1047,7 +1054,7 @@ Critério de sucesso a fixar **antes** de escrever código: definir o que é
 | Métrica | Como | Alvo | Estado |
 |---|---|---|---|
 | Matriz de confusão por gesto | replay vs. anotação | — | feito |
-| F1 / precision / recall por gesto | idem | ≥ 0.97 | feito (0.8958 — abaixo do alvo) |
+| F1 / precision / recall por gesto | idem | ≥ 0.97 | feito (1.0000 na fixture **sintética** — ver §1.3; falta o corpus real) |
 | **Falso-positivo por hora** | clips "sem gesto" × FP / duração | 0 | feito (0 em 3 cliques) |
 | Latência de clique (p50/p95/p99) | replay | p95 < 80 ms | feito |
 | **Jitter em repouso** (RMS da palma, mão estática) | replay | < 0.5 px | falta |
@@ -1060,8 +1067,13 @@ Critério de sucesso a fixar **antes** de escrever código: definir o que é
 - `pytest` corre o replay de um subconjunto de clips a cada PR — em CI, o
   corpus sintético de `tests/fixtures/`.
 - Falha de recall num gesto bloqueia o merge; a matriz completa corre nightly.
-- Passo adicional "Recognition report" imprime o relatório **sem** reprovar
-  (ver a decisão acima).
+- Passo adicional "Recognition report" imprime o relatório **e reprova** com
+  `--replay-gate` (F1 macro ≥ 0.97, precisão do PINCH ≥ 0.99, 0 cliques
+  fantasma/h). Ficou desligado até à correcção da confusão PINKY/SHAKA (§1.3)
+  passar a fazer sentido: antes o alvo falhava por construção e um job sempre
+  vermelho ensina a ignorá-lo. O portão contra *regressão* é
+  `tests/test_corpus_fixture.py::TestReplayMatchesBaseline`, que compara com o
+  baseline commitado — perguntas diferentes, as duas vigam.
 
 **Entregável:** um comando — `python tools/eval_recognition.py` — que produz
 um relatório com todas as métricas. Nada na Onda 1 começa sem ele.
