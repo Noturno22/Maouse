@@ -5,7 +5,9 @@
 > **informar a matriz** (Validado/Aceite/Não-validado) e os bloqueadores técnicos.
 > **Data:** 2026-09-01 · Autor: Luar Studio Angola · Estado: **EM REGISTO.**
 > *Actualizado 2026-09-28:* §1.4 (SHAKA) — único defeito aquí que **não** veio do
-> hardware, mas da medição automática do classificador de gestos.
+> hardware, mas da medição automática do classificador de gestos. **Corrigido na
+> Onda 1 §1.3** (build `fix/onda1-shaka`); §1.4 passa a ✅ com o evidence da
+> correcção.
 
 ---
 
@@ -53,24 +55,27 @@
 | **Ação comercial** | Categoria ✅ exige GPU/NPU dedicada real (não iGPU antiga) |
 | **Para validar** | Testar `--gpu` em iGPU nova (Intel 12ª+, AMD Ryzen APU) e GPU dedicada |
 
-### 1.4. Gesto `SHAKA` (Ctrl+V) nunca é reconhecido 🔴 Defeito
+### 1.4. Gesto `SHAKA` (Ctrl+V) nunca era reconhecido ✅ Resolvido
 
 > Descoberto pela Onda 0 (2026-09-28) ao medir a matriz de confusão, não por
-> observação manual. É a única confusão que existe no corpus de regressão.
+> observação manual. Era a única confusão que existia no corpus de regressão.
+> **Corrigido na Onda 1 §1.3** (2026-09-28) — a Predicado passou a medir a
+> ponta do polegar contra a **base do indicador**, como o `thumb_out` da Meta.
 
 | Campo | Valor |
 |---|---|
-| **Sintoma** | O "hang loose" (mindinho esticado + polegar para o lado) produz sempre **Ctrl+C** (PINKY) em vez de **Ctrl+V** (SHAKA). Medido: **8 de 8** `SHAKA` classificados como `PINKY`, F1 = 0.000 |
-| **Dispositivo** | Qualquer — não é dependente de hardware. É geometria do predicado |
-| **Dados** | `python main.py --replay tests/fixtures/corpus_regressao_v1.npz` → confusão única `SHAKA → PINKY 8`; `PINKY` F1 0.750 (P = 0.600, R = 1.000) |
-| **Impacto matriz** | 🔴 Um comando não-reversível entregue ao sítio errado, sem forma de o utilizador saber que errou |
-| **Causa** | `core/gestures.py:187-203`, predicado `thumb_out`: mede o deslocamento da ponta do polegar contra `landmark 3` e exige `dx > 0.30 × escala` ou `dy > 0.25 × escala`. A falange distal mede ~0.28 de uma escala de 1.10 — em mãos reais, ~30 mm contra ~95 mm de palma. O limiar está no limite físico do gesto: mede **anatomia, não intenção**, e varia por utilizador |
-| **Mitigação** | Nenhuma por configuração — não é um limiar desafinado, é a medida errada. Usar `PINKY` (Ctrl+C) e não contar com Ctrl+V |
-| **Ação comercial** | **Não descrever o SHAKA como funcionalidade** em landing, docs ou vendas até estar corrigido |
-| **Para validar** | Corrigir a medida (ponta do polegar contra a base do indicador, `landmark 5`, como o `thumb_out` da Meta) e exigir SHAKA F1 ≥ 0.9 no `tests/test_corpus_fixture.py` antes de anunciar |
+| **Sintoma** | O "hang loose" (mindinho esticado + polegar para o lado) produzia sempre **Ctrl+C** (PINKY) em vez de **Ctrl+V** (SHAKA). Medido: **8 de 8** `SHAKA` classificados como `PINKY`, F1 = 0.000 |
+| **Dispositivo** | Qualquer — não era dependente de hardware. Era geometria do predicado |
+| **Causa** | `core/gestures.py`, predicado `thumb_out`: media o deslocamento da ponta do polegar contra `landmark 3` e exigia `dx > 0.30 × escala` ou `dy > 0.25 × escala`. A falange distal mede ~0.28 de uma escala de 1.10 — em mãos reais, ~30 mm contra ~95 mm de palma. O limiar estava **no limite físico do gesto**: media **anatomia, não intenção**, e variava por utilizador. Pior: `dx > 0.30 × escala` é geometricamente impossível — a falange distal é ~0.28 —, por isso a condição horizontal nunca podia ser satisfeita e a porta de entrada do SHAKA ficava fechada por construção |
+| **Correcção** | `thumb_out` passou a medir a **distância da ponta do polegar à base do indicador (landmark 5), normalizada pela escala** (pulso → landmark 9): ~1.23 com o polegar para o lado, ~0.85 recolhido sobre a palma. Limiar 1.05 separa os dois gestos. É a mesma medida do `thumb_out` da Meta, e a mesma que o `core/gesture_ai.py` já usava |
+| **Dados (depois)** | `python main.py --replay tests/fixtures/corpus_regressao_v1.npz` → F1 macro **1.0000**, exactidão **1.0000**, `SHAKA` F1 1.000 (P = R = 1.0), `PINKY` F1 1.000 (recuperou a precisão de 0.600), **zero confusões**, 0 cliques fantasma. `ACEITE: todos os alvos cumpridos` (min_f1 0.97) |
+| **Impacto matriz** | ✅ Deixou de ser bloqueador: o Ctrl+V chega ao sítio certo. Sai da lista de "não anunciar" |
+| **Limite honesto** | Isto é a **fixture sintética** (paramétrica, determinística). Prova que a medição deixou de estar no limite físico e que a distinção existe; **não** substitui um corpus gravado em mãos reais por demografia — esse é o objectivo da Onda 3 §3.1. Aimed: SHAKA F1 ≥ 0.9 cumpre-se na fixture, mas continua por provar no hardware |
 
-Evidência em código: `tests/test_corpus_fixture.py::TestKnownLimitationShakaVsPinky`.
-Análise em `docs/RECONHECIMENTO_MAOS.md` §1.16 (limitação 11) e §3.2 Onda 1 §1.3.
+Evidência em código: `tests/test_corpus_fixture.py::TestShakaIsRecognised`
+(porta sobre a fixture real) e `tests/test_shaka_thumb_out.py` (predicado isolado,
+sintético, sem câmara). Análise em `docs/RECONHECIMENTO_MAOS.md` §1.16 (limitação
+11) e §3.2 Onda 1 §1.3.
 
 ---
 

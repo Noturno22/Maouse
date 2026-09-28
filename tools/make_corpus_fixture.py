@@ -104,8 +104,8 @@ FINGER_CURLS = {
 }
 
 # Polegar: "tucked" = recolhido sobre a palma; "out" = aberto para o lado
-# (o unico sinal que separa PINKY de SHAKA, ver nota abaixo); "up"/"down" =
-# a apontar, com a base deslocada para o punho fechado.
+# (o unico sinal que separa PINKY de SHAKA, ver a nota no ramo "out" abaixo);
+# "up"/"down" = a apontar, com a base deslocada para o punho fechado.
 THUMB_PLACEMENT = {
     "OPEN": ("relaxed", 0.0),
     "ONE": ("tucked", 0.0),
@@ -198,10 +198,10 @@ def _thumb(gesture: str, rng) -> tuple:
 
     if placement == "out":
         # Polegar aberto para o lado, como quem mostra o mindinho com o polegar
-        # esticado. NOTA: o predicado SHAKA mede o deslocamento da ponta em
-        # relacao a IP e compara-o com 0.30/0.25 da escala, mas a falange distal
-        # do modelo so mede 0.28 da escala - o limiar esta no limite fisico do
-        # gesto. Ver tests/test_corpus_fixture.py::test_pinky_and_shaka_are_one_pose
+        # esticado. O unico sinal que separa PINKY de SHAKA e a posicao do
+        # polegar, e o predicado mede a distancia da ponta a base do indicador
+        # (landmark 5) normalizada pela escala: ~1.23 aqui, ~0.85 em "tucked",
+        # com corte em 1.05. Ver tests/test_shaka_thumb_out.py.
         base = np.array([OPEN_SKELETON[1][0], OPEN_SKELETON[1][1], 0.0])
         pts = _chain(base, _deg(-160.0) + jit(0.05), FINGER_LEN["thumb"],
                      (0.35 + jit(0.06), 0.45 + jit(0.06), 0.40 + jit(0.06)), THUMB_MAX)

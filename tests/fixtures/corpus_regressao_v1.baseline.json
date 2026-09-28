@@ -10,9 +10,9 @@
   "frames": 168,
   "labelled": 116,
   "settle": 52,
-  "correct": 108,
-  "accuracy": 0.931034,
-  "macro_f1": 0.895833,
+  "correct": 116,
+  "accuracy": 1.0,
+  "macro_f1": 1.0,
   "per_class": {
     "FIST": {
       "precision": 1.0,
@@ -51,9 +51,9 @@
       "support": 5
     },
     "PINKY": {
-      "precision": 0.6,
+      "precision": 1.0,
       "recall": 1.0,
-      "f1": 0.75,
+      "f1": 1.0,
       "support": 12
     },
     "ROCK": {
@@ -63,9 +63,9 @@
       "support": 8
     },
     "SHAKA": {
-      "precision": 0.0,
-      "recall": 0.0,
-      "f1": 0.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
       "support": 8
     },
     "THREE": {
@@ -87,13 +87,7 @@
       "support": 8
     }
   },
-  "worst_confusions": [
-    {
-      "truth": "SHAKA",
-      "pred": "PINKY",
-      "hits": 8
-    }
-  ],
+  "worst_confusions": [],
   "events": {
     "total_clicks": 3,
     "phantom_clicks": 0,
@@ -102,12 +96,10 @@
     "latency_p95_ms": 0.0
   },
   "acceptance": {
-    "passed": false,
+    "passed": true,
     "min_f1": 0.97,
     "min_pinch_precision": 0.99,
     "max_phantom_per_hour": 0.0,
-    "failures": [
-      "F1 macro 0.896 abaixo do alvo 0.970"
-    ]
+    "failures": []
   }
 }

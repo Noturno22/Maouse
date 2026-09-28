@@ -257,13 +257,21 @@ sem histerese, usado para exigir dedos **certamente** dobrados):
 | `rock` | indicador e mindinho esticados; médio e anelar claramente dobrados |
 | `one_finger` | indicador esticado, resto dobrado, **e sem pinça de índice activa** |
 | `pinky_only` | mindinho esticado, restantes dobrados |
-| `thumb_pinky` | polegar fora (dx > 0.3·scale ou dy > 0.25·scale) + mindinho esticado + resto dobrado |
+| `thumb_pinky` | polegar para o lado (`dist(ponta, landmark 5) / scale > 1.05`) + mindinho esticado + resto dobrado. **Corrigido na Onda 1 §1.3** — antes media a ponta contra o `landmark 3` com `dx > 0.3·scale`, limiar geometricamente impossível |
 | `thumb_up` | punho + ponta do polegar acima de todos os MCPs (0.15·scale) **e** `dy > 0.55·segmento` |
 | `thumb_down` | espelho exacto do `thumb_up` |
 
 O polegar é o caso mais difícil porque não segue a mesma anatomia dos outros
 dedos — daí a verificação explícita de **direcção** (`dy_up > 0.55 · seg`) e não
 só de separação.
+
+Para o `thumb_pinky` a medida é a **distância da ponta do polegar à base do
+indicador (`landmark 5`), normalizada pela escala** — não um deslocamento contra
+o IP do próprio polegar. A razão está em §1.16 (limitação 11): medir o
+deslocamento contra o `landmark 3` e exigir `dx > 0.3 · scale` é fisicamente
+impossível, porque a falange distal do polegar mede ~0.28 da escala. A medida
+nova separa o que se quer dizer: **polegar para o lado ≈ 1.23**, **polegar
+recolhido sobre a palma ≈ 0.85**. O limiar 1.05 fica no meio, longe dos dois.
 
 ### 1.6.5 Cadeia de prioridade
 
@@ -748,13 +756,19 @@ tests/fixtures/corpus_regressao_v1.npz`):
 |---|---|
 | Frames / frames com mão | 193 / 168 |
 | Duração | 6.3 s |
-| Exactidão | 0.9310 |
-| **F1 macro** | **0.8958** |
+| Exactidão | 1.0000 |
+| **F1 macro** | **1.0000** |
 | Cliques / cliques fantasma | 3 / **0** |
-| Confusão | apenas `SHAKA → PINKY` (8/8) |
+| Confusão | **nenhuma** |
 
-11 dos 12 gestos com P = R = F1 = 1.0. `PINKY` (Ctrl+C) com P = 0.600 /
-R = 1.000 / F1 = 0.750 e `SHAKA` (Ctrl+V) com F1 = 0.0 — ver limitação 11.
+Os 12 gestos com P = R = F1 = 1.0. Antes da correcção do SHAKA (Onda 1 §1.3) o
+baseline era 0.8958 com a confusão única `SHAKA → PINKY` (8/8) e `PINKY` com
+P = 0.600 — ver limitação 11.
+
+> **Isto não é um número de marketing.** A fixture é sintética e paramétrica:
+> com F1 = 1.0 ela deixa de provar qualidade e passa a provar **regressão** — que
+> é para isso que existe. A qualidade em mãos reais continua por medir (Onda 3
+> §3.1).
 
 ## 1.16 Limitações conhecidas
 
@@ -772,7 +786,7 @@ Documentadas em `HARDWARE/PROBLEMAS_KNOWN.md` e confirmadas no código:
 | 8 | Confiança de detecção do MediaPipe **descartada** | `tracker.py:89-99` |
 | 9 | Jitter das landmarks dos dedos **não filtrado** | `engine.py:427` filtra só a palma |
 | 10 | ~~CLI não tem modo de gravação/replay~~ — **fechado na Onda 0** | `main.py --record` / `--replay`, `core/corpus.py` |
-| 11 | **`SHAKA` (Ctrl+V) é praticamente inalcançável**: `thumb_out` compara o deslocamento da ponta do polegar contra `landmark 3` com limiares de 0.30 / 0.25 × escala, mas a falange distal só mede ~0.28 de uma escala de 1.10 (mãos reais: ~30 mm contra ~95 mm de palma). O teste mede anatomia, não intenção, e varia por utilizador. Consequência medida: 8/8 `SHAKA` classificados como `PINKY` → **Ctrl+C em vez de Ctrl+V**. Correcção em Onda 1 §1.3. | `gestures.py:187-203`, `tests/test_corpus_fixture.py::test_pinky_and_shaka_are_one_pose`, `PROBLEMAS_KNOWN.md` §1.7 |
+| 11 | ~~**`SHAKA` (Ctrl+V) é praticamente inalcançável**~~ — **fechado na Onda 1 §1.3** (2026-09-28). O `thumb_out` media a ponta do polegar contra o seu próprio IP (`landmark 3`) e exigia `dx > 0.30 × escala`: geometricamente impossível, porque a falange distal mede ~0.28. Mede anatomia, não intenção. Passou a medir a distância da ponta do polegar à **base do indicador (`landmark 5`)**, normalizada pela escala (~1.23 para o lado, ~0.85 recolhido, corte em 1.05). **Na fixture: `SHAKA` F1 0.0 → 1.0, `PINKY` P 0.600 → 1.0, zero confusões, F1 macro 1.0000.** Por confirmar em mãos reais. | `core/gestures.py` (`thumb_out`), `tests/test_corpus_fixture.py::TestShakaIsRecognised`, `tests/test_shaka_thumb_out.py`, `PROBLEMAS_KNOWN.md` §1.4 |
 
 ---
 
@@ -976,10 +990,16 @@ Critério de sucesso a fixar **antes** de escrever código: definir o que é
 > | 0.2 Corpus etiquetado **real** (200–500 clips, diversidade) | **falta** | Onda 3 §3.1 |
 > | 0.3 Jitter em repouso, continuidade de tracking, estratificação demográfica | **falta** | precisa de corpus real |
 >
-> **Medido** (`main.py --replay tests/fixtures/corpus_regressao_v1.npz`):
-> F1 macro **0.8958**, exactidão 0.9310, **0 cliques fantasma** em 3 cliques,
-> confusão única `SHAKA → PINKY` 8/8, 11/12 gestos perfeitos. O alvo F1 ≥ 0.97
-> **não é atingido** — e a Onda 1 existe exactamente para isso.
+> **Medido na entrega da Onda 0** (`main.py --replay
+> tests/fixtures/corpus_regressao_v1.npz`): F1 macro **0.8958**, exactidão 0.9310,
+> **0 cliques fantasma** em 3 cliques, confusão única `SHAKA → PINKY` 8/8, 11/12
+> gestos perfeitos. O alvo F1 ≥ 0.97 **não era atingido** — e a Onda 1 existe
+> exactamente para isso.
+>
+> **Medido hoje, depois da Onda 1 §1.3** (mesmo comando): F1 macro **1.0000**,
+> exactidão 1.0000, 12/12 gestos perfeitos, **zero confusões**, 0 cliques
+> fantasma, `ACEITE: todos os alvos cumpridos`. A confusão que existia era uma
+> só e está fechada.
 >
 > **Duas decisões que valem registo:**
 >
@@ -1086,23 +1106,38 @@ qualquer modelo novo.
 Com a Onda 0 a dar a matriz de confusão, os limiares deixam de ser herança e
 passam a ser **ajustados ao maior off-diagonal**.
 
-> **Já se sabe qual é o maior off-diagonal — e não é o que se previa.** O único
-> par que confunde no baseline é `SHAKA → PINKY`, 8 em 8, e não é um limiar
-> mal afinado: é um limiar **física e geometricamente impossível**.
-> `thumb_out` (`gestures.py:187-203`) mede o deslocamento da ponta do polegar em
-> relação à IP (`landmark 3`) e exige `dx > 0.30 × scale` ou `dy > 0.25 × scale`.
-> Mas a falange distal é ~0.28 de uma escala de 1.10 — em mãos reais, ~30 mm
-> contra ~95 mm de palma. O predicado está a medir **anatomia**, não intenção:
-> nenhuma mão pode satisfazê-lo, e o resultado varia por utilizador.
+> **✅ Feito (2026-09-28, Onda 1 §1.3, branch `fix/onda1-shaka`).** O maior
+> off-diagonal do baseline era `SHAKA → PINKY`, 8 em 8, e não era um limiar mal
+> afinado: era um limiar **física e geometricamente impossível**. O `thumb_out`
+> media o deslocamento da ponta do polegar em relação à IP (`landmark 3`) e
+> exigia `dx > 0.30 × scale`. A falange distal é ~0.28 de uma escala de 1.10 —
+> em mãos reais, ~30 mm contra ~95 mm de palma. A condição horizontal **nunca
+> podia ser satisfeita por nenhuma mão**; a vertical deixava uma janela de ~11°
+> em torno da vertical, ou seja o polegar tinha de apontar quase exactamente para
+> cima. O predicado media **anatomia**, não intenção, e o resultado variava por
+> utilizador.
 >
-> Efeito prático: **SHAKA (Ctrl+V) nunca chega ao utilizador** — cada tentativa
-> sai como PINKY, ou seja Ctrl+C. Um comando não-reversível entregue ao sítio
-> errado.
+> Efeito prático antes da correcção: **SHAKA (Ctrl+V) nunca chegava ao
+> utilizador** — cada tentativa saía como PINKY, ou seja Ctrl+C. Um comando
+> não-reversível entregue ao sítio errado.
 >
-> A correcção não é mexer no número, é trocar a medida: comparar a ponta do
-> polegar com a base do indicador (`landmark 5`), como o `thumb_out` da Meta,
-> ou abdução relativa ao eixo da mão. Deve entrar como commit próprio, com
-> corpus antes e depois — não misturar com outros ajustes de limiar.
+> **A correcção trocou a medida em vez de mexer no número**, exactamente como
+> diagnosticado: `thumb_out` passou a medir a distância da ponta do polegar à
+> **base do indicador (`landmark 5`)**, normalizada pela escala (pulso →
+> `landmark 9`). Medido na fixture: ~1.23 com o polegar para o lado, ~0.85
+> recolhido sobre a palma — o corte em 1.05 separa os dois gestos. É a mesma
+> medida do `thumb_out` da Meta e a que o `core/gesture_ai.py` já usava.
+>
+> Commit próprio com corpus antes e depois, como manda a regra: F1 macro
+> 0.8958 → **1.0000**, `SHAKA` F1 0.0 → 1.0, `PINKY` precisão 0.600 → 1.0,
+> confusões **zero**, `ACEITE: todos os alvos cumpridos`. O portão ficou em
+> `tests/test_corpus_fixture.py::TestShakaIsRecognised` (SHAKA F1 ≥ 0.9, a
+> condição que §1.4 exigia antes de anunciar) e o predicado isolado está em
+> `tests/test_shaka_thumb_out.py`.
+>
+> **O que fica por provar:** tudo isto é fixture sintética. Falta o SHAKA no
+> hardware, à mesma luz que a limitação 11 sempre teve. É exactamente o que a
+> Onda 3 §3.1 tem de medir.
 
 ### 1.4 Corrigir os rótulos ⚠️ barato
 
@@ -1352,7 +1387,7 @@ para a camada de composição.
 | Onda | Âmbito | Esforço | Dependência |
 |---|---|---|---|
 | **0** ✅ | `--record`/`--replay`, corpus etiquetado, `eval_recognition.py`, CI | feito | — |
-| **1** | SHAKA→PINKY (defeito medido) · filtrar landmarks · propagate confiança · rótulos | 1 semana | 0 |
+| **1** 🔶 | ~~SHAKA→PINKY (defeito medido)~~ **feito** · filtrar landmarks · propagate confiança · rótulos | 1 semana | 0 |
 | **2** | wrist space · ângulos de falange · features contínuas · 9 transformadores · detector declarativo · clique analógico | 4–6 semanas | 0, 1 |
 | **3** | Corpus real por demografia · `REJECT` · features de velocidade · especialistas | 3–4 semanas | 0, 2 |
 | **4** | Identidade por tracking · modelo de mão para oclusão · `TRACKING_LOST` | 3–4 semanas | 2 |
@@ -1363,8 +1398,14 @@ para a camada de composição.
 A Onda 1 sozinha já justifica o seu custo (é o maior ganho isolado do plano) e
 a Onda 2 é onde o sistema passa de "bons limiares" a "arquitectura correcta". A
 Onda 0 não é opcional: é o que torna todo o resto verificável — e sem ela a
-Onda 1 seria uma aposta. Agora que existe, a Onda 1 começa com um defeito
-**medido** e não com uma intuição.
+Onda 1 seria uma aposta. Agora que existe, a Onda 1 começou por um defeito
+**medido** e não por uma intuição, e o primeiro item (§1.3, SHAKA→PINKY) está
+**fechado** — a fixture passou de 0.8958 para 1.0000 com zero confusões.
+
+O resto da Onda 1 (filtrar landmarks das pontas dos dedos, propagar a confiança
+do MediaPipe, corrigir os rótulos do enum) continua por fazer. A filtragem
+ganhou prioridade nova: com a confusão PINKY/SHAKA fechada, o próximo
+off-diagonal **não é conhecido** — só aparece quando houver corpus real.
 
 ## 3.8 Métricas de aceitação
 
@@ -1374,7 +1415,7 @@ para que a afirmação seja verificável:
 | Métrica | Alvo | Actual | Nota |
 |---|---|---|---|
 | **Cliques fantasma** | **0 por hora** de uso contínuo | **0/h** (sintético) | A métrica mais importante. Destrutiva quando falha. |
-| F1 por gesto | ≥ 0.97, sem gesto abaixo de 0.95 | **0.8958** macro | Inclui os gestures compostos |
+| F1 por gesto | ≥ 0.97, sem gesto abaixo de 0.95 | **1.0000** macro (sintético) | Cumprido na fixture depois da Onda 1 §1.3. **Não é evidência de qualidade** — falta o corpus real (Onda 3 §3.1) |
 | Recall do cursor (`OPEN`/`ONE`) | ≥ 0.995 | 1.000 | É a função primária; quase nunca pode falhar |
 | Precisão do clique (`PINCH`) | ≥ 0.99 | 1.000 | Falso positivo aqui é o pior caso |
 | Latência de clique p95 | < 80 ms | medido | Alvo já em `HARDWARE/LAB.md` |

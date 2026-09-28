@@ -31,13 +31,22 @@ jobs:
         run: QT_QPA_PLATFORM=offscreen xvfb-run -a pytest tests -q
 
       # Onda 0: imprime as metricas de reconhecimento do corpus de regressao
-      # para o log do PR. NAO e o portao: o portao e
-      # tests/test_corpus_fixture.py (TestReplayMatchesBaseline), que corre
-      # acima e falha se alguma classe perder F1. Aqui nao se usa --gate, porque
-      # o alvo de 0.97 ainda nao e atingido (ver TestKnownLimitationShakaVsPinky)
-      # e um job sempre vermelho ensina a ignorar o job.
-      - name: Recognition report (replay do corpus de regressão)
-        run: python main.py --replay tests/fixtures/corpus_regressao_v1.npz
+      # para o log do PR. Corre por DUAS razoes, porque respondem a perguntas
+      # diferentes:
+      #   * o portao contra regressao e
+      #     tests/test_corpus_fixture.py (TestReplayMatchesBaseline), que corre
+      #     acima e falha se alguma classe perder F1 face ao baseline commitado;
+      #   * --replay-gate e o alvo de aceitacao (F1 macro >= 0.97, precisao do
+      #     PINCH >= 0.99, 0 cliques fantasma/h) — trava a qualidade abaixo do
+      #     anunciado.
+      # O --replay-gate estava desligado porque o alvo de 0.97 falhava por
+      # construcao (confusao PINKY/SHAKA, Onda 1 §1.3) e nao por qualidade: um
+      # job sempre vermelho ensina a ignorar o job. Corrigida a confusao, o alvo
+      # e atingido na fixture (F1 macro 1.0000) e o gate pode passar a valer.
+      # NOTA HONESTA: mede a fixture SINTETICA. Trava contra piora de medicao,
+      # nao prova qualidade em maos reais (falta o corpus real, Onda 3 §3.1).
+      - name: Recognition report (replay do corpus de regressão, com gate)
+        run: python main.py --replay tests/fixtures/corpus_regressao_v1.npz --replay-gate
 
       - name: Test (license server)
         run: pytest license-server/tests -q

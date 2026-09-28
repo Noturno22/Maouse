@@ -10,7 +10,9 @@ O que o teste garante
 * o corpus e reproduzivel (mesma seed, mesmas landmarks);
 * o replay do corpus commitado bate certo com o baseline commitado;
 * nenhuma classe perde precisao ou recall;
-* os cliques fantasma nao aumentam e os cliques nao deixam de acontecer.
+* os cliques fantasma nao aumentam e os cliques nao deixam de acontecer;
+* o SHAKA e reconhecido como SHAKA e o PINKY nao o engole
+  (`TestShakaIsRecognised` — ver `HARDWARE/PROBLEMAS_KNOWN.md` §1.4).
 
 O que o teste NAO garante
 -------------------------
@@ -20,14 +22,23 @@ serve um corpus gravado no hardware.
 
 Sobre o F1 alvo
 ---------------
-`--gate` com min_f1=0.97 hoje **falha** (0.896), e nao por acidente: o par
-PINKY/SHAKA esta 100% trocado (ver `TestKnownLimitationShakaVsPinky`). O CI
-compara com o baseline para bloquear *piora*; o alvo de aceitacao e um
-judgemento a parte, que se decide quando houver corpus gravado. Um CI sempre
-vermelho ensina toda a gente a ignorar o CI - pior do que nao ter.
+Este modulo responde a duas perguntas diferentes, e as duas vigam no CI:
+
+* **regressao** (aqui, `TestReplayMatchesBaseline`): nenhuma classe perde F1
+  face ao baseline commitado. Bloqueia *piora*, seja qual for o numero.
+* **qualidade anunciada** (`--replay-gate` no step de `ci.yml`): F1 macro
+  >= 0.97, precisao do PINCH >= 0.99, 0 cliques fantasma/h.
+
+O gate so passou a valer depois de a confusao PINKY/SHAKA estar corrigida
+(ver `TestShakaIsRecognised`): antes dela o 0.896 falhava por construcao, nao por
+qualidade, e um job sempre vermelho ensina toda a gente a ignora-lo - pior do que
+nao ter.
+
+Isto **nao** prova qualidade em maos reais. A fixture e parametrica e
+deterministica: com F1 = 1.0 ela trava contra piora de medicao, nada mais. Para
+isso ser um numero de marketing faz falta o corpus gravado (Onda 3 §3.1).
 """
 import json
-import math
 import os
 from pathlib import Path
 
@@ -42,7 +53,6 @@ from core.corpus import (
 from core.gestures import Gesture
 from tools.eval_recognition import evaluate
 from tools.make_corpus_fixture import (
-    FINGER_CURLS,
     HEIGHT,
     RUNS,
     SCALE_PX,
@@ -204,49 +214,40 @@ class TestReplayMatchesBaseline:
             assert now <= before + TOL
 
 
-class TestKnownLimitationShakaVsPinky:
-    """A confusao que a fixture encontrou, e porque nao e um bug da fixture.
+class TestShakaIsRecognised:
+    """PINKY vs SHAKA tem de ser uma distincao, nao uma confusao.
 
-    `core/gestures.py:188-194` decide PINKY vs SHAKA por `thumb_out`: o
-    deslocamento da ponta do polegar **relacionado com o landmark 3** tem de
-    passar 0.30 (dx) ou 0.25 (dy) vezes a escala (pulso -> landmark 9).
-
-    O modelo cinematico do projecto tem uma falange distal de 0.28 unidades
-    para uma escala de 1.10, ou seja 0.2545. Nao existe pose com dx > 0.30. Para
-    dy > 0.25 so resta uma janela de ~20 graus em torno da vertical. Numa mao
-    real o racio e o mesmo (~30 mm de falange distal para ~95 mm de palma), pelo
-    que o limiar mede anatomia e nao intencao — e o resultado varia de pessoa
-    para pessoa.
-
-    Consequencia medida na fixture: 100% das SHAKA sao lidas como PINKY, ou
-    seja o Ctrl+V nunca acontece com o gesto "hang loose".
+    `HARDWARE/PROBLEMAS_KNOWN.md` §1.4 exige SHAKA F1 >= 0.9 antes de o gesto
+    poder ser anunciado: com o `thumb_out` a medir a ponta do polegar contra o
+    seu proprio IP (landmark 3), 8 de 8 os SHAKA saiam PINKY e o "hang loose"
+    disparava Ctrl+C em vez de Ctrl+V. A correcao mede a distancia da ponta do
+    polegar a base do indicador (landmark 5).
     """
 
-    def test_thumb_phalanx_cannot_clear_the_horizontal_threshold(self):
-        rng = np.random.default_rng(SEED)
-        for _ in range(50):
-            skel = _skeleton("SHAKA", rng)
-            wrist, m9 = skel[0], skel[9]
-            scale = float(np.hypot(m9[0] - wrist[0], m9[1] - wrist[1]))
-            assert abs(float(skel[4][0] - skel[3][0])) < 0.30 * scale
-
-    def test_vertical_window_is_under_twenty_degrees(self):
-        # A falange distal mede 0.28 e o limiar e 0.275 (0.25 x 1.10). Para a
-        # componente vertical bater, o angulo com a vertical tem de satisfazer
-        # cos(t) > 0.275/0.28, ou seja t < 10.9 graus. O polegar tem de apontar
-        # quase exactamente para cima (ou para baixo) para o SHAKA existir.
-        assert math.degrees(math.acos(0.275 / 0.28)) < 20.0
-
-    def test_pinky_and_shaka_are_the_same_finger_pose(self):
-        # O que separa os dois gestos e o limiar anatomico acima, nao a pose.
-        assert FINGER_CURLS["PINKY"] == FINGER_CURLS["SHAKA"]
-
-    def test_shaka_is_always_read_as_pinky(self):
-        # Fixa o comportamento actual para que a correcao seja visivel: quando
-        # alguem a implementar, este teste falha e obriga a ler o porque.
+    def test_shaka_frames_are_not_swallowed_by_pinky(self):
         report = _report()
-        assert report.score.per_class["SHAKA"].f1 == 0.0
-        assert report.score.per_class["PINKY"].recall == 1.0
+        sha = report.score.per_class["SHAKA"]
+        assert sha.recall == 1.0, (
+            f"recall de SHAKA = {sha.recall:.3f} (esperado 1.000): "
+            f"{sha.support} frames de SHAKA estao a ser lidos como outra coisa. "
+            f"Confusoes: {report.score.worst_confusions or 'nenhuma'}. "
+            f"A confusao SHAKA -> PINKY e a do predicado `thumb_out`: a ponta do "
+            f"polegar era medida contra o landmark 3 com dx > 0.30 * escala, "
+            f"limiar que a falange distal (~0.28) nao alcanca."
+        )
+
+    def test_shaka_f1_clears_the_announced_threshold(self):
+        # O alvo de aceitacao em HARDWARE/PROBLEMAS_KNOWN.md §1.4.
+        assert _report().score.per_class["SHAKA"].f1 >= 0.9
+
+    def test_pinky_no_longer_eats_shaka(self):
+        # O outro lado da mesma moeda: com o limiar antigo a precisao do PINKY
+        # caia para 0.600, porque 8 dos 20 frames previstos PINKY eram SHAKA.
+        pinky = _report().score.per_class["PINKY"]
+        assert pinky.precision >= 0.9, (
+            f"precisao de PINKY = {pinky.precision:.3f} (esperado >= 0.900): "
+            f"o PINKY esta a engolir frames de SHAKA"
+        )
 
 
 class TestPlacement:

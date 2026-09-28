@@ -43,15 +43,30 @@
     * **Limite honesto**: o corpus versionado é sintético e determinístico. Trava contra
       *regressão*, não prova *qualidade*. Gravações com mãos reais não são versionadas;
       o corpus real por demografia é a Onda 3.
-11. **Defeito encontrado pela Onda 0: `SHAKA` (Ctrl+V) nunca acontece.**
-    O predicado `thumb_out` (`core/gestures.py:187-203`) mede o deslocamento da ponta do
-    polegar contra `landmark 3` e exige `dx > 0.30 × escala` ou `dy > 0.25 × escala`. Mas a
-    falange distal mede ~0.28 de uma escala de 1.10 (mãos reais: ~30 mm contra ~95 mm de
-    palma). O teste mede **anatomia, não intenção**, e varia por utilizador. Medido: **8 de
-    8 `SHAKA` classificados como `PINKY`** → o utilizador recebe **Ctrl+C em vez de Ctrl+V**.
-    A correcção troca a medida (ponta do polegar contra a base do indicador, como o
-    `thumb_out` da Meta) e é o primeiro item da **Onda 1 §1.3**. Ver
-    `HARDWARE/PROBLEMAS_KNOWN.md` §1.4.
+11. **✅ Defeito da Onda 0 corrigido na Onda 1 §1.3: `SHAKA` (Ctrl+V) acontecia
+    como Ctrl+C.** O `thumb_out` media o deslocamento da ponta do polegar contra
+    o seu próprio `landmark 3` e exigia `dx > 0.30 × escala` — a falange distal
+    mede ~0.28, portanto a condição era **geometricamente impossível** por
+    construção. Medido na Onda 0: **8 de 8 `SHAKA` → `PINKY`**.
+    **Correcção** (`core/gestures.py`, branch `fix/onda1-shaka`): medir a
+    distância da ponta do polegar à **base do indicador (`landmark 5`)**,
+    normalizada pela escala (~1.23 para o lado, ~0.85 recolhido, corte em 1.05) —
+    a mesma medida do `thumb_out` da Meta.
+    **Depois** (mesma fixture): F1 macro **0.8958 → 1.0000**, `SHAKA` F1
+    **0.0 → 1.0**, `PINKY` precisão 0.600 → 1.0, **zero confusões**,
+    `ACEITE: todos os alvos cumpridos` (min_f1 0.97). Portão em
+    `tests/test_corpus_fixture.py::TestShakaIsRecognised` + predicado isolado em
+    `tests/test_shaka_thumb_out.py`. Ver `HARDWARE/PROBLEMAS_KNOWN.md` §1.4.
+    **Falta**: provar em mãos reais (Onda 3 §3.1) — a fixture é sintética.
+12. **O `--replay-gate` passou a valer no CI.** Com a confusão PINKY/SHAKA
+    fechada, o alvo `min_f1 = 0.97` passou a ser medível: antes falhava por
+    construção, não por qualidade. O step de reconhecimento do `ci.yml` passou a
+    correr **com gate** (F1 macro ≥ 0.97, precisão do PINCH ≥ 0.99, 0 cliques
+    fantasma/h). O portão contra *regressão* continua a ser
+    `tests/test_corpus_fixture.py`, que compara com o baseline commitado — são
+    perguntas diferentes e as duas vigiam.
+    **Limite honesto**: o gate mede a fixture **sintética**. Trava contra piora de
+    medição, não prova qualidade em mãos reais (Onda 3 §3.1).
 
 ### 🔴 Bloqueadores em aberto (Sprint 2 → 1.ª venda paga)
 

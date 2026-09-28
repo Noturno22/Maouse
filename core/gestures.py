@@ -184,14 +184,17 @@ class GestureEngine:
             and curled[RING]
             and not curled[PINKY]
         )
-        # SHAKA: thumb extended (not curled toward wrist) + pinky extended
+        # SHAKA: thumb extended (not curled toward wrist) + pinky extended.
+        # The signal is how far the thumb tip sits from the index MCP
+        # (landmark 5) relative to the hand scale: ~1.23 with the thumb out to
+        # the side, ~0.85 tucked over the palm, so 1.05 splits the two cleanly.
+        # Measuring the tip against its own IP (landmark 3) instead asked for
+        # dx > 0.30 * scale, which is more than the distal phalanx itself
+        # (~0.28 of scale) — geometrically impossible, so every SHAKA fell
+        # through the priority chain to PINKY (Ctrl+C instead of Ctrl+V).
         thumb_out = False
         if all_curled or pinky_only:
-            tip_y = pts[THUMB_TIP][1]
-            ip_y = pts[3][1]
-            dx_thumb = abs(pts[THUMB_TIP][0] - pts[3][0])
-            dy_thumb = abs(tip_y - ip_y)
-            thumb_out = dx_thumb > 0.3 * scale or dy_thumb > 0.25 * scale
+            thumb_out = _dist(pts[THUMB_TIP], pts[5]) / scale > 1.05
         thumb_pinky = (
             thumb_out
             and not curled[PINKY]
