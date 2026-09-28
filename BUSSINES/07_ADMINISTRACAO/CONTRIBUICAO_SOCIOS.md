@@ -14,7 +14,7 @@
 |---|---|
 | Nome | **Fortuna** — José Fortuna |
 | GitHub | `josefortunafortuna54-byte` (colaborador no `Noturno22/Maouse`) |
-| Email | `josefortunafortuna54@gmail.com` (GitHub) · git config actual: **`teu-email-do-github`** ⚠️ ver §5.1 |
+| Email | `josefortunafortuna54@gmail.com` (GitHub) · git config actual: **`teu-email-do-github`** 🔴 ver §4.5 e §5.1 |
 | Papel | Sócio-função — mobile, remote, Linux, CI |
 | Participação | **4% com vesting** (plano, a formalizar em contrato) |
 | Capital investido | €0 (sócio-função) |
@@ -33,6 +33,10 @@ Só contam como contribuição **artefactos verificáveis** no repositório:
 | Ficheiros entregues/alterados | diff de cada commit |
 | Documentação de domínio | `docs/` produzidos para o domínio do sócio |
 | Testes/CI | estado do pipeline no momento de cada entrega |
+
+> ⚠️ **Esta tabela mede o repositório, não o GitHub — e as duas coisas já não
+> coincidem.** Ver §4.5: o GitHub não atribui um único commit a este sócio. Onde
+> os dois discordarem, o GitHub é o número que um investidor ou um auditor vê.
 
 > **Honestidade metodológica.** As entregas de código são do sócio e verificáveis.
 > As **análises/documentos técnicos** do domínio são produzidas pelo **pipeline de
@@ -105,7 +109,7 @@ limitações**. As atribuíveis ao domínio do sócio:
 - **Conhece os dois lados do protocolo** — os fixes de `dfd218b` exigiam ler o
   TS do telemóvel *e* o Python do desktop. Raro e valioso.
 - **Entrega CI que fica verde** — um sócio que deixa o pipeline verde deixa a
-  casa arrumada; os restantes 197 commits do repo dependem disso.
+  casa arrumada; os restantes ~200 commits do repo dependem disso.
 - **Iniciou rapidamente** — 5 commits substantivos nos primeiros 2 dias.
 
 ### 4.4 Pontos fracos / risco
@@ -116,9 +120,47 @@ limitações**. As atribuíveis ao domínio do sócio:
 - **A propriedade do mobile é na prática do fundador.** `mobile/airmouse-mobile/`
   tem 30 commits do `Noturno22` vs 2 do Fortuna. O domínio "mobile" do papel do
   sócio está, na prática, entregue acima de 90% pelo fundador.
-- **Email de git por preencher** (`teu-email-do-github`) — invisível para
-  ferramentas de atribuição de contribuição.
+- **Contribuição invisível para o GitHub** — 🔴 ver §4.5. Não é tracking fraco: é
+  contributação a **zero** no perfil.
 - **Nenhuma contribuição em testes do remote** — o item 🔴 do cap §4.2.
+
+### 4.5 🔴 A contribuição não aparece no GitHub (verificado 2026-09-28)
+
+Isto não estava no registo e é o achado mais consequente desta revisão. Verificado
+por API, não por impressão:
+
+| Consulta | Resultado |
+|---|---|
+| `GET /repos/Noturno22/Maouse/contributors` | **1 entrada só: `Noturno22` (198 commits no GitHub).** O Fortuna não consta. |
+| `GET .../commits?author=josefortunafortuna54-byte` | **`[]`** — vazio |
+| `GET .../commits/d9def7d…` | `"author": null` — o commit existe, mas **sem dono** |
+
+Nota de contagem: o GitHub diz 198 commits para o fundador; o repositório local
+tem 205 seus + 6 do Fortuna = 211. A diferença é o delay entre o push e o
+recálculo de atribuição do GitHub — os 6 commits do sócio nunca entrarão nessa
+conta enquanto o email não for corrigido.
+
+**Causa.** Os commits foram feitos com `user.email = teu-email-do-github`, que não
+corresponde a nenhum email verificado da conta `josefortunafortuna54-byte`. O GitHub
+associa um commit a uma conta **pelo email**, não pelo `user.name` — e `git config
+user.name` está correcto (`josefortunafortuna54-byte`), o que torna a falha
+invisível a quem olha o `git log` local.
+
+**Consequência.** Não é "tracking mais fraco", como dizia §5.1 antes desta revisão:
+é **contribuição a zero** para fora do projecto. Não aparece no perfil do sócio,
+nem no Insights → Contributors, nem em nenhum número que se possa citar numa
+conversa de cap table ou num diligence de investidor. A lista que um terceiro
+veria é "1 contributor, 198 commits" — o que, pior, atribui ao fundador o
+trabalho que o sócio fez.
+
+**Gravidade.** 🔴 — e o custo de corrigir é de minutos, não de semanas. Um
+cap table é uma conversa sobre evidência; evidência que não aparece não conta.
+
+**Correcção** (do lado do sócio, precisa da sua máquina): ver §5.1. Nota: os 6
+commits já são públicos e não se reescrevem sem `filter-branch`/force-push, que
+**não** é recomendado. O que se recupera a partir de agora é o FUTUREIRO da
+atribuição; para o passado, a atribuição correcta é a tabela de §3, que é
+verificável por qualquer pessoa pelo diff.
 
 ---
 
@@ -126,11 +168,44 @@ limitações**. As atribuíveis ao domínio do sócio:
 
 ### 5.1 Higiene imediata (15 minutos)
 
-1. Corrigir o `user.email`/`user.name` do git do Fortuna para
-   `josefortunafortuna54@gmail.com` / `José Fortuna` — sem isso, o GitHub não
-   atribui os commits e o *tracking* de contribuição fica mais fraco.
-2. Definir o critério formal de vesting (o que conta para os 4%: commits?
+1. **Corrigir o `user.email`/`user.name` do git do Fortuna** para
+   `josefortunafortuna54@gmail.com` / `José Fortuna` — 🔴 **é a prioridade
+   máxima desta lista**, porque hoje a contribuição dele é **invisível no
+   GitHub** (§4.5). Sem isto, qualquer leitura externa do repositório atribui ao
+   fundador trabalho que o sócio fez. Na máquina dele:
+
+   ```bash
+   git config --global user.name  "José Fortuna"
+   git config --global user.email "josefortunafortuna54@gmail.com"
+   ```
+
+   Confirmar com `git log -1 --format='%an <%ae>'` a dar o email certo.
+2. **Não reescrever o histórico.** Os 6 commits são públicos; `filter-branch` ou
+   force-push para os reatribuir destrói o histórico partilhado por um ganho
+   estético. A atribuição correcta do passado é a tabela de §3.
+3. **Esclarecer onde está o trabalho recente** (ver §5.3) — há divergência entre
+   o que o sócio refere e o que o repositório e o GitHub mostram.
+4. Definir o critério formal de vesting (o que conta para os 4%: commits?
    PRs? marcos?) e registar em `ESTRUTURA_DA_EMPRESA.md`.
+
+### 5.3 Trabalho recente: divergência a esclarecer 🟡
+
+Verificado a 2026-09-28: **o GitHub não regista commits deste sócio desde
+2026-09-15** (14 dias), e o único PR seu (#1, `fix(lint)`) foi **merged hoje**,
+mas é o commit de duas semanas — a branch `feature/touch` continua no mesmo SHA
+de 15/set. O repositório local confirma: zero commits de terceiros desde 16/set.
+
+O sócio refere ter trabalhado recentemente. **Perguntas directas a fazer:**
+
+- Onde exactamente está o trabalho — outro repositório, branch local não
+  partilhada, ou trabalho ainda não commitado?
+- Se for noutro sítio, porque não foi trazido para `Noturno22/Maouse`? Sem isso
+  o domínio do papel não é auditável e, por definição, não conta para vesting.
+- O PR #1, merged hoje, conta como entrega?
+
+**Não registar como entrega até haver commit verificável.** A regra do projecto
+(§2) só conta artefactos verificáveis; um "fiz trabalho" sem diff não entra no
+cap table.
 
 ### 5.2 Portefólio a cobrar no próximo passo do sócio
 
@@ -149,7 +224,10 @@ Prioridade segundo o plano em `docs/RECONHECIMENTO_REMOTE.md` Parte 3:
 | Indicador | Valor |
 |---|---|
 | Equity (plano) | 4% com vesting |
-| Entregas verificáveis | 6 commits (5 substantivos) |
+| Entregas verificáveis | 6 commits (5 substantivos), **todos de 14–15/set** |
+| Commits registados pelo **GitHub** em nome do sócio | **0** 🔴 (§4.5) |
+| Último commit do sócio | **2026-09-15** — há 14 dias |
+| Trabalho recente declarado, não encontrado no repositório | 🟡 por esclarecer (§5.3) |
 | Documentação de domínio | `docs/RECONHECIMENTO_REMOTE.md` (ca. 1110 linhas, 3 partes) |
 | Domínio no papel vs. na prática | papel: mobile/remote/Linux/CI · prática: core desktop/CI mixes |
 | Bloqueadores do build atribuíveis ao domínio | **2 🔴** (`websockets>=13.0`) |
@@ -160,6 +238,7 @@ Prioridade segundo o plano em `docs/RECONHECIMENTO_REMOTE.md` Parte 3:
 | Versão | Data | O quê mudou | Quem |
 |---|---|---|---|
 | 1.0 | 2026-09-28 | Criação da área de análise de contribuição; consolidação das entregas verificáveis do sócio-função Fortuna; registo das 24 limitações do domínio remote (auditoria) | Luar Studio Angola |
+| 1.1 | 2026-09-28 | **Verificação por API do GitHub**: a contribuição do sócio é **invisível** (0 commits atribuídos, `author: null`, 1 contributor no repo) por causa do email `teu-email-do-github` — nova §4.5, 🔴. Confirmado que **não há trabalho novo desde 15/set** (repo local e GitHub); o PR #1 merged hoje é o commit de duas semanas — nova §5.3, 🟡, com a pergunta directa a fazer | Luar Studio Angola |
 
 ---
 

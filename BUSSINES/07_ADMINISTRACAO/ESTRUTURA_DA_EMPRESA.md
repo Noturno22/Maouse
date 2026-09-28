@@ -16,7 +16,7 @@
 | # | Sócio | Papel | Participação (plano) | Capital investido | Estado |
 |---|---|---|---|---|---|
 | 1 | **Luar Studio Angola** (fundador) | Fundador · Sócio-função (produto, IA, estratégia) | 100% | €0 | ✅ Ativo — detém tudo (pré-papel) |
-| 2 | **Fortuna** (GitHub `josefortunafortuna54-byte`) | Sócio-função (mobile, remote, Linux, CI) | **4%** (plano — com vesting, a formalizar em contrato) | €0 (sócio-função) | ✅ Ativo — colaborador no repositório `Noturno22/Maouse` (commits desde 2026-09-14) · **email: josefortunafortuna54@gmail.com** |
+| 2 | **Fortuna** (GitHub `josefortunafortuna54-byte`) | Sócio-função (mobile, remote, Linux, CI) | **4%** (plano — com vesting, a formalizar em contrato) | €0 (sócio-função) | ✅ Ativo — colaborador no repositório `Noturno22/Maouse` (6 commits, todos de 14–15/set) · **email: josefortunafortuna54@gmail.com** · ⚠️ commits com email errado: **0 contributions** no GitHub |
 
 **Notas estruturais (decisão D5):**
 - Estrutura planeada: **holding Angola (raiz/IP)** + **entidade leve UE (Portugal — Soc. Unipessoal)** para vendas EU.
@@ -93,6 +93,7 @@
 | 1.4 | 2026-09-15 | **2.º sócio-função registado**: **Fortuna** (GitHub `josefortunafortuna54-byte`) — mobile, remote e Linux (commits no `Noturno22/Maouse` desde 2026-09-14) · email josefortunafortuna54@gmail.com · participação em definição | Luar Studio Angola |
 | 1.5 | 2026-09-15 | **Equity do Fortuna definido**: **4% com vesting** (sócio-função mobile/remote/Linux/CI) · merge da `feature/touch` (fixes CI) em `main` · cap table pós-entradas: fundador ~88-96%, Roberto 8–15% (a fechar), Fortuna 4% | Luar Studio Angola |
 | 1.6 | 2026-09-28 | **Abertura da área de análise de contribuição de sócios**: `CONTRIBUICAO_SOCIOS.md` — Fortuna (6 commits verificáveis, 2 🔴 a bloquear o build da EAS no domínio remote) · auditoria profunda do remote em `docs/RECONHECIMENTO_REMOTE.md` | Luar Studio Angola |
+| 1.7 | 2026-09-28 | **Contribuição do Fortuna verificada por API do GitHub**: 0 commits atribuídos ao sócio (`author: null`, 1 contributor no repo) por causa do email `teu-email-do-github`; o repositório local confirma que **não há commits seus desde 15/set** e que o PR #1 (merged hoje) é o commit de duas semanas. Correcção do `git config` é acção do sócio, não do fundador — ver `CONTRIBUICAO_SOCIOS.md` §4.5 e §5.3 | Luar Studio Angola |
 
 ---
 
