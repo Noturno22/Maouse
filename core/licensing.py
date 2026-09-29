@@ -9,6 +9,7 @@ from enum import Enum
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 
+from core.envcfg import env_value
 from core.fingerprint import machine_id
 from core.license_client import LicenseClient, LicenseError
 from core.log import get_logger
@@ -18,11 +19,37 @@ log = get_logger("licensing")
 TRIAL_DEFAULT_SECONDS = 5 * 60
 LEASE_DEFAULT_DAYS = 7
 
-# URL do license-server de PRODUÇÃO. É o ÚNICO ponto a preencher quando o servidor
-# for deployado (ver docs/DESKTOP_LICENSE_URL.md). Em runtime é sobreposto pela env
-# AIRMOUSE_LICENSE_URLS (usada para apontar a servidores de teste/QA).
-# TODO(producao): substituir pelo URL real do Render.
-PROD_LICENSE_SERVER_URL = "https://licenses.maouse.example.com"
+# Domínio reservado (RFC 2606) que marca "servidor de licenças NÃO configurado".
+# Enquanto o endpoint de produção for este valor, a ativação online não pode
+# funcionar — e o cliente passa a dizer isso em vez de falhar com um erro de
+# rede genérico. Ver docs/DESKTOP_LICENSE_URL.md.
+LICENSE_URL_NOT_CONFIGURED = "https://licenses.maouse.example.com"
+
+# URL do license-server de PRODUÇÃO — FONTE ÚNICA do endpoint.
+#
+# Prioridade de resolução (ver docs/DESKTOP_LICENSE_URL.md):
+#   1. env AIRMOUSE_LICENSE_URLS      — override, QA/dev e multi-endpoint
+#   2. ficheiro .env do utilizador    — mesmo override, sem export no shell
+#   3. core/_license_endpoint.py      — o URL real EMBUTIDO no build
+#   4. esta constante                  — fallback; TEM de ser o URL real
+#
+# O build distribuído NÃO leva env vars nem .env, por isso o passo 3 é o que
+# torna a ativação possível num .exe: `tools/gen_license_endpoint.py` escreve
+# esse módulo a partir de AIRMOUSE_LICENSE_SERVER_URL antes do bake (ver
+# build.bat) e o PyInstaller inclui-o no binário.
+#
+# TODO(producao): substituir pelo URL do Render e NÃO mudar depois de
+# distribuir sem rebuildar (clients antigos ficam com o placeholder).
+PROD_LICENSE_SERVER_URL = LICENSE_URL_NOT_CONFIGURED
+
+
+def _baked_endpoint() -> str:
+    """URL embebido no build, ou "" se o módulo não foi gerado (dev)."""
+    try:
+        from core import _license_endpoint  # type: ignore[attr-defined]
+    except ImportError:
+        return ""
+    return (getattr(_license_endpoint, "LICENSE_SERVER_URL", "") or "").strip().rstrip("/")
 
 _PUBLIC_KEY_PEM = os.path.join(os.path.dirname(__file__), "licensing_public_key.pem")
 
@@ -37,11 +64,11 @@ PRO_LOCKED = ("snap", "voice", "two_hands", "tts", "ai", "autotune", "low_light"
 # Produtos Paddle (Pay Links). Preencher com os IDs reais dos preços quando a
 # entidade UE e o catálogo Paddle existirem. Mantido por compat (checkout).
 PADDLE_PRODUCT_URLS = {
-    "lifetime": os.environ.get("AIRMOUSE_PADDLE_LIFETIME_URL", ""),
-    "subscription": os.environ.get("AIRMOUSE_PADDLE_SUBSCRIPTION_URL", ""),
-    "family": os.environ.get("AIRMOUSE_PADDLE_FAMILY_URL", ""),
-    "access": os.environ.get("AIRMOUSE_PADDLE_ACCESS_URL", ""),
-    "trading_master": os.environ.get("AIRMOUSE_PADDLE_TRADING_MASTER_URL", ""),
+    "lifetime": env_value("AIRMOUSE_PADDLE_LIFETIME_URL"),
+    "subscription": env_value("AIRMOUSE_PADDLE_SUBSCRIPTION_URL"),
+    "family": env_value("AIRMOUSE_PADDLE_FAMILY_URL"),
+    "access": env_value("AIRMOUSE_PADDLE_ACCESS_URL"),
+    "trading_master": env_value("AIRMOUSE_PADDLE_TRADING_MASTER_URL"),
 }
 
 
@@ -83,6 +110,9 @@ class LicenseManager:
         self._last_use_seq = 0
         self._blocked = False
         self._block_reason = ""
+        self._last_error = ""
+        if not license_server_configured():
+            log.warning("%s", license_server_status())
         self.load()
 
     # ── Trial (server-authoritative + best-effort offline) ──
@@ -229,17 +259,38 @@ class LicenseManager:
 
     # ── Ativação online ──
     def activate(self, key: str) -> bool:
+        key = key.strip()
+        if not key:
+            self._last_error = "chave_vazia"
+            return False
+        if not license_server_configured():
+            # Falhar aqui com uma mensagem clara é melhor do que spend 8s por
+            # endpoint a tentar resolver um domínio que não existe.
+            self._last_error = "servidor_nao_configurado"
+            log.warning("%s", license_server_status())
+            return False
         try:
-            result = self._client.activate(key.strip(), self._machine)
+            result = self._client.activate(key, self._machine)
         except LicenseError as exc:
-            self._blocked = True
-            self._block_reason = f"ativacao_falhou: {exc}"
+            # NOTA: uma ativação falhada (chave errada, servidor em baixo) NÃO
+            # bloqueia a app — apenas regista o motivo. Bloquear aqui deixava o
+            # utilizador sem poder usar nem o Free depois de escrever a chave
+            # com um typo.
+            self._last_error = str(exc)
+            log.warning("Ativacao falhou: %s", exc)
             return False
         self.lease = result["lease"]
-        self.key = key.strip()
+        self.key = key
+        self.email = result.get("email", "")
         self.tier = Tier.PRO
+        self._last_error = ""
         self.save()
         return True
+
+    @property
+    def last_error(self) -> str:
+        """Motivo da última ativação falhada (para a UI mostrar texto útil)."""
+        return self._last_error
 
     def revalidate(self) -> bool:
         if not self.lease:
@@ -325,6 +376,17 @@ class LicenseManager:
         }
 
     def open_checkout(self, product: str, vendor_id: int) -> bool:
+        # Sem vendor_id e sem URL de produto configurada, `checkout_urls` cairia
+        # no placeholder "checkout.paddle.com/0?..." e abriria uma página de
+        # erro no browser do utilizador. Melhor falhar em silêncio com aviso.
+        if not vendor_id and not PADDLE_PRODUCT_URLS.get(product):
+            log.warning(
+                "Checkout de '%s' nao aberto: Paddle nao configurado. Definir "
+                "AIRMOUSE_PADDLE_%s_URL ou AIRMOUSE_PADDLE_VENDOR_ID "
+                "(ver docs/SEGURANCA_LICENCA.md).",
+                product, product.upper(),
+            )
+            return False
         urls = self.checkout_urls(vendor_id)
         url = urls.get(product)
         if not url:
@@ -368,8 +430,44 @@ def _store_exists(store_path: str) -> bool:
 
 
 def _default_endpoints():
-    raw = os.getenv("AIRMOUSE_LICENSE_URLS", "")
-    return [u.strip() for u in raw.split(",") if u.strip()] or [PROD_LICENSE_SERVER_URL]
+    """Resolve a lista de endpoints do license-server (ver ordem em
+    PROD_LICENSE_SERVER_URL). Sempre devolve pelo menos um."""
+    raw = env_value("AIRMOUSE_LICENSE_URLS")
+    if raw:
+        urls = [u.strip().rstrip("/") for u in raw.split(",") if u.strip()]
+        if urls:
+            return urls
+    configured = (env_value("AIRMOUSE_LICENSE_SERVER_URL")
+                  or _baked_endpoint()
+                  or PROD_LICENSE_SERVER_URL)
+    return [configured.strip().rstrip("/")]
+
+
+def license_server_configured() -> bool:
+    """True se o endpoint de produção é um URL real (não o placeholder).
+
+    Com False, a ativação online é IMPOSSÍVEL — o trial local ainda funciona,
+    mas `--activate-key` e a renovação de lease vão falhar. Chamar isto no
+    arranque evita distribuir um build que só falha em silêncio.
+    """
+    return not all(_is_placeholder(u) for u in _default_endpoints())
+
+
+def _is_placeholder(url: str) -> bool:
+    return url.rstrip("/") == LICENSE_URL_NOT_CONFIGURED
+
+
+def license_server_status() -> str:
+    """Mensagem legível para o utilizador quando o servidor não está configurado."""
+    if license_server_configured():
+        return ""
+    return (
+        "Servidor de licencas NAO configurado: o endpoint de producao ainda e o "
+        f"placeholder ({LICENSE_URL_NOT_CONFIGURED}). A ativacao online de chaves "
+        "Pro e a renovacao de lease nao vao funcionar. Definir "
+        "AIRMOUSE_LICENSE_SERVER_URL (build) ou AIRMOUSE_LICENSE_URLS (dev) — "
+        "ver docs/DESKTOP_LICENSE_URL.md."
+    )
 
 
 _ACTIVE: "LicenseManager | None" = None
@@ -419,4 +517,6 @@ __all__ = [
     "Tier", "PRO_LOCKED", "entitlements", "is_pro_locked",
     "LicenseManager", "LicenseAgency", "UsageWatchdog",
     "set_active_license", "active_license", "active_tier",
+    "license_server_configured", "license_server_status",
+    "LICENSE_URL_NOT_CONFIGURED",
 ]

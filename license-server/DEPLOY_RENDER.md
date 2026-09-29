@@ -144,14 +144,26 @@ Depois de o serviço estar online (URL real conhecido):
 
 Depois de o serviço estar online:
 
-1. Edita o ponto único em `core/licensing.py`:
-   ```python
-   PROD_LICENSE_SERVER_URL = "https://licenses.maouse.example.com"  # → substituir pelo URL real
+1. **Gerar o módulo com o URL** (não editar source à mão):
+   ```bat
+   set AIRMOUSE_LICENSE_SERVER_URL=https://<service>.onrender.com
+   .venv\Scripts\python.exe tools\gen_license_endpoint.py
    ```
-2. Rebuild do `.exe` (ver `docs/DESKTOP_LICENSE_URL.md` para o comando PyInstaller).
+   Escreve `core/_license_endpoint.py` (gitignored, gerado). O `build.bat` faz
+   isto sozinho no passo **4/7**, logo para o build normal basta ter a env var
+   definida antes de o correr.
+
+2. Rebuild do `.exe` (`build.bat`). O `airmouse.spec` lista
+   `core._license_endpoint` em `hiddenimports` — sem isso o módulo não entra
+   no binário, porque `core/licensing.py` o importa dentro de uma função.
+
 3. Redistribui o novo instalador — o binário antigo continua a apontar para o placeholder e fica offline.
 
-> O desktop já suporta override por env `AIRMOUSE_LICENSE_URLS` (vírgulas) para testes/QA.
+4. **Smoke test:** o log de arranque do `.exe` não deve conter
+   `Servidor de licencas NAO configurado`. Se contiver, o passo 1 falhou.
+
+> O desktop já suporta override por env `AIRMOUSE_LICENSE_URLS` (vírgulas) para
+> testes/QA, tanto por env var como por linha no `.env` do utilizador.
 
 ---
 

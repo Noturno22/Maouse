@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMessageBox,
     QPlainTextEdit,
     QPushButton,
     QSpinBox,
@@ -485,8 +486,15 @@ class SettingsDialog(QDialog):
     def _buy_trading_master(self):
         from ui.license_dlg import PADDLE_VENDOR_ID
 
-        if self._license_mgr is not None:
-            self._license_mgr.open_checkout("trading_master", PADDLE_VENDOR_ID)
+        if self._license_mgr is None:
+            return
+        if not self._license_mgr.open_checkout("trading_master", PADDLE_VENDOR_ID):
+            # Sem isto o botão "comprar" não fazia nada e o utilizador não
+            # percebia se a culpa era da app ou da configuração do Paddle.
+            QMessageBox.warning(
+                self, "Trading Master",
+                tr("license.checkout_unavailable"),
+            )
 
     def _refresh_remote_info(self):
         from core.remote import generate_token, lan_ips

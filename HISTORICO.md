@@ -69,6 +69,124 @@ Formato de uma entrada:
 
 ---
 
+## [2026-09-26 21:57] Gap de produção do license-server — URL deixa de falhar em silêncio
+
+- **Objetivo:** fechar o gap de produção documentado em
+  `docs/DESKTOP_LICENSE_URL.md` (descoberto em 2026-09-04): sem um endpoint real
+  embebido no build, a ativação de chaves Pro num `.exe` distribuído falha sem
+  o utilizador perceber porquê.
+- **O que NÃO se pode fazer aqui:** inventar o URL de produção nem o
+  `vendor_id` do Paddle. Continuam a precisar de uma conta Render e de uma
+  conta Paddle. O que ficou feito é **tornar o placeholder visível** e
+  **criar o mecanismo para o URL real entrar no binário**.
+- **Problema 1 — o placeholder era silencioso:**
+  - `core/licensing.py` ganhou `LICENSE_URL_NOT_CONFIGURED`,
+    `license_server_configured()` e `license_server_status()`.
+  - `LicenseManager.__init__` faz `log.warning` no arranque quando o endpoint
+    é o placeholder → aparece no log em vez de falhar em silêncio.
+  - `activate()` recusa com `last_error == "servidor_nao_configurado"` em vez
+    de gastar 8 s por endpoint a resolver um domínio inexistente. A UI passou a
+    distinguir "chave errada" de "servidor não configurado" (chave de i18n
+    `license.server_not_configured`, 7 línguas).
+  - `open_checkout()` já não abre `checkout.paddle.com/0?…` no browser do
+    utilizador: sem `vendor_id` e sem URL de produto, recusa com aviso. O
+    botão "comprar" do Trading Master deixou de ser um no-op silencioso
+    (`ui/settings_dlg.py:_buy_trading_master`).
+- **Problema 2 — REGRESSÃO encontrada e corrigida:** `activate()` punha
+  `_blocked = True` quando a ativação falhava. Uma chave com um typo deixava o
+  utilizador **sem poder usar nem o Free**. Agora só regista o motivo em
+  `last_error` e não bloqueia. Coberto por
+  `test_failed_activation_does_not_block_free`.
+- **Problema 3 — a env var não sobrevivia ao build:** num bundle PyInstaller não
+  existem env vars de compilação em runtime, portanto
+  `AIRMOUSE_LICENSE_SERVER_URL` por si só nunca chegaria ao `.exe`. Solução:
+  - `tools/gen_license_endpoint.py` gera `core/_license_endpoint.py` (gitignored)
+    a partir da env var ou de um argumento.
+  - `core/licensing.py:_baked_endpoint()` lê esse módulo — é agora o passo 3 da
+    resolução, acima da constante.
+  - `build.bat` chama o gerador no passo **4/7** (passos renumerados).
+  - `airmouse.spec` lista `core._license_endpoint` em `hiddenimports` — sem isto
+    o módulo não entra no binário, porque o import é feito dentro de uma função
+    e a análise estática do PyInstaller não o vê.
+- **Problema 4 —上没有 `.env`:** nada no repo lia o `.env` para estas vars, e o
+  `.env.example` existia sem consumidor para o licensing. Novo `core/envcfg.py`
+  (`env_value` / `env_int`, sem dependências) é agora usado por
+  `core/licensing.py` e `ui/license_dlg.py`. Ordem: env var > `.env` (cwd, depois
+  raiz do projeto). Criado um `.env` local (gitignored) com
+  `AIRMOUSE_LICENSE_URLS=http://127.0.0.1:8899` — já não é preciso exportar nada
+  no shell a cada arranque.
+- **Resolução final do endpoint (fonte única, `core/licensing.py`):**
+  1. `AIRMOUSE_LICENSE_URLS` (env) — override, QA/dev, CSV = failover
+  2. `.env` do utilizador — mesmo override
+  3. `core/_license_endpoint.py` — **URL real embebido no build**
+  4. `PROD_LICENSE_SERVER_URL` — constante; tem de ser o URL real
+- **Verificação:**
+  - `tests/test_license_server_url.py` — 31 testes novos (deteção do
+    placeholder, ordem de resolução, embebido vs env, `activate` sem bloquear,
+    `open_checkout`, leitor de `.env`, gerador)
+  - `pytest tests/ --ignore=tests/test_voice_direct.py` → **257 passed**
+  - `tests/test_voice_direct.py` falha por `PortAudio library not found` —
+    **pré-existente**, confirmado com `git stash` no baseline; nada a ver com
+    estas alterações
+  - `ruff check core/ ui/ tests/ tools/ main.py` → All checks passed
+  - Fluxo do gerador verificado end-to-end: sem gerar → placeholder detectado;
+    com `AIRMOUSE_LICENSE_SERVER_URL=https://exemplo.onrender.com` → cliente
+    passa a `license_server_configured() == True`
+  - `main.py` reiniciado com o código novo → `License: PRO`, remoto em 8765
+    (PID 839909), **sem** o warning de placeholder
+- **Alterações:** `core/licensing.py`, `core/envcfg.py` (novo),
+  `ui/license_dlg.py`, `ui/settings_dlg.py`, `i18n.py`, `build.bat`,
+  `airmouse.spec`, `tools/gen_license_endpoint.py` (novo),
+  `tests/test_license_server_url.py` (novo), `.gitignore`, `.env.example`,
+  `docs/DESKTOP_LICENSE_URL.md`, `license-server/DEPLOY_RENDER.md`.
+- **Estado:** Parcial — o mecanismo está pronto e testado, mas **falta o URL real
+  e o vendor_id do Paddle**, que só o dono com as contas pode fornecer. Passos
+  restantes em `license-server/DEPLOY_RENDER.md` §6 e
+  `docs/DESKTOP_LICENSE_URL.md`.
+- **BUG em aberto (NÃO corrigido aqui, precisa de decisão):** `revalidate()`
+  está a devolver `seq_repetido` permanentemente. Ver entrada seguinte.
+
+---
+
+## [2026-09-26 21:40] BUG: revalidate() preso em "seq_repetido" sem auto-recuperação
+
+- **Sintoma:** com o lease ainda válido, `LicenseManager.revalidate()` devolve
+  `False` com `LicenseError: seq_repetido` — e vai devolver sempre.
+- **Causa:** o `use_seq` do lease guardado no cliente ficou **um passo atrás** do
+  `last_use_seq` que o servidor tem em `machines`:
+  ```
+  lease do cliente (~/AirMouse/license.json)  use_seq = 1790435341750
+  last_use_seq no servidor (license.db)                = 1790435341751
+  revalidate calcula new_seq = 1790435341751; servidor exige > 1790435341751 -> rejeita
+  ```
+- **Como se dessincronizou:** dois processos a partilhar o mesmo
+  `~/AirMouse/license.json` sem locking. O `acquire_single_instance()` do
+  `main.py` só corre na `main.py:227` — **depois** de `LicenseManager()` (`:209`)
+  e das ações de licença (`:215-225`), e não protege ferramentas separadas. O
+  `revalidate()` que corri à mão e o `maybe_revalidate()` do `main.py` que já
+  estava a correr gravaram o mesmo ficheiro; o último a escrever deixou o
+  cliente atrás do servidor.
+- **Impacto:** o lease atual é válido até **2026-10-03**, por isso nada quebra
+  hoje. Mas nesse dia a renovação falha e o PC volta a Free/bloqueado. **Não há
+  caminho de recuperação**: o servidor rejeita, e o cliente não tem a chave
+  guardada (`save()` em `core/licensing.py` persiste lease/email/machine_id/
+  trial_used/last_nonce/last_use_seq, **não** `key`), logo o utilizador teria de
+  voltar a escrever a chave `MAO-…` à mão.
+- **Causa de raiz (design):** `seq_repetido` é usado tanto para "replay malicioso"
+  como para "cliente que reverteu o estado" — casos diferentes com o mesmo 403,
+  e o cliente não tem como distinguir nem recuperar.
+- **Correções possíveis (preciso de decisão — uma delas mexe em segredos em disco):**
+  1. Servidor: responder a `seq_repetido` de forma distinta (ex.: `409` + código
+     `reativar`) para o cliente se poder auto-reparar.
+  2. Cliente: persistir a `key` no store para permitir re-ativação sem o
+     utilizador digitar nada — **guardar a chave em disco é uma decisão de
+     segurança, não minha**.
+  3. Cliente: acquiring de ficheiro em `save()`/`load()` para impedir a corrida
+     entre processos.
+- **Estado:** Em curso — reportado, nada alterado. À espera da decisão do dono.
+
+---
+
 ## [2026-09-26 16:10] Licença PRO restaurada — license-server local
 
 - **Objetivo:** o utilizador reportou que o PC estava a pedir para activar o

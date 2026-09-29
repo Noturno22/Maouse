@@ -30,6 +30,14 @@ for pkg in ("mediapipe", "vosk"):
     binaries += b
     hiddenimports += h
 
+# `core/licensing.py` importa este módulo DENTRO de uma função, por isso a
+# análise estática do PyInstaller não o vê. Sem esta linha, o .exe distribuído
+# fica sem o endpoint do license-server e a ativação de chaves Pro não
+# funciona — ver docs/DESKTOP_LICENSE_URL.md. Gerado por
+# tools/gen_license_endpoint.py antes do bake (build.bat, passo 4/7).
+if os.path.isfile("core/_license_endpoint.py"):
+    hiddenimports.append("core._license_endpoint")
+
 a = Analysis(
     ["main.py"],
     pathex=[],

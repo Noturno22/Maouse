@@ -38,19 +38,27 @@ if defined PFX_PATH (
     echo [ASSINATURA] Sem certificado - o .exe/instalador nao serao assinados.
 )
 
-echo [1/6] A instalar PyInstaller ...
+echo [1/7] A instalar PyInstaller ...
 .venv\Scripts\python.exe -m pip install --upgrade -r requirements-build.txt -q
 if errorlevel 1 exit /b 1
 
-echo [2/6] A gerar icone (.ico) ...
+echo [2/7] A gerar icone (.ico) ...
 .venv\Scripts\python.exe tools\generate_ico.py
 if errorlevel 1 exit /b 1
 
-echo [3/6] A gerar metadados de versao (version_info.txt) ...
+echo [3/7] A gerar metadados de versao (version_info.txt) ...
 .venv\Scripts\python.exe tools\gen_version_info.py
 if errorlevel 1 exit /b 1
 
-echo [4/6] A construir executavel (pode demorar varios minutos) ...
+rem O URL do license-server de produção tem de viajar DENTRO do .exe: num
+rem build PyInstaller não há env vars de compilação em runtime. Sem isto o
+rem binário traz o placeholder e a ativação de chaves Pro não funciona.
+rem Ver docs/DESKTOP_LICENSE_URL.md.
+echo [4/7] A embebir o endpoint do license-server ...
+.venv\Scripts\python.exe tools\gen_license_endpoint.py
+if errorlevel 1 exit /b 1
+
+echo [5/7] A construir executavel (pode demorar varios minutos) ...
 .venv\Scripts\python.exe -m PyInstaller airmouse.spec --noconfirm
 if errorlevel 1 exit /b 1
 rem Modelos críticos (hand_landmarker.task, gesture_mlp.npz) entram pelo
@@ -61,17 +69,17 @@ xcopy /E /I /Y assets\brand "dist\AirMouse\assets\brand" >nul
 rem ── Assinar o AirMouse.exe (antes de o empacotar no instalador) ───────
 if defined PFX_PATH (
     if defined SIGNTOOL (
-        echo [5/6] A assinar AirMouse.exe - SHA256 + timestamp ...
+        echo [6/7] A assinar AirMouse.exe - SHA256 + timestamp ...
         "%SIGNTOOL%" sign /f "%PFX_PATH%" /p "%PFX_PASS%" /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /d "Maouse" "dist\AirMouse\AirMouse.exe"
         if errorlevel 1 echo AVISO: falhou a assinatura do AirMouse.exe - a continuar sem ela.
     ) else (
-        echo [5/6] Assinatura do AirMouse.exe ignorada.
+        echo [6/7] Assinatura do AirMouse.exe ignorada.
     )
 ) else (
-    echo [5/6] Assinatura do AirMouse.exe ignorada.
+    echo [6/7] Assinatura do AirMouse.exe ignorada.
 )
 
-echo [6/6] A gerar instalador 1-clique (Inno Setup) ...
+echo [7/7] A gerar instalador 1-clique (Inno Setup) ...
 set "ISCC=C:\Users\Luar Studio Angola\AppData\Local\Programs\Inno Setup 6\ISCC.exe"
 if not exist "%ISCC%" (
     echo ATENCAO: Inno Setup nao encontrado em "%ISCC%"

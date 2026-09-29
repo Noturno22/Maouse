@@ -30,13 +30,17 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from core.envcfg import env_int
 from core.licensing import Tier
 from i18n import tr
 from ui.theme import MAIN_STYLESHEET
 
 SUPPORT_EMAIL = "suporte@maouse.app"
 
-PADDLE_VENDOR_ID = 0  # TODO: preencher com o vendor_id real do Paddle (D2)
+# vendor_id real do Paddle (D2). 0 = NAO configurado. Vem do ambiente ou do
+# `.env`; com 0 e sem AIRMOUSE_PADDLE_*_URL, `open_checkout` recusa abrir o
+# browser em vez de mandar o utilizador para uma página de erro do Paddle.
+PADDLE_VENDOR_ID = env_int("AIRMOUSE_PADDLE_VENDOR_ID", 0)
 
 # (id, nome, preço curto, linha extra, destaque)
 _PRODUCTS = [
@@ -308,8 +312,14 @@ class LicenseDialog(QDialog):
             self._cfg.license_tier = Tier.PRO.value
             QMessageBox.information(self, "Licença", "Licença Pro ativada com sucesso!")
             self.accept()
+            return
+        # Distinguir "chave errada" de "servidor de licenças não configurado" —
+        # antes as duas mostravam o mesmo texto e o utilizador não percebia
+        # que o problema era a app, não a chave.
+        if getattr(self._lm, "last_error", "") == "servidor_nao_configurado":
+            QMessageBox.warning(self, "Chave", tr("license.server_not_configured"))
         else:
-            QMessageBox.warning(self, "Chave", "Chave inválida. Verifique e tente novamente.")
+            QMessageBox.warning(self, "Chave", tr("license.activate_failed"))
 
     def _deactivate(self):
         self._lm.deactivate()

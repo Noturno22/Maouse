@@ -45,6 +45,11 @@ license_server.db
 # Gerado pelo build
 version_info.txt
 
+# Endpoint do license-server embebido no build (GERADO por
+# tools/gen_license_endpoint.py a partir de AIRMOUSE_LICENSE_SERVER_URL).
+# Fora do git de propósito: é específico de cada build/ambiente.
+core/_license_endpoint.py
+
 # Config local do utilizador (calibração, dispositivo de mic, token remoto)
 # O exemplo com defaults de fábrica segue commitado em settings.example.json
 settings.json
