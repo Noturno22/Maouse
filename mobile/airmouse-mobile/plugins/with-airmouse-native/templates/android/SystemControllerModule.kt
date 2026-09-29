@@ -2,7 +2,9 @@
 
 import android.accessibilityservice.AccessibilityService
 import android.content.Context
+import android.content.Intent
 import android.media.AudioManager
+import android.provider.Settings
 import android.view.WindowManager
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
@@ -92,5 +94,17 @@ class SystemControllerModule(reactContext: ReactApplicationContext) :
     @ReactMethod
     fun isAccessibilityEnabled(promise: Promise) {
         promise.resolve(service != null)
+    }
+
+    /** Abre Definições > Acessibilidade para o utilizador ativar o serviço Mãouse. */
+    @ReactMethod
+    fun openAccessibilitySettings() {
+        try {
+            val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
+        } catch (_: Exception) {
+            // Sem Activity para o intent — ignorar (raro em Android normal).
+        }
     }
 }

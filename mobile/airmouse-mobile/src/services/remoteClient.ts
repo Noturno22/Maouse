@@ -80,7 +80,9 @@ export class RemoteClient {
     }
 
     this.ws = ws;
-    ws.onopen = () => this.sendRaw({ cmd: 'auth', token: this.token });
+    // Nota: o auth é enviado diretamente (rawSend) porque só passa a poder usar
+    // sendRaw depois de ready=true, que depende do ok do servidor a esta mensagem.
+    ws.onopen = () => this.rawSend({ cmd: 'auth', token: this.token });
     ws.onmessage = (ev) => this.handleMessage(String(ev.data));
     ws.onerror = () => {
       this.lastError = 'Falha de ligação (rede inacessível?).';
@@ -167,6 +169,12 @@ export class RemoteClient {
   }
 
   // ---- Internos ----
+
+  private rawSend(cmd: Record<string, unknown>): void {
+    const ws = this.ws;
+    if (!ws || ws.readyState !== 1) return;
+    ws.send(JSON.stringify(cmd));
+  }
 
   private sendRaw(cmd: Record<string, unknown>): void {
     const ws = this.ws;

@@ -248,8 +248,13 @@ export default function RemoteScreen({ onBack }: Props) {
     })
   ).current;
 
-  const keyBtn = (label: string, onPress: () => void) => (
-    <TouchableOpacity key={label} style={styles.keyButton} onPress={onPress}>
+  const keyBtn = (label: string, onPress: () => void, a11y?: string) => (
+    <TouchableOpacity
+      key={label + (a11y ?? '')}
+      accessibilityLabel={a11y ?? label}
+      style={styles.keyButton}
+      onPress={onPress}
+    >
       <Text style={styles.keyButtonText}>{label}</Text>
     </TouchableOpacity>
   );
@@ -262,6 +267,10 @@ export default function RemoteScreen({ onBack }: Props) {
           onLayout={(e) => {
             layoutRef.current = { w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height };
           }}
+          accessible
+          accessibilityRole="none"
+          accessibilityLabel="Rato — área de toque"
+          accessibilityHint="Um dedo move o cursor, toque faz clique, manter arrasta, dois dedos faz scroll."
           {...panResponder.panHandlers}
         >
           <Text style={styles.touchpadHint}>
@@ -283,7 +292,7 @@ export default function RemoteScreen({ onBack }: Props) {
             onChangeText={onKbChange}
             onSubmitEditing={onKbEnter}
             placeholder="Escrever em tempo real no PC…"
-            placeholderTextColor="#777"
+            placeholderTextColor="#9E9E9E"
             autoCapitalize="none"
             autoCorrect={false}
             spellCheck={false}
@@ -291,49 +300,58 @@ export default function RemoteScreen({ onBack }: Props) {
             returnKeyType="go"
           />
           <View style={styles.textActions}>
-            <TouchableOpacity style={styles.actionSmall} onPress={onKbBackspace}>
+            <TouchableOpacity
+              style={styles.actionSmall}
+              onPress={onKbBackspace}
+              accessibilityLabel="Apagar"
+            >
               <Text style={styles.actionSmallText}>⌫</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.actionSmall} onPress={clearKb}>
+            <TouchableOpacity
+              style={styles.actionSmall}
+              onPress={clearKb}
+              accessibilityLabel="Limpar texto escrito"
+            >
               <Text style={styles.actionSmallText}>✕</Text>
             </TouchableOpacity>
           </View>
         </View>
 
         <View style={styles.keyRow}>
-          {keyBtn('ESC', () => remote.key('esc'))}
-          {keyBtn('WIN', () => remote.key('win'))}
-          {keyBtn('TAB', () => remote.key('tab'))}
-          {keyBtn('ENTER', () => remote.key('enter'))}
-          {keyBtn('⌫', () => remote.key('backspace'))}
+          {keyBtn('ESC', () => remote.key('esc'), 'Tecla Esc')}
+          {keyBtn('WIN', () => remote.key('win'), 'Tecla Windows')}
+          {keyBtn('TAB', () => remote.key('tab'), 'Tecla Tab')}
+          {keyBtn('ENTER', () => remote.key('enter'), 'Tecla Enter')}
+          {keyBtn('⌫', () => remote.key('backspace'), 'Apagar')}
         </View>
 
         <View style={styles.keyRow}>
-          {keyBtn('←', () => remote.key('arrow_left'))}
-          {keyBtn('↑', () => remote.key('arrow_up'))}
-          {keyBtn('↓', () => remote.key('arrow_down'))}
-          {keyBtn('→', () => remote.key('arrow_right'))}
-          {keyBtn('␣', () => remote.key('space'))}
+          {keyBtn('←', () => remote.key('arrow_left'), 'Seta esquerda')}
+          {keyBtn('↑', () => remote.key('arrow_up'), 'Seta para cima')}
+          {keyBtn('↓', () => remote.key('arrow_down'), 'Seta para baixo')}
+          {keyBtn('→', () => remote.key('arrow_right'), 'Seta direita')}
+          {keyBtn('␣', () => remote.key('space'), 'Barra de espaço')}
         </View>
 
         <View style={styles.keyRow}>
-          {keyBtn('↩', () => remote.click('left', 1))}
-          {keyBtn('Duplo', () => remote.click('left', 2))}
-          {keyBtn('Dir', () => remote.click('right', 1))}
-          {keyBtn('Med', () => remote.click('middle', 1))}
+          {keyBtn('↩', () => remote.click('left', 1), 'Clique esquerdo')}
+          {keyBtn('Duplo', () => remote.click('left', 2), 'Duplo clique')}
+          {keyBtn('Dir', () => remote.click('right', 1), 'Clique direito')}
+          {keyBtn('Med', () => remote.click('middle', 1), 'Clique do meio')}
           <TouchableOpacity
             style={styles.stateButton}
             onPress={disconnect}
+            accessibilityLabel="Desligar do PC"
           >
             <Text style={styles.stateButtonText}>DESLIGAR</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.keyRow}>
-          {keyBtn('🔉', () => remote.media('volume_down'))}
-          {keyBtn('🔊', () => remote.media('volume_up'))}
-          {keyBtn('🔇', () => remote.media('mute'))}
-          {keyBtn('⏯', () => remote.media('play_pause'))}
+          {keyBtn('🔉', () => remote.media('volume_down'), 'Diminuir volume')}
+          {keyBtn('🔊', () => remote.media('volume_up'), 'Aumentar volume')}
+          {keyBtn('🔇', () => remote.media('mute'), 'Silenciar')}
+          {keyBtn('⏯', () => remote.media('play_pause'), 'Reproduzir ou pausar')}
         </View>
       </View>
     </View>
@@ -353,7 +371,7 @@ export default function RemoteScreen({ onBack }: Props) {
         value={hostDraft}
         onChangeText={setHostDraft}
         placeholder="ex.: 192.168.1.50"
-        placeholderTextColor="#777"
+        placeholderTextColor="#9E9E9E"
         autoCapitalize="none"
         autoCorrect={false}
         keyboardType={Platform.OS === 'ios' ? 'numbers-and-punctuation' : 'default'}
@@ -365,7 +383,7 @@ export default function RemoteScreen({ onBack }: Props) {
         value={portDraft}
         onChangeText={setPortDraft}
         placeholder="8765"
-        placeholderTextColor="#777"
+        placeholderTextColor="#9E9E9E"
         keyboardType="number-pad"
       />
 
@@ -375,7 +393,7 @@ export default function RemoteScreen({ onBack }: Props) {
         value={tokenDraft}
         onChangeText={setTokenDraft}
         placeholder="Token mostrado no PC"
-        placeholderTextColor="#777"
+        placeholderTextColor="#9E9E9E"
         autoCapitalize="none"
         autoCorrect={false}
       />
@@ -416,9 +434,13 @@ export default function RemoteScreen({ onBack }: Props) {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <View style={styles.header}>
-        <TouchableOpacity style={styles.headerButton} onPress={onBack}>
-          <Text style={styles.headerButtonText}>◀</Text>
-        </TouchableOpacity>
+        <TouchableOpacity
+            style={styles.headerButton}
+            onPress={onBack}
+            accessibilityLabel="Voltar"
+          >
+            <Text style={styles.headerButtonText}>◀</Text>
+          </TouchableOpacity>
         <Text style={styles.headerTitle}>PC Remoto</Text>
         <View
           style={[
@@ -457,9 +479,9 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   headerButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: PANEL,
     justifyContent: 'center',
     alignItems: 'center',
@@ -556,13 +578,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   primaryButtonText: {
-    color: '#FFF',
+    color: '#003049',
     fontSize: 16,
     fontWeight: '700',
     letterSpacing: 1,
   },
   hint: {
-    color: '#777',
+    color: '#9E9E9E',
     fontSize: 12,
     lineHeight: 17,
     marginTop: 20,
@@ -586,7 +608,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   touchpadHint: {
-    color: '#777',
+    color: '#9E9E9E',
     fontSize: 13,
     textAlign: 'center',
     paddingHorizontal: 20,
@@ -641,8 +663,8 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   actionSmall: {
-    width: 36,
-    height: 44,
+    width: 44,
+    height: 48,
     borderRadius: 10,
     backgroundColor: '#2a2a2a',
     borderWidth: 1,
@@ -663,6 +685,7 @@ const styles = StyleSheet.create({
   },
   keyButton: {
     flex: 1,
+    minHeight: 48,
     backgroundColor: KEY_BG,
     borderWidth: 1,
     borderColor: BORDER,
@@ -678,6 +701,7 @@ const styles = StyleSheet.create({
   },
   stateButton: {
     flex: 1,
+    minHeight: 48,
     backgroundColor: 'rgba(255,86,86,0.25)',
     borderWidth: 1,
     borderColor: '#FF5656',
