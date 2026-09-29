@@ -245,6 +245,49 @@
     até poderem: uma escrevia a lista de classes à mão e passava na igualdade;
     a do `zip` só "morreu" por erro de sintaxe e foi repetida como mutação válida).
 
+20. **A ajuda dizia atalhos que o programa não prime — e ninguém comparava a
+    ajuda com o código.** Quarta tabela escrita à mão que divergiu do seu par, e
+    a única em que a divergência é visível para quem paga.
+    O banner de arranque (`main.py:540-541`, lido em **cada** execução)
+    anunciava `fechar/abrir punho x2=Ctrl+D` e `bye bye=Ctrl+E`. O motor prima
+    `win+d` (`engine.py:618`) e `win+down` (`:623`). Quem seguisse a instrução
+    carregava Ctrl+D — que no Excel duplica a linha e no Explorer não faz nada —
+    e a janela não minimizava. **O programa não dá erro nenhum:** funciona, e a
+    instrução é que mente. O cliente conclui que o software é que é, e tem
+    razão do ponto de vista dele.
+    *As outras duas estavam certas*, o que prova que se sabe ler o código para
+    conferir o que se escreve: o painel do preview (`core/overlay.py:168-169`) e
+    a ajuda da janela PySide em 7 línguas (`i18n.py`, `help.g.wind`/`help.g.min`)
+    dizem `Win+D` e `minimizar (Win+↓)`. Só o banner ficou para trás — quase de
+    certeza quando alguém mudou o código de `ctrl+d` para `win+d` para o atalho
+    passar a funcionar no Windows, e não actualizou a linha de baixo.
+    *O guard* (`tests/test_help_truthfulness.py`, 4 testes) compara a ajuda com
+    o que o motor realmente prima, **lido do `core/engine.py` por AST** — pela
+    mesma razão que o guard anterior: uma lista escrita à mão seria a mesma
+    tabela outra vez. Inclui um teste de que essa lista de atalhos ainda existe,
+    porque `Alt+Tab` e `Alt+Shift+Tab` não passam por `_keyboard_shortcut` (vão
+    por `Key.tab`/`Key.shift_l`, em `core/hotkeys.py`) e a guarda tem de cobrir a
+    metade do código onde não os vê — cada entrada declarando de onde vem, para
+    que ninguém a acrescente por adivinhação.
+    *Quatro guardas nasceram erradas nesta guarda*, e vale a pena registá-las
+    porque são o erro de sempre: **um guard que não pode falhar não é um
+    guard.** (1) Filtrar as strings por nome de variável (`show_help`,
+    `log.info`) — um rename deixava a lista vazia e o teste *verde a não
+    verificar nada*; trocado por "todas as strings do ficheiro", que é o que a
+    AST dá de graça. (2) `\S+` no padrão do atalho agarrava o fecho de
+    parênteses: `(Win+↓)` dava `win+)` e `Ctrl+C / Ctrl+V` dava um atalho só.
+    (3) O normalizador partia por `+` **e** pelas setas, o que deitava fora a
+    própria seta em vez de a converter: `"Win+↓"` dava `["win", "", ""]`. (4) O
+    padrão não encadeava modificadores, e `"Alt+Shift+Tab"` era lido
+    `"Alt+Shift"` — um atalho que o motor não prime, ou seja, um erro
+    inventado. Nenhuma delas era o bug; todas teriam feito desligar o teste
+    quem encontrasse a primeira. E o teste do i18n acusou a **tradução
+    francesa** de mentir por causa de `Alt+Maj` — o `Maj` do teclado francês. A
+    tradução estava certa; a guarda é que não conhecia o teclado alheio.
+    *Verificado*: ruff limpo, **568** testes do cliente, `--replay-gate` ACEITE,
+    2 mutações testadas (mudar o atalho no motor, e esvaziar a lista de
+    atalhos do painel).
+
 ### 🔴 Bloqueadores em aberto (Sprint 2 → 1.ª venda paga)
 
 | # | Bloqueador | Estado |

@@ -41,7 +41,7 @@ from core.licensing import (
 )
 from core.llm import ChatClient
 from core.log import get_logger, setup_logging
-from core.mouse_ctl import MouseCtl
+from core.mouse_ctl import MouseCtl, MuteMouse
 from core.remote import RemoteServer, lan_ips
 from core.snap import SnapEngine
 from core.tracker import HandTracker, ensure_model
@@ -127,6 +127,22 @@ def parse_args():
         default=0,
         metavar="N",
         help="para a gravacao apos N frames (0 = sem limite)",
+    )
+    parser.add_argument(
+        "--record-live",
+        action="store_true",
+        help="com --record, deixa o rato e os atalhos mexer no sistema. Sem "
+             "isto a gravacao e muda: sem cliques a serio, sem Ctrl+C/Ctrl+V "
+             "na janela em foco, sem o brilho mudar a luz que a camara ve",
+    )
+    parser.add_argument(
+        "--replay-settle-guard-ms",
+        type=float,
+        default=0.0,
+        metavar="MS",
+        help="com --replay, diagnostico: recalcula o F1 excluindo esta janela "
+             "em ms depois de cada mudanca de etiqueta. Nao altera o F1 "
+             "principal nem o --replay-gate",
     )
     parser.add_argument(
         "--frame-width",
@@ -258,6 +274,7 @@ def run_replay(args) -> int:
             args.replay,
             width=args.frame_width,
             height=args.frame_height,
+            settle_guard_ms=getattr(args, "replay_settle_guard_ms", 0.0),
         )
     except FileNotFoundError as exc:
         print(f"ERRO: corpus nao encontrado ({args.replay}): {exc}")
@@ -320,8 +337,13 @@ def main():
     smooth_idx = load_settings(cfg)
 
     # Onda 0: gravacao de corpus. As teclas de etiqueta vivem no preview
-    # OpenCV, portanto --record desliga a GUI PySide6 e nunca toca no rato.
+    # OpenCV, portanto --record desliga a GUI PySide6 — e o rato tambem, porque
+    # o pipeline tratava a recolha como uso normal: o cursor movia-se e cada
+    # PINCH clicava a serio. Quem grava fica a mirar ao que dao os gestos, e
+    # um PINKY solta Ctrl+C na janela que estiver em foco. `MuteMouse` e
+    # `--record-live` tratam disso.
     recorder = None
+    mute_output = bool(args.record) and not args.record_live
     if args.record:
         from core.corpus import CorpusRecorder, describe_device
 
@@ -341,8 +363,10 @@ def main():
         args.no_voice = True
         log.info(
             "A GRAVAR CORPUS: %s | etiqueta %s | teclas 0-9,d,c,g | x limpa | "
-            "Q sai e grava",
+            "Q sai e grava | %s",
             args.record, recorder.label,
+            "rato e atalhos CALADOS (--record-live reativa)" if mute_output
+            else "rato e atalhos ACTIVOS (atencao: cliques a serio)",
         )
 
     # Gate Free/Pro — aplicado APÓS load_settings para que os settings do disco
@@ -414,7 +438,7 @@ def main():
         model_path, num_hands=cfg.num_hands,
         use_gpu=args.gpu, num_threads=cfg.tracker_threads,
     )
-    mouse = MouseCtl()
+    mouse = MuteMouse() if mute_output else MouseCtl()
     remote = None
     if cfg.remote_enabled:
         remote = RemoteServer(cfg, mouse)
@@ -474,6 +498,11 @@ def main():
         # watchdog de uso enquanto o trial consome tempo.
         "license_blocked": lic_.is_blocked(),
         "_license_warned": False,
+        # `--record` sem `--record-live`: nenhum efeito no sistema. O toast
+        # continua a dizer o que foi reconhecido, que e o que o operador
+        # precisa para etiquetar — o que se cala e so a accao sobre o rato, o
+        # teclado e o brilho.
+        "mute_output": mute_output,
     }
     state["_usage_watchdog"] = UsageWatchdog(lic_, state)
     tray_icon = None
@@ -506,10 +535,18 @@ def main():
         " punho=cima/baixo=scroll | pinca medio=clique dir |"
         " 3 dedos=cima/baixo=volume | polegar=play/pausa"
     )
+    # Os atalhos aqui são os que `core/engine.py` prime de facto (618 e 623) e
+    # não os que se escreviam: diziam "Ctrl+D" e "Ctrl+E", que o motor nunca
+    # prime. Quem seguisse a instrução carregava Ctrl+D — que no Excel duplica
+    # a linha e no Explorer não faz nada — e a janela não minimizava.
+    # `Win+Down` e não "Win+↓": a seta não existe em cp1252, que é o que a
+    # consola do Windows usa, e um `log.info` com ela lá levanta
+    # UnicodeEncodeError — ou seja, a correcção da mentira partia o arranque.
+    # `tests/test_help_truthfulness.py` é o que impede isto de divergir outra vez.
     log.info(
         "Novo: mindinho=copy | polegar+mindinho=paste |"
-        " dois dedos esq/dir (2 maos)=brilho | fechar/abrir punho x2=Ctrl+D |"
-        " bye bye=Ctrl+E | 3 palmas=Alt+Tab | lupa | snap"
+        " dois dedos esq/dir (2 maos)=brilho | fechar/abrir punho x2=Win+D |"
+        " bye bye=Win+Down | 3 palmas=Alt+Tab | lupa | snap"
     )
     log.info(
         "Teclas: [ ] ganho | , . suavidade | a auto-afinacao | v voz |"
