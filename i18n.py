@@ -1144,6 +1144,15 @@ _STRINGS = {
         "it": "La tua licenza è scaduta. Connettiti per rinnovarla.",
         "pt_br": "Sua licença expirou. Conecte-se para renová-la.",
     },
+    "license.reactivation_needed": {
+        "pt": "A licença precisa de ser reativada. Cola a tua chave Pro para continuar.",
+        "en": "Your license needs to be reactivated. Paste your Pro key to continue.",
+        "es": "La licencia necesita reactivarse. Pega tu clave Pro para continuar.",
+        "fr": "La licence doit être réactivée. Collez votre clé Pro pour continuer.",
+        "de": "Deine Lizenz muss reaktiviert werden. Füge deinen Pro-Schlüssel ein, um fortzufahren.",
+        "it": "La licenza deve essere riattivata. Incolla la tua chiave Pro per continuare.",
+        "pt_br": "A licença precisa ser reativada. Cole sua chave Pro para continuar.",
+    },
     "license.ledge_blocked": {
         "pt": "Licenca nao valida nesta maquina.",
         "en": "License not valid on this machine.",

@@ -315,8 +315,15 @@ class LicenseDialog(QDialog):
             return
         # Distinguir "chave errada" de "servidor de licenças não configurado" —
         # antes as duas mostravam o mesmo texto e o utilizador não percebia
-        # que o problema era a app, não a chave.
-        if getattr(self._lm, "last_error", "") == "servidor_nao_configurado":
+        # que o problema era a app, não a chave. E distinguir o caso em que
+        # o servidor pediu reativação (o lease guardado ficou atrás do dele).
+        err = getattr(self._lm, "last_error", "")
+        needs_key = (err == "reativacao_necessaria"
+                     or getattr(self._lm, "needs_reactivation", False))
+        if needs_key:
+            QMessageBox.warning(self, "Licença",
+                                tr("license.reactivation_needed"))
+        elif err == "servidor_nao_configurado":
             QMessageBox.warning(self, "Chave", tr("license.server_not_configured"))
         else:
             QMessageBox.warning(self, "Chave", tr("license.activate_failed"))

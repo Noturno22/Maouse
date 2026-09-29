@@ -88,7 +88,7 @@ def create_app() -> FastAPI:
         key = issue_key(db, req.email)
         return KeyResponse(key=key, email=req.email)
 
-    from service import activate
+    from service import activate, revalidate, revoke_machine
 
     @app.post("/api/v1/activate")
     def api_activate(req: ActivateRequest, db=Depends(get_db)):
@@ -100,7 +100,7 @@ def create_app() -> FastAPI:
         return ActivateResponse(tier="pro", lease=lease,
                                 session_id=session_id, use_seq=use_seq)
 
-    from service import mobile_entitle
+    from service import LeaseConflict, mobile_entitle
 
     @app.post("/api/v1/mobile/entitle")
     def api_mobile_entitle(req: MobileEntitleRequest, db=Depends(get_db)):
@@ -144,12 +144,18 @@ def create_app() -> FastAPI:
         return {"machine_id": machine_id,
                 "remaining_seconds": trial_remaining(db, machine_id)}
 
-    from service import revalidate, revoke_machine
 
     @app.post("/api/v1/revalidate")
     def api_revalidate(req: RevalidateRequest, db=Depends(get_db)):
         try:
             lease = revalidate(db, req.machine_id.strip(), req.old_lease.strip())
+        except LeaseConflict as exc:
+            # 409 + "recovery": o cliente está ATRÁS do servidor (estado
+            # revertido, dois processos, restore). Distinguir isto de um replay
+            # genuíno é o que permite ao cliente reativar a chave sozinho em
+            # vez de ficar bloqueado para sempre. Ver service.LeaseConflict.
+            return JSONResponse(status_code=409, content={
+                "error": exc.reason, "recovery": exc.recovery})
         except ValueError as exc:
             return JSONResponse(status_code=403, content={"error": str(exc)})
         return {"tier": "pro", "lease": lease}

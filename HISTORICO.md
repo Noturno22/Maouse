@@ -16,6 +16,83 @@ Formato de uma entrada:
 
 ---
 
+## [2026-09-26 22:31] Licença: recuperação de lease divergente (409 + chave persistente + lock)
+
+- **Objetivo:** resolver os três pontos pedidos para o `seq_repetido` que
+  deixava o Pro sem renovação: (1) o servidor distinguir "cliente atrasado" de
+  replay, (2) o cliente guardar a chave para se auto-reativar, (3) serializar o
+  ciclo ler → servidor → gravar com lock de ficheiro.
+- **Diagnóstico:**
+  - O `license.json` tinha `use_seq=1790435341750`; a BD do servidor tinha
+    `last_use_seq=1790435341751`. O lease do cliente estava **um atrás**.
+  - `revalidate()` fazia `new_seq = use_seq + 1` e rejeitava com 403
+    `seq_repetido` porque `new_seq <= last_seq`. O cliente ficava preso para
+    sempre: sem 409, sem chave guardada, sem forma de recuperar.
+  - Causa possível do desvio: `main.py` e uma ferramenta de linha de comandos
+    partilham `~/AirMouse/license.json`; ambos reliam o ficheiro **fora** de
+    qualquer lock e ambos gravavam, pelo que um write perdia o `use_seq` do
+    outro.
+  - Agravante: em `revalidate()` a atualização dos contadores monotónicos
+    (`last_use_seq`) só acontecia mais tarde, num `is_blocked()`; o `_save()`
+    intermediate gravava o lease novo com os contadores **velhos**, mantendo o
+    store atrás do servidor mesmo sem corrida.
+- **Alterações:**
+  - `license-server/service.py` — nova `LeaseConflict`; `revalidate()` levanta-a
+    quando `claims.use_seq < last_seq` (cliente atrasado). `use_seq == last_seq`
+    continua a ser a renovação normal; `use_seq > last_seq` (BD do servidor
+    reposta para trás) passa a ser aceite e reaparelha o contador. Removido um
+    `if new_seq <= last_seq` que era código morto.
+  - `license-server/app.py` — `LeaseConflict` → HTTP `409`
+    `{"error": "seq_repetido", "recovery": "reativar"}`. Um 403 continua sem
+    `recovery` (revogação não se resolve a reativar).
+  - `core/license_client.py` — `LicenseError` transporta `status`, `payload`,
+    `recovery` e `needs_reactivation`. Acrescentado também um
+    `except LicenseError: raise` antes do `except Exception` genérico: um 4xx
+    devolvido sem levantar `HTTPError` caía nesse genérico e aparecia como
+    `sem_servidor_reachavel`, o que tornava o 409 indistinguível de uma falha de
+    rede.
+  - `core/license_store_lock.py` (novo) — lock de ficheiro POSIX/Windows com
+    profundidade **por thread** e `RLock` de guarda. A primeira versão partilhava
+    a profundidade entre threads e por isso uma segunda thread entrava na secção
+    crítica **sem** `flock` (pega por um teste novo, ver abaixo).
+  - `core/licensing.py` — `key` no store (só aceite se `machine_id` bater);
+    `_reload()`/`_save()` sem lock, para uso dentro de `with store_lock(...)`;
+    `activate()`, `revalidate()`, `deactivate()`, `report_usage()` e
+    `reconcile_trial()` tomam o lock no ciclo completo; `revalidate()` valida o
+    lease **antes** de gravar (avança os contadores) e, num 409, reativa
+    automaticamente com a chave guardada; propriedade `needs_reactivation`.
+  - `ui/license_dlg.py` + `i18n.py` — texto próprio para "a licença precisa de
+    ser reativada", em vez do genérico "chave inválida".
+- **Verificação:**
+  - `pytest tests/ --ignore=tests/test_voice_direct.py` → **281 passed**
+    (eram 257; +24 em `tests/test_license_recovery.py`).
+  - `pytest license-server/tests/` → **72 passed** (eram 67; +5 em
+    `test_revalidate.py`: 409 com `recovery`, renovação repetida do lease atual,
+    `use_seq > last_seq` a resincronizar, ciclo 409 → reativar → funciona, e
+    revogação a continuar 403).
+  - `ruff check core/ license-server/ tests/ ui/` → limpo.
+  - **Ponta a ponta contra o servidor local real** (`127.0.0.1:8899`):
+    - `revalidate` com o lease atrasado → `HTTP 409
+      {"error":"seq_repetido","recovery":"reativar"}`;
+    - `LicenseManager().revalidate()` numa store **sem** chave (versão antiga) →
+      `False`, `needs_reactivation=True`, `last_error="reativacao_necessaria"`
+      (diz o que fazer em vez de falhar calado);
+    - depois de `activate(key)`, recuando o servidor 5 `use_seq`: `revalidate()`
+      → `True`, reativou sozinho com a chave guardada, `needs_reactivation`
+      limpo, e o `revalidate()` seguinte renova normalmente.
+  - Dois bugs apanhados pelos testes novos e corrigidos pelo caminho:
+    - o `store_lock` partilhava a profundidade entre threads, e uma segunda
+      thread entrava na secção crítica **sem** `flock` (agora: profundidade por
+      thread + `RLock`);
+    - `os.makedirs(os.path.dirname(path))` rebentava com um path relativo
+      (`makedirs("")`), e o `except OSError` engolia-o — o store nunca era
+      gravado, em silêncio (agora `or "."`).
+- **Estado:** OK (código, testes e verificação manual). A app `main.py` que
+  estava a correr não foi reiniciada — carrega o código antigo em memória até
+  ser fechada e aberta outra vez.
+
+---
+
 ## [2026-09-26 15:20] UFW: abrir 8765 e recuperar o trabalho por commitar
 
 - **Objetivo:** o PC desligou às ~15:05. Retomar a sessão de ontem
