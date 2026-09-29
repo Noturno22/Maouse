@@ -32,6 +32,16 @@ exclude = [".venv", "build", "dist", "*.egg-info", "patches"]
 select = ["E", "F", "W", "I", "UP", "B"]
 ignore = ["B008"]
 
+# i18n.py e uma tabela de traducao: 1641 linhas, uma traducao por linha. As
+# mensagens longas de alem de 100 colunas quebram-se mal com concatenacao
+# implicita, porque quem traduz tem de ler e editar a frase inteira, e uma
+# frase partida em duas deixa de se encontrar com um grep. O E501 e a regra
+# certa para codigo e a regra errada para dados, por isso isenta-se aqui o
+# ficheiro em vez de desligar a regra, que continua activa em todo o resto
+# do projecto.
+[tool.ruff.lint.per-file-ignores]
+"i18n.py" = ["E501"]
+
 [tool.mypy]
 python_version = "3.10"
 exclude = [".venv", "build", "dist"]
