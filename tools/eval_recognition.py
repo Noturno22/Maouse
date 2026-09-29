@@ -312,6 +312,110 @@ class Score:
     confusion: np.ndarray | None = None
     worst_confusions: list = field(default_factory=list)
     events: EventStats = field(default_factory=EventStats)
+    # Diagnostico da janela de transicao derivada (ver `settle_guard_ms` em
+    # `score_predictions`). Vive *a par* do F1 estrito e nunca o substitui: o
+    # numero que o gate avalia e sempre o estrito, senao a janela passava a ser
+    # uma forma de tornar o alvo mais facil.
+    guard_ms: float = 0.0
+    guard_frames: int = 0
+    guarded_macro_f1: float | None = None
+    guarded_accuracy: float | None = None
+    guarded_total: int = 0
+
+
+def settle_frames(truth, t_ms, guard_ms: float) -> set:
+    """Frames (indices) dentro de ``guard_ms`` apos uma mudanca de ground truth.
+
+    Um corpus gravado com ``--record`` **nao pode** levar o rotulo ``SETTLE``: a
+    tecla de etiqueta e o proprio ground truth, e o `LABEL_KEY_CHOICES` nao tem
+    SETTLE. O que sobra e a verdade desconfortavel de que a etiqueta muda no
+    instante em que o operador prime a tecla, e a mao so chega a pose uns
+    centimos de segundo mais tarde. Sem isto, TODO inicio de segmento contaria
+    como erro e o F1 mediria a velocidade da mao humana em vez da qualidade do
+    classificador.
+
+    A janela e um **intervalo de tempo**, nao uma contagem de frames, e essa e a
+    parte que importa. A mesma maquina le as maos a 14,6 fps (HP i3-5005U, ver
+    `HARDWARE/LAB.md`) e outra a 30: dois frames de debounce sao 137 ms numa e
+    67 ms na outra. Uma guarda em frames mediria coisas diferentes em maquinas
+    diferentes, e o numero "F1" deixaria de ser comparavel entre corpora.
+
+    Deriva-se da **mudanca de etiqueta** porque e a unica coisa que um corpus de
+    maos reais tem para dizer "aqui comecou um segmento": por definicao, um
+    frame cujo ground truth difere do anterior e um frame de transicao.
+    ``SETTLE`` ja escrito no ficheiro nunca e tocado.
+    """
+    if guard_ms <= 0 or not t_ms or len(truth) != len(t_ms):
+        return set()
+    out = set()
+    for i in range(1, len(truth)):
+        if truth[i] == truth[i - 1]:
+            continue
+        limit = float(t_ms[i]) + float(guard_ms)
+        for j in range(i, len(truth)):
+            if float(t_ms[j]) >= limit:
+                break
+            out.add(j)
+    return out
+
+
+def _as_frame_rows(pairs, labels):
+    """``(frame, truth, pred)`` por par, mesmo sem ``Prediction``.
+
+    A guarda e definida em frames da sequencia da mao do cursor, logo cada par
+    precisa do seu indice de frame. ``replay_corpus`` ja entrega ``Prediction``;
+    mas um chamador com tuplas simples so e legitimo se houver um par por frame
+    (corpora de maos reais, que so gravam a mao do cursor). Adivinhar o
+    emparelhamento quando os comprimentos nao batem seria pior do que recusar.
+    """
+    rows = []
+    positional = all(hasattr(p, "frame") for p in pairs)
+    if not positional and len(pairs) != len(labels):
+        raise ValueError(
+            f"a janela de transicao precisa do indice de frame: ou os pares sao "
+            f"Prediction, ou ha um par por frame ({len(pairs)} pares para "
+            f"{len(labels)} labels)"
+        )
+    for i, p in enumerate(pairs):
+        if hasattr(p, "frame"):
+            rows.append((p.frame, p.truth, p.pred))
+        else:
+            rows.append((i, p[0], p[1]))
+    return rows
+
+
+def _apply_settle_guard(pairs, labels, t_ms, guard_ms: float):
+    """Marca como ``SETTLE`` a janela derivada.
+
+    Devolve tambem quantos frames foram **realmente** retirados da avaliacao —
+    nao quantos indices a janela toca. Sao numeros diferentes: a janela abre
+    sobre a sequencia por frame, que inclui frames sem mao nenhuma, e esses nao
+    entram na matriz de confusao nem como denominador. Reportar o maior como se
+    fosse o segundo daria "191 frames de 168" e nao significaria nada.
+    """
+    frames = settle_frames(labels, t_ms, guard_ms)
+    if not frames:
+        return list(pairs), list(labels), frames, 0
+    new_labels = [
+        SETTLE_LABEL if (i in frames and name is not None) else name
+        for i, name in enumerate(labels)
+    ]
+    converted = sum(
+        1 for i, name in enumerate(labels)
+        if i in frames and name is not None
+    )
+    if all(hasattr(p, "frame") for p in pairs):
+        new_pairs = [
+            p._replace(truth=SETTLE_LABEL)
+            if p.frame in frames and p.truth is not None else p
+            for p in pairs
+        ]
+    else:
+        new_pairs = [
+            (SETTLE_LABEL if frame in frames and truth is not None else truth, pred)
+            for frame, truth, pred in _as_frame_rows(pairs, labels)
+        ]
+    return new_pairs, new_labels, frames, converted
 
 
 def _worst_confusions(matrix, labels, limit=MAX_CONFUSIONS) -> list:
@@ -327,7 +431,7 @@ def _worst_confusions(matrix, labels, limit=MAX_CONFUSIONS) -> list:
     return out[:limit]
 
 
-def score_predictions(pairs, events, labels, duration_s=0.0, t_ms=None) -> Score:
+def _score_strict(pairs, events, labels, duration_s, t_ms) -> Score:
     """Consolida as previsoes e os eventos num unico objecto de resultado.
 
     Ficam de fora da matriz de confusao os frames que **nao sao avaliaveis**:
@@ -369,6 +473,39 @@ def score_predictions(pairs, events, labels, duration_s=0.0, t_ms=None) -> Score
         worst_confusions=_worst_confusions(matrix, order),
         events=stats,
     )
+
+
+def score_predictions(
+    pairs, events, labels, duration_s=0.0, t_ms=None, settle_guard_ms: float = 0.0
+) -> Score:
+    """F1 estrito, mais — se e quando se pedir — o diagnostico da janela.
+
+    ``settle_guard_ms`` nao muda o numero principal: devolve o score **estrito** e
+    guarda a variante com a janela derivada em `guarded_*`. A distincao nao e
+    formal: e que um corpus de maos reais tem, por construcao, uma margem de
+    erro que o classificador nao pode remover — o operador prime a tecla antes de
+    a mao chegar a pose. Exclui-la e o unico jeito de saber quanto do deficit e
+    do classificador e quanto e dessa margem, e essa pergunta e a que decide se
+    vale a pena mexer nos limiares.
+
+    O inverso — excluir a margem e reports so o numero bonito — transformaria a
+    janela num parametro de afinação do alvo, e o alvo de 0.97 deixaria de
+    valer alguma coisa. Por isso o gate avalia sempre `macro_f1`, o estrito.
+    """
+    pairs = list(pairs)
+    labels = list(labels)
+    score = _score_strict(pairs, events, labels, duration_s, t_ms)
+    if settle_guard_ms > 0:
+        g_pairs, g_labels, frames, converted = _apply_settle_guard(
+            pairs, labels, t_ms, settle_guard_ms
+        )
+        guarded = _score_strict(g_pairs, events, g_labels, duration_s, t_ms)
+        score.guard_ms = float(settle_guard_ms)
+        score.guard_frames = converted
+        score.guarded_macro_f1 = guarded.macro_f1
+        score.guarded_accuracy = guarded.accuracy
+        score.guarded_total = guarded.total
+    return score
 
 
 # ------------------------------------------------------------------ aceitacao
@@ -436,6 +573,8 @@ class Report:
     duration_s: float = 0.0
     width: int = 0
     height: int = 0
+    provenance: str = "unknown"
+    provenance_note: str = ""
     score: Score = field(default_factory=Score)
     acceptance: Acceptance = field(default_factory=Acceptance)
 
@@ -453,6 +592,7 @@ class Report:
                 "duration_s": round(self.duration_s, 3),
                 "width": self.width,
                 "height": self.height,
+                "source": self.provenance,
             },
             "frames": self.score.frames,
             "labelled": self.score.total,
@@ -460,6 +600,19 @@ class Report:
             "correct": self.score.correct,
             "accuracy": round(self.score.accuracy, 6),
             "macro_f1": round(self.score.macro_f1, 6),
+            "settle_guard": {
+                "ms": self.score.guard_ms,
+                "frames": self.score.guard_frames,
+                "macro_f1": (
+                    None if self.score.guarded_macro_f1 is None
+                    else round(self.score.guarded_macro_f1, 6)
+                ),
+                "accuracy": (
+                    None if self.score.guarded_accuracy is None
+                    else round(self.score.guarded_accuracy, 6)
+                ),
+                "labelled": self.score.guarded_total,
+            },
             "per_class": {
                 name: {
                     "precision": round(v.precision, 6),
@@ -496,6 +649,11 @@ class Report:
         d = self.to_dict()
         lines = [
             f"Corpus        : {self.corpus_path}",
+            # A primeira linha depois do caminho, e nao uma nota no fim: o F1
+            # macro 1.0000 de um corpus gerado e o F1 macro 1.0000 de maos
+            # reais sao o mesmo numero com significado completamente diferente,
+            # e so um deles diz alguma coisa sobre o produto.
+            f"Origem        : {self.provenance_note or self.provenance}",
             f"Frames / maos : {d['corpus']['frames']} / {d['corpus']['hands']}"
             f"  ({d['corpus']['duration_s']:.1f}s)"
             f"  [{self.width}x{self.height}]",
@@ -504,6 +662,33 @@ class Report:
             f"F1 macro      : {self.score.macro_f1:.4f}",
             f"Transicao     : {self.score.settle} frames em SETTLE"
             f" (excluidos do F1; o custo do debounce aparece na latencia)",
+        ]
+        if self.score.guard_ms > 0:
+            # A linha vai DEPOIS do F1 e nunca o substitui: e a resposta a "este
+            # numero e do classificador ou e da minha mao?", e so interessa
+            # depois de o numero ja ter sido lido.
+            if self.score.guarded_total <= 0:
+                # Imprimir "F1 0.0000" aqui seria mentira: nao ha F1, ha zero
+                # frames avaliados. Acontece com segmentos curtos — uma janela
+                # de 300 ms apaga um segmento de 6 frames inteiro, e o corpus
+                # sintetico e feito de segmentos de 6. O numero nao existe e
+                # dizer que e 0.0 manda quem leia concluir que o classificador
+                # falhou.
+                lines.append(
+                    f"Transicao +/- {self.score.guard_ms:.0f} ms: a janela "
+                    f"cobre os {self.score.guard_frames} frames rotulados deste "
+                    f"corpus - nao sobra nenhum para avaliar. Diagnostico "
+                    f"inutil aqui; a janela tem de ser menor que um segmento."
+                )
+            else:
+                lines.append(
+                    f"Transicao +/- {self.score.guard_ms:.0f} ms: "
+                    f"F1 {self.score.guarded_macro_f1:.4f}"
+                    f" (acerto {self.score.guarded_accuracy:.4f},"
+                    f" {self.score.guard_frames} frames, {self.score.guarded_total}"
+                    f" avaliados) - diagnostico, nao o alvo"
+                )
+        lines += [
             "",
             "Por gesto (so classes com evidencia):",
         ]
@@ -608,6 +793,7 @@ def evaluate(
     min_f1: float = DEFAULT_MIN_F1,
     min_pinch_precision: float = DEFAULT_MIN_PINCH_PRECISION,
     max_phantom_per_hour: float = DEFAULT_MAX_PHANTOM_PER_HOUR,
+    settle_guard_ms: float = 0.0,
 ) -> Report:
     """Avalia um corpus gravado e devolve o relatorio completo."""
     from config import Config
@@ -619,7 +805,8 @@ def evaluate(
         corpus, cfg, width, height, gesture_ai
     )
     score = score_predictions(
-        pairs, events, truth, duration_s=corpus.duration_s(), t_ms=t_ms
+        pairs, events, truth, duration_s=corpus.duration_s(), t_ms=t_ms,
+        settle_guard_ms=settle_guard_ms,
     )
     return Report(
         corpus_path=os.fspath(path),
@@ -628,6 +815,8 @@ def evaluate(
         duration_s=corpus.duration_s(),
         width=width,
         height=height,
+        provenance=corpus.source,
+        provenance_note=corpus.provenance(),
         score=score,
         acceptance=acceptance_report(
             score, min_f1, min_pinch_precision, max_phantom_per_hour
@@ -651,6 +840,11 @@ def main(argv=None) -> int:
     p.add_argument("--max-phantom-per-hour", type=float,
                    default=DEFAULT_MAX_PHANTOM_PER_HOUR)
     p.add_argument("--json", action="store_true", help="saida em JSON")
+    p.add_argument(
+        "--settle-guard-ms", type=float, default=0.0,
+        help="diagnostico: recalcula o F1 excluindo esta janela em ms depois de "
+             "cada mudanca de etiqueta. Nao altera o F1 principal nem o gate.",
+    )
     p.add_argument("--gate", action="store_true",
                    help="devolve 1 se algum alvo falhar (para CI)")
     args = p.parse_args(argv)
@@ -663,6 +857,7 @@ def main(argv=None) -> int:
             min_f1=args.min_f1,
             min_pinch_precision=args.min_pinch_precision,
             max_phantom_per_hour=args.max_phantom_per_hour,
+            settle_guard_ms=args.settle_guard_ms,
         )
     except FileNotFoundError as exc:
         print(f"ERRO: corpus nao encontrado ({args.corpus}): {exc}")

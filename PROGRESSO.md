@@ -192,6 +192,262 @@
     `--replay-gate` F1 macro 1.0000 e 0 cliques fantasma, mutation-tested (com
     `PEACE = "scroll"`, 4 dos 5 testes falham).
 
+19. **Instrumentação do corpus de mãos reais — e a razão de nunca ter havido
+    um corpus de mãos reais.** Quatro commits em `instrumentacao-corpus-real`.
+    *O que faltava ao formato v1* eram duas coisas, e as duas custam caro
+    quando faltam. **A confiança**: `core/tracker.py` lia
+    `handedness[0].category_name` e deitava fora `handedness[0].score`, e um
+    corpus gravado sem ela fica sem ela **para sempre** — mãos reais não se
+    recolhem duas vezes. **A origem**: "sintético" era uma nota de rodapé em
+    três sítios do `PROGRESSO.md`, e o `--replay-gate` anunciava F1 macro 1.0000
+    sem dizer de que dados. Agora `meta["source"]` é um dado e o relatório
+    imprime-o na segunda linha; por omissão é `"unknown"`, **não** `"synthetic"`
+    — "não sei" é o que deixa o gate recusar-se a anunciar qualidade em vez de a
+    inventar. `FORMAT_VERSION` = 2, com `conf` (F,2) float32 a `NaN` nos slots
+    vazios (nunca `0.0`, que faria um limiar de abstenção descartar tudo sem
+    ninguém saber porquê) e `meta` em JSON, nunca pickle. O loader continua a ler
+    a v1 — a fixture do CI já existia em v1 — e um v3 continua a ser erro alto.
+    `replay()` **não** mudou de forma: há ~20 sítios que o descompactam em 5
+    valores e essa forma não é o que se quer mexer; quem precisa da confiança usa
+    `replay_with_conf()`.
+    *A confiança tem o nome que tem*: é o score da **classificação** da mão
+    (esquerda/direita), não a de detecção — a API Python do `HandLandmarker` não
+    a expõe, só os limiares `min_*_confidence`, que são um limiar e não uma
+    medida. Chamar-lhe "detection confidence" seria um over-claim.
+    *E o que apareceu pelo caminho.* `tools/collect_gestures.py` — o tool que
+    recolhe mãos reais — **nunca foi executado**: fazia `hands =
+    tracker.process(...)` e depois `hands[0]`, que levanta `ValueError`, porque
+    o `process()` devolve uma tupla desde o primeiro commit (`3a5c67b`). **É
+    provavelmente a razão de o modelo nunca ter visto mãos reais.** A terceira
+    tabela divergida do repo, com a mesma classe de silêncio das outras duas.
+    E nele: as classes e as teclas eram escritas à mão e já divergiam do seu par
+    — o `--record` usa 0-9 + `d`/`c`/`g` e `x` para limpar; este usava 1-9 e
+    `c` para limpar. `c` com dois sentidos opostos conforme o `if` que o apanhe,
+    e errar a tecla **não dá erro**: grava o gesto errado, que é a forma mais
+    cara de errar sobre mãos reais. Passou a importar `LABEL_KEY_CHOICES`.
+    *A premessa do plano ("estender o tool às 13 classes") estava errada, e
+    verifiquei antes de implementar.* O tool alimenta `train_gesture_ai.py`, não
+    o `Corpus`, e o que o treinador lê são as 9 `CLASSES` de `core/gesture_ai.py`.
+    Estender rebenta o `load_real` com `ValueError: zip() argument 2 is longer
+    than argument 1` (reproduzi antes de afirmar) e, pior, os pesos que o
+    produto distribui são um **modelo de 9 classes de um org de terceiros** —
+    alterar `N_CLASSES` sem retreinar faz o modelo distribuído mentir. **Decisão
+    de retraining, do dono do produto.** O que ficou feito sem a tomar: o tool
+    passa a recolher as 12 classes do enum (incluindo `PINKY`, com tecla), as de
+    fora do modelo marcadas a amarelo e com aviso no `save`; e o `load_real` falha
+    com uma frase que **nomeia a classe** e diz as duas saídas possíveis, em vez
+    de um sintoma de zip. `PINKY` era metade da confusão PINKY/SHAKA e **não tinha
+    tecla nenhuma** — essa confusão não se resolvia a recolher mais dados,
+    porque os dados de um dos lados não se podiam recolher.
+    *Verificado*: ruff limpo, **516** testes do cliente, 70 do license-server,
+    `--replay-gate` ACEITE com a origem impressa, fixture regenerada com métricas
+    idênticas, e 8 mutações testadas (as que não podiam falhar foram reescritas
+    até poderem: uma escrevia a lista de classes à mão e passava na igualdade;
+    a do `zip` só "morreu" por erro de sintaxe e foi repetida como mutação válida).
+
+20. **A ajuda dizia atalhos que o programa não prime — e ninguém comparava a
+    ajuda com o código.** Quarta tabela escrita à mão que divergiu do seu par, e
+    a única em que a divergência é visível para quem paga.
+    O banner de arranque (`main.py:540-541`, lido em **cada** execução)
+    anunciava `fechar/abrir punho x2=Ctrl+D` e `bye bye=Ctrl+E`. O motor prima
+    `win+d` (`engine.py:618`) e `win+down` (`:623`). Quem seguisse a instrução
+    carregava Ctrl+D — que no Excel duplica a linha e no Explorer não faz nada —
+    e a janela não minimizava. **O programa não dá erro nenhum:** funciona, e a
+    instrução é que mente. O cliente conclui que o software é que é, e tem
+    razão do ponto de vista dele.
+    *As outras duas estavam certas*, o que prova que se sabe ler o código para
+    conferir o que se escreve: o painel do preview (`core/overlay.py:168-169`) e
+    a ajuda da janela PySide em 7 línguas (`i18n.py`, `help.g.wind`/`help.g.min`)
+    dizem `Win+D` e `minimizar (Win+↓)`. Só o banner ficou para trás — quase de
+    certeza quando alguém mudou o código de `ctrl+d` para `win+d` para o atalho
+    passar a funcionar no Windows, e não actualizou a linha de baixo.
+    *O guard* (`tests/test_help_truthfulness.py`, 4 testes) compara a ajuda com
+    o que o motor realmente prima, **lido do `core/engine.py` por AST** — pela
+    mesma razão que o guard anterior: uma lista escrita à mão seria a mesma
+    tabela outra vez. Inclui um teste de que essa lista de atalhos ainda existe,
+    porque `Alt+Tab` e `Alt+Shift+Tab` não passam por `_keyboard_shortcut` (vão
+    por `Key.tab`/`Key.shift_l`, em `core/hotkeys.py`) e a guarda tem de cobrir a
+    metade do código onde não os vê — cada entrada declarando de onde vem, para
+    que ninguém a acrescente por adivinhação.
+    *Quatro guardas nasceram erradas nesta guarda*, e vale a pena registá-las
+    porque são o erro de sempre: **um guard que não pode falhar não é um
+    guard.** (1) Filtrar as strings por nome de variável (`show_help`,
+    `log.info`) — um rename deixava a lista vazia e o teste *verde a não
+    verificar nada*; trocado por "todas as strings do ficheiro", que é o que a
+    AST dá de graça. (2) `\S+` no padrão do atalho agarrava o fecho de
+    parênteses: `(Win+↓)` dava `win+)` e `Ctrl+C / Ctrl+V` dava um atalho só.
+    (3) O normalizador partia por `+` **e** pelas setas, o que deitava fora a
+    própria seta em vez de a converter: `"Win+↓"` dava `["win", "", ""]`. (4) O
+    padrão não encadeava modificadores, e `"Alt+Shift+Tab"` era lido
+    `"Alt+Shift"` — um atalho que o motor não prime, ou seja, um erro
+    inventado. Nenhuma delas era o bug; todas teriam feito desligar o teste
+    quem encontrasse a primeira. E o teste do i18n acusou a **tradução
+    francesa** de mentir por causa de `Alt+Maj` — o `Maj` do teclado francês. A
+    tradução estava certa; a guarda é que não conhecia o teclado alheio.
+    *Verificado*: ruff limpo, **568** testes do cliente, `--replay-gate` ACEITE,
+    2 mutações testadas (mudar o atalho no motor, e esvaziar a lista de
+    atalhos do painel).
+
+21. **Gravar um corpus tinha efeitos colaterais na máquina de quem grava.** O
+    `mouse = MouseCtl()` e o `SmoothEmitter` eram construídos e corriam sempre, e
+    o recorder é puramente passivo — portanto, durante a recolha, o cursor
+    movia-se, cada PINCH clicava a sério no que estivesse por baixo, e cada
+    PINKY/SHAKA soltava `Ctrl+C`/`Ctrl+V` **na janela que estivesse em foco**.
+    Quem grava ficava a mirar ao que davam os gestos. O comentário em
+    `main.py` dizia que o `--record` "nunca toca no rato": era verdade sobre as
+    teclas de etiqueta e falso sobre o rato, e foi essa frase que fez o defeito
+    passar por característica.
+    *Não é um mau hábito do operador, é uma propriedade da ferramenta* — por isso
+    que o silêncio é o **predefinido** e `--record-live` é que o desliga.
+    `MuteMouse` substitui o rato e **conta** o que engoliu: o fim da sessão
+    imprime o que ficou calado, e um `0x0` porque o código está errado não
+    provaria nada. O toast continua a falar — é ele que diz ao operador o que
+    foi reconhecido, que é a única informação de que precisa para etiquetar.
+    *Três garantias*, porque silenciar a saída podia estragar a gravação: a mão do
+    cursor é escolhida pela palma filtrada (`_active_hand_index`), não pela
+    posição do rato do sistema; o emissor corre igual, porque é a aritmética dos
+    acumuladores que fixa o ritmo a que cada frame é processado; e o brilho
+    também é mudado, por ser a única saída que corromperia o próprio ficheiro — a
+    câmara vê o ecrã, e se a aplicação escurece o ambiente a meio da recolha a
+    luz muda sem ninguém mexer em nada.
+    `tests/test_mute_output.py`, 13 testes.
+
+22. **Um corpus de mãos reais não conseguia levar o rótulo `SETTLE`** — e sem ele
+    o primeiro F1 real sairia mais baixo do que é, por uma razão que não é
+    má qualidade do classificador. `LABEL_KEY_CHOICES` não tem SETTLE, e não tem
+    porquê: SETTLE não é um gesto e o operador não tem quando o aplicar. Só a
+    fixture sintética o produz. O que sobra num corpus real é a verdade
+    desconfortável de que a etiqueta muda no instante da tecla e a mão só chega à
+    pose uns centimos de segundo depois — e sem uma janela, **todo** início de
+    segmento contaria como erro, medindo a velocidade da mão humana em vez da
+    qualidade do classificador.
+    `settle_frames()` deriva a janela da **mudança de etiqueta**, que é a única
+    coisa que um corpus real tem para dizer "aqui começou um segmento": por
+    definição, um frame cujo ground truth difere do anterior é um frame de
+    transição. Duas decisões que os testes trancam:
+    * A janela é um intervalo de **tempo**, não uma contagem de frames. O mesmo
+      corpus lido a 14,6 fps (HP i3-5005U) e a 30 fps tem de dar a mesma resposta
+      ao mesmo intervalo em ms; uma guarda em frames mediria coisas diferentes em
+      máquinas diferentes e o "F1" deixaria de ser comparável entre corpora.
+    * A janela é um **diagnóstico ao lado** do F1, nunca a sua substituta. O gate
+      avalia sempre `macro_f1`; se fosse o outro caminho, a janela passava a ser
+      um parâmetro de afinação do alvo e 0,97 deixaria de valer alguma coisa.
+    `--replay-settle-guard-ms`, fechada por omissão: o baseline do CI não se move,
+    e há teste a assegurar que `macro_f1` e `passed` são idênticos com e sem
+    guarda. *Um caso que o relatório precisou de aprender a dizer*: com uma janela
+    maior que um segmento não sobra nada para avaliar, e imprimir `F1 0.0000`
+    manda quem lê concluir que o classificador está partido — acontece a justo a
+    este corpus, feito de segmentos de 6 frames (~200 ms). A linha diz que não há
+    F1, há zero frames, e o F1 principal continua impresso em cima.
+    `tests/test_settle_guard.py`, 18 testes.
+
+21. **O ecrã dizia "SEM MÃO" com a mão no enquadramento.** Quinta tabela
+    divergida, e a única que chega ao utilizador a cada frame.
+    O `BADGES` de `core/overlay.py` tem 11 entradas; o `Gesture` tem 13 membros.
+    Faltam **`THUMB_DOWN` e `ROCK`**, e os dois são produzidos:
+    `core/gestures.py:248` devolve `THUMB_DOWN` pelo caminho geométrico, `:260`
+    devolve `ROCK`, e `:297` deixa a IA confirmá-lo. O `draw_overlay` procurava
+    o rótulo com `BADGES.get(hf.gesture, BADGES[Gesture.NONE])`, e para esses
+    dois o fallback é o de `NONE`: o overlay desenhava **"SEM MAO"** a
+    cinzento, com a mão no enquadramento.
+    *O que torna isto pior do que um rótulo em falta é o sítio.* O badge é a
+    única resposta que o utilizador tem em tempo real sobre o que o reconhecedor
+    achou que ele fez. Se faz o gesto, o classificador concorda, e o ecrã diz
+    que não há mão, a conclusão é "isto não funciona" — e repetir o gesto é a
+    tentativa cansativa que este projecto existe para tirar. Não há excepção, não
+    há log, e ninguém repara sem ter a mão à frente.
+    **Não se inventou o rótulo.** A palavra que o utilizador deve ler para estes
+    dois é decisão do dono do produto e continua por decidir (o badge do
+    `THUMB_DOWN` já foi recusado). O overlay mostra o `name` do enum, a
+    cinzento-claro — feio e honesto. Escolher a palavra aqui, dentro de um bug de
+    ecrã, era tomá-la sem o dono do produto dar por isso. A cor também não é a
+    de nenhum outro estado, porque o esqueleto da mão é desenhado com ela, e dois
+    estados que se vêem iguais não são estados que se consiga ler.
+    *O guard* (`tests/test_overlay_badge_honesty.py`, 8 testes) percorre
+    `Gesture.__members__` e **não** uma lista escrita à mão — pela mesma razão
+    que o `test_gesture_labels.py`: a iteração sobre o `Enum` não vê aliases, e
+    o `PEACE` apagado em silêncio passou justamente numa verificação feita com
+    ela. Os gestos que o motor produz são lidos do `core/gestures.py` por AST,
+    com um mínimo que falha se a extracção esvaziar.
+    *Duas guardas nasceram erradas aqui também.* Uma contava quantas vezes o
+    overlay citava `Gesture.` acima de um limite — contava também o que está
+    nos *docstrings*, que é onde a correcção se descreve, e o número não
+    significa nada; trocada por uma afirmação de sanidade sobre o que
+    interessa. E a outra comparava `cor == COLOR_SEM_ROTULO`, **o módulo
+    consigo próprio**: mudar a constante deixava o teste verde, porque importa
+    a mesma constante que mudou. Quinta vez nesta série que um guard meu não
+    conseguia falhar. Trocada pela propriedade — a cor tem de ser diferente da
+    de todos os estados já decididos, incluindo o de "sem mão". As duas
+    mutações morrem; a anterior não.
+    *Verificado*: ruff limpo, **560** testes do cliente, `--replay-gate` ACEITE,
+    3 mutações testadas.
+
+22. **Um teste chamado "nonempty" que não verificava se algum valor tinha
+    conteúdo — e estava a proteger a identidade de licenciamento.**
+    `tests/test_fingerprint.py` tinha `assert comps`, e `collect_components()`
+    devolve sempre um dicionário com três chaves. Passava **com as três
+    componentes vazias**.
+    `machine_id()` é o sha256 de `"board_uuid=…|disk_serial=…|machine_guid=…"`.
+    Com as três vazias, esse sha256 é uma **constante** —
+    `751f034653eeaa33…`, o mesmo em todas as máquinas degradadas. E
+    `core/licensing.py:163` valida a licença por `machine_id`, ou seja: a
+    licença de uma máquina funciona noutra. Num produto pago, isso é receita
+    que sai sem dar erro a ninguém.
+    *Não é hipotético.* O `wmic` foi descontinuado e já não vem no Windows 11
+    recente: `core/fingerprint.py:_wmic` volta `""` para os dois números de
+    série. Falta só o acesso ao registo (`MachineGuid`) também falhar — e esse
+    `except` era `except Exception: pass`, que não distingue um `PermissionError`
+    de um `ImportError`, que são problemas de conserto completamente
+    diferentes. Este ficou estreito (`OSError`, `ImportError`) e passa a registar
+    a falha em `debug`. Um `except: pass` indistinguível de não ter o bloco
+    custa um dia inteiro a um suporte quando a activação falha.
+    *O `test_machine_id_deterministic` passa neste estado*, porque `a == b` é
+    verdadeiro tanto para uma identidade boa como para uma partilhada. O
+    determinismo é a única propriedade garantida, e ela não distingue as duas.
+    **Nada na suite apanhava isto.**
+    *O que mudou*: `core/fingerprint.py::degenerate()` dá nome à condição (uma
+    função, e não uma comparação espalhada — é o nome que permite escrever um
+    teste), `machine_id()` deixa de falar em silêncio, e
+    `test_a_maquina_tem_pelo_menos_uma_componente_real` falha **de propósito**
+    numa máquina sem identidade, com a mensagem a explicar porquê.
+    *O buraco fica aberto de propósito.* `test_o_machine_id_degradado_e_partilhado_entre_maquinas`
+    fixa a constante para que ela não desapareça em silêncio — mas fechá-lo
+    exige que `machine_id()` recuse e que `licensing.py` decida o que fazer sem
+    identidade estável, e recusa a activação é decisão do dono do produto, não
+    um efeito colateral de um teste. Registado como bloqueador #5.
+    *Verificado*: ruff limpo, 2 mutações testadas — degradar a máquina (o
+    teste antigo passava, o novo morre) e `degenerate()` a devolver sempre
+    `False`.
+
+23. **Varredura `grep Error` — o resto.** Concluída a classe "código escrito e
+    nunca exercitado" nos três sítios onde ela aparece: tabelas escritas à mão
+    (itens 18, 20, 21), `except` que engole, e código ao topo do módulo.
+    *Os `except` que engole* — 18 no código do cliente, **15 sem justificação
+    escrita**. Perolhamente legíveis:
+    | Sítio | Veredicto |
+    |---|---|
+    | `main.py:617` `remote.stop()` | correcto — melhor esforço no fecho |
+    | `core/gesture_ai.py:148` | correcto — `continue` para o URL seguinte |
+    | `core/remote.py` ×4 | correcto — limpeza de rede |
+    | `core/tts.py`, `core/media_ctl.py`, `core/voice.py` | periférico, isolado |
+    | `config.py:253,365` | correcta a leer, a justificação é que falta |
+    | **`core/fingerprint.py:13`** | **corrigido — o item 22** |
+
+    Os que ficaram por justificar são todos de periférico ou de fecho, e
+    nenhum está no caminho de um clique. Não foram tocados: mexer neles sem
+    caminho é um risco sem recompensa, e vale a mesma regra que o resto — não
+    mexer no que não está partido.
+    *O código ao topo do módulo* que executa no `import` só existe em
+    `tools/test_*.py` e `tools/debug_*.py`, que são *scripts* com
+    `if __name__ == "__main__"`, e em `license-server/admin_api.py:56`, que é
+    um servidor feito para se executar. Nenhum deles é importado por outro
+    módulo, que é o que tornaria a execução no `import` um efeito secundário
+    em vez do ponto do ficheiro.
+    *Falso alarme que vale registar*: `temp_baseline_ref.py`, na raiz, **não é
+    UTF-8** — é UTF-16. O Python lê `.py` como UTF-8, portanto o ficheiro não
+    importa, e `ast.parse` nem sequer o abre. Está no `.gitignore`, é rascunho
+    de alguém, e não é achado.
+
 ### 🔴 Bloqueadores em aberto (Sprint 2 → 1.ª venda paga)
 
 | # | Bloqueador | Estado |
@@ -200,6 +456,28 @@
 | 1 | **Assinatura digital do `.exe`** — pipeline pronto; certificado SSL.com **VALIDADO**; falta **enroll/ativação do eSigner** | 🟡 eSigner por ativar |
 | 2 | **Store listing mobile (Play Console)** — IAP code ✅; falta prebuild/upload/listing. O package agora é `com.maouse.mobile` e o app **ainda não foi submetido**, portanto o rename não custou nada aqui — mas também não há volta: depois do primeiro upload o package é imutável | 🔴 |
 | 3 | **LAB de compatibilidade** — matriz ≥5 dispositivos por categoria    | 🟡 1 🟡 (HP i3-5005U 14.6 fps) |
+| 4 | **Corpus de mãos reais** — a instrumentação está pronta (item 19), mas `--record` e `collect_gestures.py` nunca produziram um ficheiro: o tool estava partido. Recolher é ~20 min por gesto e não se repete; a partir de agora cada recolha grava a confiança e a proveniência | 🔴 precisa de mãos reais — **caminho corrigido (itens 21–22), falta gravar** |
+| 5 | **`machine_id` degenerado é partilhado entre máquinas** — se nenhuma componente de hardware for lida, o `machine_id` é o sha256 de uma string constante e `core/licensing.py:163` valida a licença por ele: a licença de uma máquina passa a funcionar noutra. Plausível agora, porque o `wmic` já não vem no Windows 11 recente e basta o acesso ao registo falhar. O teste que deveria apanhar isto era `assert comps`, que passa com as três componentes vazias. **Aberto de propósito:** fechar exige que `machine_id()` recuse e que `licensing.py` decida o que fazer sem identidade estável — e essa decisão é do dono do produto (item 22) | 🔴 decisão do dono do produto |
+
+    > **As duas ferramentas não são o mesmo trabalho**, e o bloqueador tratava-as
+    > como se fossem. `tools/eval_recognition.py` — e portanto o `--replay` e o
+    > `--replay-gate` — consome um `Corpus` **temporal**: frames com timestamp,
+    > frames sem mão e a janela `SETTLE`.
+    >
+    > | Ferramenta | Formato | O que sai daqui |
+    > |---|---|---|
+    > | `main.py --record FICHEIRO` | `Corpus` temporal | **F1, cliques fantasma/h, latência em mãos reais.** É esta que fecha o bloqueador. |
+    > | `tools/collect_gestures.py` | saco de amostras (`X`/`y`/`classes`/`conf`) | **Dados de treino** do MLP. Nada mais. |
+    >
+    > `collect_gestures.py` por si só **nunca** responde "como é o reconhecimento
+    > em mãos reais": produz material de treino, que `train_gesture_ai.py::load_real`
+    > consome. É plausível que o "nunca houve um ficheiro" venha de se ter gravado
+    > com a ferramenta errada, ou com a ferramenta certa para a pergunta errada.
+    >
+    > **A ordem dentro de cada segmento decide se os 20 minutos servem:** premir a
+    > tecla **antes** de adoptar a pose. A etiqueta vale a partir do momento da
+    > tecla; se adoptares a pose e só depois premires, os primeiros frames ficam
+    > com a etiqueta anterior — e esse erro fica gravado para sempre.
 
 ### Reserva financeira (Pista A)
 
@@ -310,7 +588,10 @@ maouse/
 4. **`tools/collect_gestures.py`** — janela interativa: teclas 1-5 escolhem gesto
    (OPEN/PINCH/PINCH_MID/FIST/PEACE), gravacao por frames com gate de qualidade,
    z/c/s/Q; modo automatico `--frames N --class X --no-preview` para testes.
-   Grava `data/real_landmarks.npz` (X=Nx21x2 px, y=classe).
+   Grava `data/real_landmarks.npz` (X=N×21×3 px, y=classe, conf=confiança da
+   classificação, meta=proveniência). **Correção (item 19):** este formato
+   nunca chegou a ser escrito, porque o `tracker.process` devolvia uma tupla e o
+   tool não a descompactava.
 5. **`tools/train_gesture_ai.py`** estendido:
    - `--real <npz>` mistura sintetico+reais; split estratificado 85/15;
      validacao REAL reportada epoca a epoca + matriz de confusao real.

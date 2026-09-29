@@ -263,7 +263,7 @@ def split_real(y, rng, val_frac=0.15):
 
 
 def load_real(path, min_per_class=30):
-    data = np.load(path)
+    data = np.load(path, allow_pickle=False)
     X, y = data["X"].astype(np.float64), data["y"].astype(np.int64)
     if X.ndim != 3 or X.shape[1:] not in ((21, 2), (21, 3)):
         raise ValueError(
@@ -271,6 +271,20 @@ def load_real(path, min_per_class=30):
         )
     if X.shape[2] == 2:
         X = np.concatenate([X, np.zeros((*X.shape[:2], 1), dtype=np.float64)], axis=2)
+    if y.size and int(y.max()) >= N_CLASSES:
+        # Antes disto isto caia num `ValueError: zip() argument 2 is longer than
+        # argument 1`, que nao diz o que aconteceu nem qual classe, e faz quem
+        # lê pensar que o ficheiro esta corrompido. A falha tem de ser uma
+        # instrucao: recolheste uma classe que o modelo nao tem.
+        fora = _classes_fora_do_modelo(y, data)
+        raise ValueError(
+            f"o ficheiro tem {len(set(y))} classes e o modelo tem {N_CLASSES}; "
+            f"fora do modelo: {', '.join(fora) or '?'}. "
+            f"Isto nao e um ficheiro corrompido: e dados de classes que o modelo "
+            f"nao conhece. Treinar com elas agora daria um modelo que nunca as "
+            f"acerta. Ou se recolhe so as {N_CLASSES} classes do modelo, ou "
+            f"primeiro se alarga o modelo e retreina."
+        )
     counts = np.bincount(y, minlength=N_CLASSES)
     if (counts < min_per_class).any():
         raise ValueError(
@@ -279,6 +293,24 @@ def load_real(path, min_per_class=30):
             f"minimo {min_per_class} por classe. Usa tools/collect_gestures.py"
         )
     return X, y
+
+
+def _classes_fora_do_modelo(y, data) -> list:
+    """Nomes das classes do ficheiro que o modelo nao tem, se o ficheiro os
+    trouxer. Sem a coluna `classes`, devolve os indices: menos legivel, mas
+    honesto — um nome inventado seria pior do que um numero."""
+    names = None
+    try:
+        names = [str(n) for n in data["classes"]]
+    except (KeyError, ValueError):
+        return [str(int(c)) for c in np.unique(y) if int(c) >= N_CLASSES]
+    return sorted(
+        {
+            names[int(c)]
+            for c in np.unique(y)
+            if int(c) >= N_CLASSES and int(c) < len(names)
+        }
+    )
 
 
 def make_dataset(per_class, rng):

@@ -219,3 +219,73 @@ class MouseCtl:
 
     def drag_end(self):
         self.release_left()
+
+
+class MuteMouse:
+    """Rato que engole tudo, e conta o que engoleu.
+
+    Existe para o `--record`. Gravar um corpus de maos reais exige ficar varios
+    minutos a fazer e a desfazer poses diante da camara, e enquanto isso o
+    pipeline tratava aquilo como uso normal: o cursor movia-se e cada PINCH
+    clicava a serio no que estivesse por baixo. Quem grava fica assim a mirar
+    ao que dao os gestos, e um Ctrl+C/PINKY vai parar a janela que estiver em
+    foco. Nao e um mau habito do operador, e um efeito lateral da ferramenta.
+
+    Nao substitui o rato no cursor logico: a mao do cursor e escolhida pela
+    palma filtrada (`engine._active_hand_index`), nao pela posicao do rato do
+    sistema, por isso silenciar a saida nao estraga o que esta a ser gravado. E
+    o emissor corre igual — `move_by` e um no-op mas a sua aritmetica de
+    acumuladores e a mesma, e e essa aritmetica que fixa o ritmo a que o
+    pipeline processa cada frame. Mexer no ritmo mudaria o que a camara viu, e
+    portanto mudaria o corpus.
+    """
+
+    #: Nomes metodos, para a contagem ser legivel no fim da sessao.
+    _COUNTED = (
+        "move_by", "press_left", "release_left", "left_click", "right_click",
+        "scroll", "drag_start", "drag_end",
+    )
+
+    def __init__(self, screen_w: int = 0, screen_h: int = 0):
+        self.screen_w = screen_w
+        self.screen_h = screen_h
+        # `_click_assist` le `mouse.mouse.position`. Deixar `mouse` a None faz
+        # essa leitura levantar dentro do try/except e aUltimar um debug por
+        # clique; e o correcto, porque o click-assist tambem move o rato.
+        self.mouse = None
+        self.swallowed: dict = {}
+
+    def _count(self, name: str) -> None:
+        self.swallowed[name] = self.swallowed.get(name, 0) + 1
+
+    def summary(self) -> str:
+        """Uma linha com o que ficou engolido, para o fim da gravacao."""
+        if not self.swallowed:
+            return "nada"
+        return ", ".join(
+            f"{n}x{self.swallowed[n]}" for n in sorted(self.swallowed)
+        )
+
+    def move_by(self, dx, dy):
+        self._count("move_by")
+
+    def press_left(self):
+        self._count("press_left")
+
+    def release_left(self):
+        self._count("release_left")
+
+    def left_click(self):
+        self._count("left_click")
+
+    def right_click(self):
+        self._count("right_click")
+
+    def scroll(self, dy):
+        self._count("scroll")
+
+    def drag_start(self):
+        self._count("drag_start")
+
+    def drag_end(self):
+        self._count("drag_end")

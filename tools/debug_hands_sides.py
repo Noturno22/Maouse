@@ -49,7 +49,9 @@ with open(outpath, "w", encoding="utf-8") as fh:
             last_seq = seq
             frame_i += 1
             rgb = frame[:, :, ::-1]  # BGR->RGB
-            hands, sides = tracker.process(rgb, time.monotonic_ns() // 1_000_000)
+            hands, sides, _confs = tracker.process(
+                rgb, time.monotonic_ns() // 1_000_000
+            )
             now = time.time()
             if now - last_print >= 0.5 and sides:
                 last_print = now

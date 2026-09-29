@@ -5,7 +5,8 @@
     "hands": 168,
     "duration_s": 6.336,
     "width": 640,
-    "height": 480
+    "height": 480,
+    "source": "synthetic"
   },
   "frames": 168,
   "labelled": 116,

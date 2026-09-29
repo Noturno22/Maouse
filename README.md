@@ -121,9 +121,14 @@ Só corre uma instância (mutex). Ícone da bandeja: pausar, voz on/off, preview
 A IA vem treinada com mãos sintéticas. Para treinar com a TUA mão:
 
 ```
-.venv\Scripts\python.exe tools\collect_gestures.py     # prime 1-5 para escolher gesto e faz gestos
+.venv\Scripts\python.exe tools\collect_gestures.py     # teclas 0-9,d,c,g escolhem o gesto; x limpa; s grava
 .venv\Scripts\python.exe tools\train_gesture_ai.py --real data\real_landmarks.npz
 ```
+
+As teclas são as mesmas que o `--record` usa, e cada recolha grava de que máquina
+e a que taxa saiu. Os gestos marcados com `*` no ecrã (PINKY, ONE, THUMB_DOWN) são
+recolhíveis mas **não são classes do modelo actual**: o `.npz` fica guardado para um
+retreino, e o treinador recusa-o até o modelo ter essas classes.
 
 Recomendação: ~100+ amostras por gesto (o contador aparece no ecrã). O treino mistura
 sintético + reais, mostra accuracy de validação REAL e guarda o modelo anterior em

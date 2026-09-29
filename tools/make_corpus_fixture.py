@@ -303,6 +303,15 @@ def make_corpus(seed: int = SEED, cfg=None) -> Corpus:
             corpus.add_frame(t, [hand], ["Right"], [label], 0)
         t += FRAME_MS
 
+    # A fixture diz de onde veio. Sem isto, o `--replay-gate` anunciava
+    # F1 macro 1.0000 sem dizer que era sobre esqueletos gerados, e o aviso
+    # tinha de ser escrito à mão em cada documento que citasse o numero.
+    corpus.set_meta(
+        source="synthetic",
+        generator=f"make_corpus_fixture.py seed={seed}",
+        device="nenhum (gerado)",
+    )
+
     for run in RUNS:
         for label in run:
             settling = (

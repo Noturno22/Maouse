@@ -84,20 +84,48 @@ class HandTracker:
     def process(self, rgb_frame, timestamp_ms):
         image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
         result = self._landmarker.detect_for_video(image, timestamp_ms)
-        hands = []
-        sides = []
-        for lm_list, handed in zip(
-            result.hand_landmarks, result.handedness or (), strict=True
-        ):
-            hands.append([(lm.x, lm.y, lm.z) for lm in lm_list])
-            label = "Right"
-            if handed:
-                label = handed[0].category_name if handed[0].category_name in (
-                    "Left",
-                    "Right",
-                ) else "Right"
-            sides.append(label)
-        return hands, sides
+        return parse_landmarks_result(result)
 
     def close(self):
         self._landmarker.close()
+
+
+def parse_landmarks_result(result):
+    """Traduz o resultado do MediaPipe em ``(hands, sides, confs)``.
+
+    Funcao pura e separada do ``detect_for_video`` de proposito: e o unico sitio
+    onde a traducao acontece, e assim da para a testar sem camara e sem
+    MediaPipe a correr (tests/test_tracker_confidence.py).
+
+    ``confs[i]`` e o ``handedness[i][0].score`` — a confianca da **classificacao**
+    (esquerda ou direita), que e o unico score que a API Python do
+    ``HandLandmarker`` expoe. **Nao** e a confianca de deteccao da mao: essa nao
+    e exposta, so os limiares `min_*_confidence` de deteccao, que sao um
+    limiar e nao uma medida. Quando nao ha valor, devolve ``NaN``, que significa
+    "nao medido" e nao "mediu zero" — a distincao decide se um limiar de
+    abstencao descarta tudo sem ninguem saber porque.
+    """
+    hands = []
+    sides = []
+    confs = []
+    handedness = result.handedness or ()
+    for i, lm_list in enumerate(result.hand_landmarks):
+        # `handedness` pode ser None, ou mais curto que a lista de maos. O
+        # `zip(..., strict=True)` que aqui estava antes levantava ValueError
+        # nesse caso — um crash em vez de uma mao sem confianca. Itera-se pelas
+        # maos e le-se o handedness por indice, que e o que sobrevive a isso.
+        handed = handedness[i] if i < len(handedness) else ()
+        hands.append([(lm.x, lm.y, lm.z) for lm in lm_list])
+        label = "Right"
+        if handed:
+            label = handed[0].category_name if handed[0].category_name in (
+                "Left",
+                "Right",
+            ) else "Right"
+        sides.append(label)
+        score = getattr(handed[0], "score", None) if handed else None
+        try:
+            confs.append(float(score))
+        except (TypeError, ValueError):
+            confs.append(float("nan"))
+    return hands, sides, confs
