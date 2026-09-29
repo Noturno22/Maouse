@@ -15,9 +15,9 @@ O `LicenseManager` do desktop obtém o(s) URL(s) do license-server pela
 
 | # | Origem | Para quê |
 |---|---|---|
-| 1 | env `AIRMOUSE_LICENSE_URLS` | override: QA/dev e failover (CSV) |
+| 1 | env `MAOUSE_LICENSE_URLS` | override: QA/dev e failover (CSV) |
 | 2 | `.env` do utilizador (`core/envcfg.py`) | mesmo override, sem export no shell |
-| 3 | env `AIRMOUSE_LICENSE_SERVER_URL` | **o URL de produção, injetado no build** |
+| 3 | env `MAOUSE_LICENSE_SERVER_URL` | **o URL de produção, injetado no build** |
 | 4 | constante `PROD_LICENSE_SERVER_URL` | fallback; tem de ser o URL real |
 
 Sem nenhuma delas, cai num **placeholder** (`licenses.maouse.example.com`, que não existe).
@@ -25,7 +25,7 @@ Sem nenhuma delas, cai num **placeholder** (`licenses.maouse.example.com`, que n
 como está hoje, a ativação/validação de licença **falharia sempre** (mas o trial local
 continua a funcionar).
 
-O `tools/issue_pro_key.py` (lado operacional) usa `AIRMOUSE_LS_URL`.
+O `tools/issue_pro_key.py` (lado operacional) usa `MAOUSE_LS_URL`.
 
 ## O que mudou em 2026-09-26
 
@@ -62,12 +62,12 @@ Seguir `license-server/DEPLOY_RENDER.md` (conta Render + env vars + disco). Fica
 `https://<service>.onrender.com`.
 
 ### 2. Gravar o URL real como default de produção no build
-Passar `AIRMOUSE_LICENSE_SERVER_URL=https://<service>.onrender.com` ao compilar
+Passar `MAOUSE_LICENSE_SERVER_URL=https://<service>.onrender.com` ao compilar
 (ver `build.bat`), **ou** substituir o placeholder em
 `PROD_LICENSE_SERVER_URL` (`core/licensing.py`). O passo 1-3 da tabela acima
 significa que o `.env` do utilizador não conta — o valor tem de estar no binário.
 
-> Igualar também `tools/issue_pro_key.py` (`AIRMOUSE_LS_URL` default) se o desktop a usar.
+> Igualar também `tools/issue_pro_key.py` (`MAOUSE_LS_URL` default) se o desktop a usar.
 
 ### 3. Rebuildar e assinar o `.exe`
 Depois do bake, correr `build.bat` (que já assina com `cert\maouse.pfx`, ver
@@ -84,7 +84,7 @@ Abrir o `.exe` distribuído e ativar com uma chave real → confirmar que fica P
 
 - **Não partilhar o URL**: apesar de público, evitar documentá-lo no README do utilizador;
   deve ficar só no build e nas docs operacionais.
-- **Ambiente de teste:** para apontar a um servidor local/QA, definir `AIRMOUSE_LICENSE_URLS`
+- **Ambiente de teste:** para apontar a um servidor local/QA, definir `MAOUSE_LICENSE_URLS`
   (ex.: `http://127.0.0.1:8899`) antes de correr `main.py`, ou pôr a mesma linha no `.env`.
 - **Não reverter o URL a meio:** um `.exe` antigo com o placeholder deve ser substituído, não
   "reparado" server-side.

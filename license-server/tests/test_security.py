@@ -48,8 +48,8 @@ class TestVariavelDefinidaEVazia:
     """`os.getenv(nome, default)` só usa o default quando a variável **não existe**.
 
     Quando existe e está vazia devolve `""`, e o `default` nunca é tocado. É a
-    diferença entre "renomeei AIRMOUSE_LS_PRIVATE_KEY → MAOUSE_LS_PRIVATE_KEY e
-    deixei-a vazia" e "a variável não existe": no Render, onde o `private.pem`
+    diferença entre "defini MAOUSE_LS_PRIVATE_KEY mas deixei-a vazia" e "a
+    variável não existe": no Render, onde o `private.pem`
     do repositório não está, a primeira dava `open("")` -> FileNotFoundError na
     **primeira activação**, com health checks a passar e a landing a servir.
     Ninguém descobre isso até haver uma compra para activar.

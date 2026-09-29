@@ -49,7 +49,7 @@ license_server.db
 version_info.txt
 
 # Endpoint do license-server embebido no build (GERADO por
-# tools/gen_license_endpoint.py a partir de AIRMOUSE_LICENSE_SERVER_URL).
+# tools/gen_license_endpoint.py a partir de MAOUSE_LICENSE_SERVER_URL).
 # Fora do git de propósito: é específico de cada build/ambiente.
 core/_license_endpoint.py
 

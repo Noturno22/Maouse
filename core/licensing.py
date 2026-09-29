@@ -29,14 +29,14 @@ LICENSE_URL_NOT_CONFIGURED = "https://licenses.maouse.example.com"
 # URL do license-server de PRODUÇÃO — FONTE ÚNICA do endpoint.
 #
 # Prioridade de resolução (ver docs/DESKTOP_LICENSE_URL.md):
-#   1. env AIRMOUSE_LICENSE_URLS      — override, QA/dev e multi-endpoint
+#   1. env MAOUSE_LICENSE_URLS      — override, QA/dev e multi-endpoint
 #   2. ficheiro .env do utilizador    — mesmo override, sem export no shell
 #   3. core/_license_endpoint.py      — o URL real EMBUTIDO no build
 #   4. esta constante                  — fallback; TEM de ser o URL real
 #
 # O build distribuído NÃO leva env vars nem .env, por isso o passo 3 é o que
 # torna a ativação possível num .exe: `tools/gen_license_endpoint.py` escreve
-# esse módulo a partir de AIRMOUSE_LICENSE_SERVER_URL antes do bake (ver
+# esse módulo a partir de MAOUSE_LICENSE_SERVER_URL antes do bake (ver
 # build.bat) e o PyInstaller inclui-o no binário.
 #
 # TODO(producao): substituir pelo URL do Render e NÃO mudar depois de
@@ -65,11 +65,11 @@ PRO_LOCKED = ("snap", "voice", "two_hands", "tts", "ai", "autotune", "low_light"
 # Produtos Paddle (Pay Links). Preencher com os IDs reais dos preços quando a
 # entidade UE e o catálogo Paddle existirem. Mantido por compat (checkout).
 PADDLE_PRODUCT_URLS = {
-    "lifetime": env_value("AIRMOUSE_PADDLE_LIFETIME_URL"),
-    "subscription": env_value("AIRMOUSE_PADDLE_SUBSCRIPTION_URL"),
-    "family": env_value("AIRMOUSE_PADDLE_FAMILY_URL"),
-    "access": env_value("AIRMOUSE_PADDLE_ACCESS_URL"),
-    "trading_master": env_value("AIRMOUSE_PADDLE_TRADING_MASTER_URL"),
+    "lifetime": env_value("MAOUSE_PADDLE_LIFETIME_URL"),
+    "subscription": env_value("MAOUSE_PADDLE_SUBSCRIPTION_URL"),
+    "family": env_value("MAOUSE_PADDLE_FAMILY_URL"),
+    "access": env_value("MAOUSE_PADDLE_ACCESS_URL"),
+    "trading_master": env_value("MAOUSE_PADDLE_TRADING_MASTER_URL"),
 }
 
 
@@ -474,7 +474,7 @@ class LicenseManager:
         if not vendor_id and not PADDLE_PRODUCT_URLS.get(product):
             log.warning(
                 "Checkout de '%s' nao aberto: Paddle nao configurado. Definir "
-                "AIRMOUSE_PADDLE_%s_URL ou AIRMOUSE_PADDLE_VENDOR_ID "
+                "MAOUSE_PADDLE_%s_URL ou MAOUSE_PADDLE_VENDOR_ID "
                 "(ver docs/SEGURANCA_LICENCA.md).",
                 product, product.upper(),
             )
@@ -524,12 +524,12 @@ def _store_exists(store_path: str) -> bool:
 def _default_endpoints():
     """Resolve a lista de endpoints do license-server (ver ordem em
     PROD_LICENSE_SERVER_URL). Sempre devolve pelo menos um."""
-    raw = env_value("AIRMOUSE_LICENSE_URLS")
+    raw = env_value("MAOUSE_LICENSE_URLS")
     if raw:
         urls = [u.strip().rstrip("/") for u in raw.split(",") if u.strip()]
         if urls:
             return urls
-    configured = (env_value("AIRMOUSE_LICENSE_SERVER_URL")
+    configured = (env_value("MAOUSE_LICENSE_SERVER_URL")
                   or _baked_endpoint()
                   or PROD_LICENSE_SERVER_URL)
     return [configured.strip().rstrip("/")]
@@ -557,7 +557,7 @@ def license_server_status() -> str:
         "Servidor de licencas NAO configurado: o endpoint de producao ainda e o "
         f"placeholder ({LICENSE_URL_NOT_CONFIGURED}). A ativacao online de chaves "
         "Pro e a renovacao de lease nao vao funcionar. Definir "
-        "AIRMOUSE_LICENSE_SERVER_URL (build) ou AIRMOUSE_LICENSE_URLS (dev) — "
+        "MAOUSE_LICENSE_SERVER_URL (build) ou MAOUSE_LICENSE_URLS (dev) — "
         "ver docs/DESKTOP_LICENSE_URL.md."
     )
 

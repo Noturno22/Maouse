@@ -196,7 +196,7 @@
 
 | # | Bloqueador | Estado |
 |---|---|---|
-| 0 | **Renomear as 16 variáveis no painel do Render** — `AIRMOUSE_*` → `MAOUSE_*`, **antes do próximo deploy**. O `render.yaml` versionado já está no prefixo novo; as do painel não se renomeiam sozinhas (`sync: false`, e o Render nunca as mostra). Chegam como string vazia: o `mobile/entitle` deixa de validar compras, o admin recusa o login, o SMTP cala-se — sem erro nenhum. Passo a passo em `license-server/DEPLOY_RENDER.md` | 🔴 antes de qualquer deploy |
+| 0 | **Renomear as 16 variáveis no painel do Render** — `MAOUSE_*` → `MAOUSE_*`, **antes do próximo deploy**. O `render.yaml` versionado já está no prefixo novo; as do painel não se renomeiam sozinhas (`sync: false`, e o Render nunca as mostra). Chegam como string vazia: o `mobile/entitle` deixa de validar compras, o admin recusa o login, o SMTP cala-se — sem erro nenhum. Passo a passo em `license-server/DEPLOY_RENDER.md` | 🔴 antes de qualquer deploy |
 | 1 | **Assinatura digital do `.exe`** — pipeline pronto; certificado SSL.com **VALIDADO**; falta **enroll/ativação do eSigner** | 🟡 eSigner por ativar |
 | 2 | **Store listing mobile (Play Console)** — IAP code ✅; falta prebuild/upload/listing. O package agora é `com.maouse.mobile` e o app **ainda não foi submetido**, portanto o rename não custou nada aqui — mas também não há volta: depois do primeiro upload o package é imutável | 🔴 |
 | 3 | **LAB de compatibilidade** — matriz ≥5 dispositivos por categoria    | 🟡 1 🟡 (HP i3-5005U 14.6 fps) |

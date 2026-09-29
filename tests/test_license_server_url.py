@@ -16,8 +16,8 @@ from core.envcfg import env_int, env_value
 @pytest.fixture(autouse=True)
 def _sem_override(monkeypatch):
     """Isola dos overrides reais do ambiente e do `.env` da máquina de teste."""
-    monkeypatch.delenv("AIRMOUSE_LICENSE_URLS", raising=False)
-    monkeypatch.delenv("AIRMOUSE_LICENSE_SERVER_URL", raising=False)
+    monkeypatch.delenv("MAOUSE_LICENSE_URLS", raising=False)
+    monkeypatch.delenv("MAOUSE_LICENSE_SERVER_URL", raising=False)
     monkeypatch.setattr(core.envcfg, "_CANDIDATES", ())
 
 
@@ -34,12 +34,12 @@ def test_real_prod_url_counts_as_configured(monkeypatch):
 
 
 def test_override_url_counts_as_configured(monkeypatch):
-    monkeypatch.setenv("AIRMOUSE_LICENSE_URLS", "http://127.0.0.1:8899")
+    monkeypatch.setenv("MAOUSE_LICENSE_URLS", "http://127.0.0.1:8899")
     assert lic.license_server_configured() is True
 
 
 def test_status_message_empty_when_configured(monkeypatch):
-    monkeypatch.setenv("AIRMOUSE_LICENSE_URLS", "http://127.0.0.1:8899")
+    monkeypatch.setenv("MAOUSE_LICENSE_URLS", "http://127.0.0.1:8899")
     assert lic.license_server_status() == ""
 
 
@@ -47,7 +47,7 @@ def test_status_message_explains_the_gap(monkeypatch):
     monkeypatch.setattr(lic, "PROD_LICENSE_SERVER_URL", lic.LICENSE_URL_NOT_CONFIGURED)
     msg = lic.license_server_status()
     assert lic.LICENSE_URL_NOT_CONFIGURED in msg
-    assert "AIRMOUSE_LICENSE_URLS" in msg
+    assert "MAOUSE_LICENSE_URLS" in msg
 
 
 def test_endpoints_never_empty(monkeypatch):
@@ -56,7 +56,7 @@ def test_endpoints_never_empty(monkeypatch):
 
 
 def test_endpoints_comma_separated_and_stripped(monkeypatch):
-    monkeypatch.setenv("AIRMOUSE_LICENSE_URLS", " http://a.test/ , http://b.test ")
+    monkeypatch.setenv("MAOUSE_LICENSE_URLS", " http://a.test/ , http://b.test ")
     assert lic.LicenseManager(store_path=":memory:")._endpoints == [
         "http://a.test", "http://b.test",
     ]
@@ -81,9 +81,9 @@ def test_baked_endpoint_is_used(monkeypatch):
 
 
 def test_baked_endpoint_loses_to_env_override(monkeypatch):
-    """O endpoint embebido é o default; AIRMOUSE_LICENSE_URLS manda."""
+    """O endpoint embebido é o default; MAOUSE_LICENSE_URLS manda."""
     monkeypatch.setattr(lic, "_baked_endpoint", lambda: "https://baked.onrender.com")
-    monkeypatch.setenv("AIRMOUSE_LICENSE_URLS", "http://127.0.0.1:8899")
+    monkeypatch.setenv("MAOUSE_LICENSE_URLS", "http://127.0.0.1:8899")
     assert lic.LicenseManager(store_path=":memory:")._endpoints == [
         "http://127.0.0.1:8899",
     ]
@@ -91,7 +91,7 @@ def test_baked_endpoint_loses_to_env_override(monkeypatch):
 
 def test_baked_endpoint_loses_to_env_server_url(monkeypatch):
     monkeypatch.setattr(lic, "_baked_endpoint", lambda: "https://baked.onrender.com")
-    monkeypatch.setenv("AIRMOUSE_LICENSE_SERVER_URL", "https://build-time.test")
+    monkeypatch.setenv("MAOUSE_LICENSE_SERVER_URL", "https://build-time.test")
     assert lic.LicenseManager(store_path=":memory:")._endpoints == [
         "https://build-time.test",
     ]
@@ -117,18 +117,18 @@ def _load_gen_module():
 
 
 def test_gen_prefers_argv_over_env(monkeypatch):
-    monkeypatch.setenv("AIRMOUSE_LICENSE_SERVER_URL", "https://da-env.test")
+    monkeypatch.setenv("MAOUSE_LICENSE_SERVER_URL", "https://da-env.test")
     assert _load_gen_module().resolve_url(["x", "https://do-argv.test/"]) == \
         "https://do-argv.test"
 
 
 def test_gen_falls_back_to_env(monkeypatch):
-    monkeypatch.setenv("AIRMOUSE_LICENSE_SERVER_URL", "https://da-env.test/")
+    monkeypatch.setenv("MAOUSE_LICENSE_SERVER_URL", "https://da-env.test/")
     assert _load_gen_module().resolve_url(["x"]) == "https://da-env.test"
 
 
 def test_gen_empty_when_nothing_set(monkeypatch):
-    monkeypatch.delenv("AIRMOUSE_LICENSE_SERVER_URL", raising=False)
+    monkeypatch.delenv("MAOUSE_LICENSE_SERVER_URL", raising=False)
     assert _load_gen_module().resolve_url(["x"]) == ""
 
 
@@ -148,7 +148,7 @@ def test_gen_empty_url_stays_detectable_as_placeholder(monkeypatch, tmp_path):
     mod = _load_gen_module()
     out = tmp_path / "_license_endpoint.py"
     monkeypatch.setattr(mod, "OUT_PATH", str(out))
-    monkeypatch.delenv("AIRMOUSE_LICENSE_SERVER_URL", raising=False)
+    monkeypatch.delenv("MAOUSE_LICENSE_SERVER_URL", raising=False)
     mod.main(["x"])
     ns = {}
     exec(compile(out.read_text(encoding="utf-8"), str(out), "exec"), ns)

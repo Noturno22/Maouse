@@ -38,9 +38,9 @@ from ui.theme import MAIN_STYLESHEET
 SUPPORT_EMAIL = "suporte@maouse.app"
 
 # vendor_id real do Paddle (D2). 0 = NAO configurado. Vem do ambiente ou do
-# `.env`; com 0 e sem AIRMOUSE_PADDLE_*_URL, `open_checkout` recusa abrir o
+# `.env`; com 0 e sem MAOUSE_PADDLE_*_URL, `open_checkout` recusa abrir o
 # browser em vez de mandar o utilizador para uma página de erro do Paddle.
-PADDLE_VENDOR_ID = env_int("AIRMOUSE_PADDLE_VENDOR_ID", 0)
+PADDLE_VENDOR_ID = env_int("MAOUSE_PADDLE_VENDOR_ID", 0)
 
 # (id, nome, preço curto, linha extra, destaque)
 _PRODUCTS = [

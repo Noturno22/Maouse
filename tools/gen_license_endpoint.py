@@ -2,7 +2,7 @@
 
 Porquê um ficheiro gerado e não uma env var: num build PyInstaller não existem
 env vars de compilação em runtime. O utilizador final não define
-AIRMOUSE_LICENSE_SERVER_URL, portanto o único jeito de o URL real travelhar
+MAOUSE_LICENSE_SERVER_URL, portanto o único jeito de o URL real travelhar
 dentro do .exe é ser gerado para um módulo antes do bake.
 
 Uso (normalmente chamado pelo build.bat):
@@ -22,7 +22,7 @@ OUT_PATH = os.path.join(
 
 TEMPLATE = '''"""GERADO por tools/gen_license_endpoint.py — nao editar a mao.
 
-Endpoint do license-server embebido no build. Definir AIRMOUSE_LICENSE_SERVER_URL
+Endpoint do license-server embebido no build. Definir MAOUSE_LICENSE_SERVER_URL
 antes de compilar, ou passar o URL como argumento. Ver docs/DESKTOP_LICENSE_URL.md.
 """
 
@@ -34,7 +34,7 @@ def resolve_url(argv) -> str:
     """URL do argumento, senão da env var, senão string vazia."""
     if len(argv) > 1 and argv[1].strip():
         return argv[1].strip().rstrip("/")
-    return os.environ.get("AIRMOUSE_LICENSE_SERVER_URL", "").strip().rstrip("/")
+    return os.environ.get("MAOUSE_LICENSE_SERVER_URL", "").strip().rstrip("/")
 
 
 def main(argv) -> int:
@@ -46,7 +46,7 @@ def main(argv) -> int:
     if url:
         print(f"[licença] endpoint de produção embebido: {url}  ->  {rel}")
     else:
-        print(f"[licença] AVISO: sem AIRMOUSE_LICENSE_SERVER_URL — o build vai "
+        print(f"[licença] AVISO: sem MAOUSE_LICENSE_SERVER_URL — o build vai "
               f"trazer o placeholder e a ativação online NÃO vai funcionar "
               f"({rel})")
     return 0

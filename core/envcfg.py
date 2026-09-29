@@ -2,7 +2,7 @@
 
 Existe para que settings de desenvolvimento (endpoint do license-server,
 chaves de API) possam ser definidos num ficheiro em vez de exportados no
-shell — o utilizador não tem de lembrar `AIRMOUSE_LICENSE_URLS=... python
+shell — o utilizador não tem de lembrar `MAOUSE_LICENSE_URLS=... python
 main.py` a cada arranque.
 
 Precedência: variável de ambiente > ficheiro `.env`. O `.env` NUNCA é

@@ -16,6 +16,32 @@ Formato de uma entrada:
 
 ---
 
+## [2026-09-29 09:40] Limpeza: prefixo de env vars unificado em MAOUSE_*
+
+- **Objetivo:** o merge anterior deixou dois prefixos de env vars — o desktop
+  (lado `feature/touch`) usava `AIRMOUSE_*` e o license-server/lado `main`
+  usava `MAOUSE_*`. Unificado tudo em **`MAOUSE_*`**, o nome do projeto.
+- **Alterações (rename global `AIRMOUSE_` → `MAOUSE_`):**
+  - `core/licensing.py`, `core/envcfg.py`, `core/log.py` (`MAOUSE_TRACE`),
+    `tools/gen_license_endpoint.py` (`MAOUSE_LICENSE_SERVER_URL`),
+    `ui/license_dlg.py` (`MAOUSE_PADDLE_VENDOR_ID`).
+  - Testes: `tests/test_license_server_url.py`, `license-server/tests/test_security.py`.
+  - Docs: `docs/DESKTOP_LICENSE_URL.md`, `license-server/DEPLOY_RENDER.md`,
+    `.env.example`, `.gitignore` (comentário), `PROGRESSO.md`, `HISTORICO.md`.
+  - `.env` local (gitignored): `AIRMOUSE_LICENSE_URLS` e
+    `AIRMOUSE_LS_ADMIN_TOKEN` → `MAOUSE_*` (senão o desktop deixava de ler a
+    config após o rename do código).
+  - `tests/test_naming.py`: o guard que exige "toda a var `MAOUSE_*` do
+    `.env.example` ser lida" só detetava `os.getenv`/`os.environ`; passou a
+    detetar também `env_value`/`env_int` (usados pelo `core/envcfg.py`) e a
+    analisar `ui/license_dlg.py` (que lê `MAOUSE_PADDLE_VENDOR_ID`).
+- **Verificação:** `pytest tests/` (exceto `test_voice_direct` que só falha por
+  falta de PortAudio no sistema) e `license-server/tests/test_security.py` —
+  ok. `grep -r AIRMOUSE_` em todo o working tree → vazio.
+- **Estado:** OK.
+
+---
+
 ## [2026-09-29 08:48] Publicar no main os 10 commits com autoria correta
 
 - **Objetivo:** o outro computador (`Noturno22`) não via os últimos commits.
@@ -44,9 +70,9 @@ Formato de uma entrada:
   - `core/licensing.py` — ficou a versão do `feature/touch` (mais rica:
     `store_lock`, baked endpoint `core/_license_endpoint.py`,
     `license_server_configured()`/`license_server_status()`, escrita atómica;
-    usa env `AIRMOUSE_*`, coerente com `core/envcfg.py`, `gen_license_endpoint.py`
-    e os testes). O license-server continuou com `MAOUSE_*` (lado do `main`).
-    Pendente de decisão futura: unificar o prefixo de env vars em `MAOUSE_*`.
+    usa env `MAOUSE_*`, coerente com `core/envcfg.py`, `gen_license_endpoint.py`
+    e os testes). O license-server continuou com `MAOUSE_*` (lado do `main`);
+    a unificação do prefixo ficou completa na entrada das 09:40.
   - `docs/DESKTOP_LICENSE_URL.md` e `license-server/DEPLOY_RENDER.md` — versão
     `feature/touch` (coerente com o `core/licensing.py` escolhido).
   - `mobile/…/useAccessibilityStatus.ts` — conflito de localização (ficheiro
@@ -79,12 +105,12 @@ cd /home/fortuna/Desktop/Maouse-main/license-server && set -a && . ../.env && se
 cd /home/fortuna/Desktop/Maouse-main/mobile/airmouse-mobile && \
   setsid nohup npx expo start --host lan --port 8081 > logs/expo-dev.log 2>&1 < /dev/null &
 cd /home/fortuna/Desktop/Maouse-main && \
-  AIRMOUSE_TRACE=1 setsid nohup .venv/bin/python main.py > /tmp/maouse-run.log 2>&1 < /dev/null &
+  MAOUSE_TRACE=1 setsid nohup .venv/bin/python main.py > /tmp/maouse-run.log 2>&1 < /dev/null &
 ```
 - Token do remoto: `a693…` (o valor completo está em `settings.json`, que é
   gitignored — não o repetir aqui).
 - O trace vai para `logs/airmouse.log`; o arranque vai para `/tmp/maouse-run.log`.
-- O `AIRMOUSE_TRACE=1` é só diagnóstico — sem ele o log é limpo e o código
+- O `MAOUSE_TRACE=1` é só diagnóstico — sem ele o log é limpo e o código
   corre exactamente igual (`core/log.py:trace`).
 - Confirmação de que a sessão é X11: `echo $XDG_SESSION_TYPE` → tem de dar
   `x11`. Em Wayland o `pynput` **não** mexe no cursor virtual e nada disto
@@ -112,7 +138,7 @@ calibrado no ecrã.
 ```
  M HISTORICO.md
  M config.py                              remote_move_gain novo (3.0)
- M core/log.py                            trace() novo, atrás de AIRMOUSE_TRACE
+ M core/log.py                            trace() novo, atrás de MAOUSE_TRACE
  M core/remote.py                         árbitro begin/end, _move_rel com ganho
  M main.py                                liga on_command_begin/end ao árbitro
  M ui/settings_dlg.py                     slider do ganho remoto
@@ -218,7 +244,7 @@ Para commitar: `git add -A ':!logs'` e depois `git commit`.
 - **Verificação no aparelho (feita, com o telemóvel do utilizador):**
   Serviços arrancados — o PC tinha reiniciado às 21:04 e não havia nada a
   correr: license-server em `127.0.0.1:8899` (`/health` → `{"status":"ok"}`),
-  Metro em `*:8081`, e `main.py` com `AIRMOUSE_TRACE=1` (sessão **X11**, o que
+  Metro em `*:8081`, e `main.py` com `MAOUSE_TRACE=1` (sessão **X11**, o que
   importa: em Wayland o `pynput` não mexe no cursor virtual).
   - **O bundle que o Metro serve já tem as três correções**, lido do bundle
     real (`curl index.bundle?platform=android&dev=true`, 7.5 MB):
@@ -690,7 +716,7 @@ Para commitar: `git add -A ':!logs'` e depois `git commit`.
   `test_failed_activation_does_not_block_free`.
 - **Problema 3 — a env var não sobrevivia ao build:** num bundle PyInstaller não
   existem env vars de compilação em runtime, portanto
-  `AIRMOUSE_LICENSE_SERVER_URL` por si só nunca chegaria ao `.exe`. Solução:
+  `MAOUSE_LICENSE_SERVER_URL` por si só nunca chegaria ao `.exe`. Solução:
   - `tools/gen_license_endpoint.py` gera `core/_license_endpoint.py` (gitignored)
     a partir da env var ou de um argumento.
   - `core/licensing.py:_baked_endpoint()` lê esse módulo — é agora o passo 3 da
@@ -704,10 +730,10 @@ Para commitar: `git add -A ':!logs'` e depois `git commit`.
   (`env_value` / `env_int`, sem dependências) é agora usado por
   `core/licensing.py` e `ui/license_dlg.py`. Ordem: env var > `.env` (cwd, depois
   raiz do projeto). Criado um `.env` local (gitignored) com
-  `AIRMOUSE_LICENSE_URLS=http://127.0.0.1:8899` — já não é preciso exportar nada
+  `MAOUSE_LICENSE_URLS=http://127.0.0.1:8899` — já não é preciso exportar nada
   no shell a cada arranque.
 - **Resolução final do endpoint (fonte única, `core/licensing.py`):**
-  1. `AIRMOUSE_LICENSE_URLS` (env) — override, QA/dev, CSV = failover
+  1. `MAOUSE_LICENSE_URLS` (env) — override, QA/dev, CSV = failover
   2. `.env` do utilizador — mesmo override
   3. `core/_license_endpoint.py` — **URL real embebido no build**
   4. `PROD_LICENSE_SERVER_URL` — constante; tem de ser o URL real
@@ -721,7 +747,7 @@ Para commitar: `git add -A ':!logs'` e depois `git commit`.
     estas alterações
   - `ruff check core/ ui/ tests/ tools/ main.py` → All checks passed
   - Fluxo do gerador verificado end-to-end: sem gerar → placeholder detectado;
-    com `AIRMOUSE_LICENSE_SERVER_URL=https://exemplo.onrender.com` → cliente
+    com `MAOUSE_LICENSE_SERVER_URL=https://exemplo.onrender.com` → cliente
     passa a `license_server_configured() == True`
   - `main.py` reiniciado com o código novo → `License: PRO`, remoto em 8765
     (PID 839909), **sem** o warning de placeholder
@@ -802,21 +828,21 @@ Para commitar: `git add -A ':!logs'` e depois `git commit`.
 - **Correção — license-server local em `127.0.0.1:8899` (caminho real):**
   ```bash
   cd license-server
-  AIRMOUSE_LS_DB=/tmp/maouse-license-dev.db \
-  AIRMOUSE_LS_ADMIN_TOKEN=dev-local-239898 \
-  AIRMOUSE_LS_ADMIN_SESSION_SECRET=dev-local-secret \
+  MAOUSE_LS_DB=/tmp/maouse-license-dev.db \
+  MAOUSE_LS_ADMIN_TOKEN=dev-local-239898 \
+  MAOUSE_LS_ADMIN_SESSION_SECRET=dev-local-secret \
   setsid nohup ../.venv/bin/python -m uvicorn app:app \
     --host 127.0.0.1 --port 8899 > /tmp/maouse-ls.log 2>&1 < /dev/null &
   ```
   - `POST /admin/keys` → chave `MAO-PROC7-FFC1B-57B00-14484-1`
     (guardada em `/tmp/maouse-pro-key.txt`)
-  - Ativação com o cliente real e `AIRMOUSE_LICENSE_URLS=http://127.0.0.1:8899`:
+  - Ativação com o cliente real e `MAOUSE_LICENSE_URLS=http://127.0.0.1:8899`:
     ```bash
-    AIRMOUSE_LICENSE_URLS=http://127.0.0.1:8899 \
+    MAOUSE_LICENSE_URLS=http://127.0.0.1:8899 \
       .venv/bin/python main.py --activate-key MAO-PROC7-FFC1B-57B00-14484-1
     # -> "Licença Pro ATIVADA com sucesso."
     ```
-  - `main.py` foi reiniciado **com** `AIRMOUSE_LICENSE_URLS` para que
+  - `main.py` foi reiniciado **com** `MAOUSE_LICENSE_URLS` para que
     `maybe_revalidate()` (`core/licensing.py:255`) consiga renovar o lease
     em vez de cair no URL placeholder.
 - **Verificação:**
@@ -829,7 +855,7 @@ Para commitar: `git add -A ':!logs'` e depois `git commit`.
 - **Renovar daqui a ~7 dias** (quando `exp` passar):
   ```bash
   cd /home/fortuna/Desktop/Maouse-main
-  AIRMOUSE_LICENSE_URLS=http://127.0.0.1:8899 \
+  MAOUSE_LICENSE_URLS=http://127.0.0.1:8899 \
     .venv/bin/python -c "from core.licensing import LicenseManager; m=LicenseManager(); print(m.revalidate())"
   ```
   Se o license-server local não estiver a correr, reemitir uma chave nova em

@@ -16,8 +16,8 @@ DEFAULT_LEVEL = logging.INFO
 log = logging.getLogger(LOGGER_NAME)
 
 # RastreioVerbose de quem mexe no rato (camara vs telemovel). Diagnostico:
-# AIRMOUSE_TRACE=1 no arranque. Silencioso por omissao.
-TRACE = os.environ.get("AIRMOUSE_TRACE", "").strip() not in ("", "0", "false")
+# MAOUSE_TRACE=1 no arranque. Silencioso por omissao.
+TRACE = os.environ.get("MAOUSE_TRACE", "").strip() not in ("", "0", "false")
 
 _FMT = "%(asctime)s %(levelname)-5s %(name)s: %(message)s"
 
