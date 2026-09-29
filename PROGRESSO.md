@@ -479,7 +479,30 @@
     Fica como bloqueador #5, **com a dimensão agora medida** para a decisão ser
     tomada com números em vez de com um "isto pode ser grave".
 
-25. **A gravação dizia a etiqueta uma vez e desaparecia — e a tecla errada é
+25. **O sal de máquina apareceu no `git status` — e não era um ficheiro para
+    commitar.** `core/fingerprint.py::_fallback_salt()` gravava `machine_salt.txt`
+    em `user_data_dir()`. Esse fallback tinha um pormenor que só apareceu em dev:
+    quando o `LOCALAPPDATA` não era gravável, `config.user_data_dir()` devolvia
+    **o directório do pacote** (para não cair a usar `Program Files` com permissões
+    de admin). Em dev esse diretório é a **raiz do repositório**, logo o sal era
+    escrito em `maouse/machine_salt.txt` e aparecia na árvore como um ficheiro não
+    rastreado, a um `git add .` de distância de ser comittado (um segredo por
+    máquina). Num install portátil também seria partilhado por todos os
+    utilizadores, e o sal é o que separa as máquinas — o que teria voltado a
+    partilhar a identidade que o buraco #5 acabou de fechar.
+    *Correção:* `core/fingerprint.py::_salt_dir()` recusa o diretório do pacote
+    (com comparação **sem distinção de maiúsculas** — o bug original foi comparar
+    strings cruamente, e `...\DEV\maouse` vs `...\DEV\Maouse` nunca davam iguais
+    no Windows). Quando o fallback do `user_data_dir()` aponta para o pacote, não se
+    grava nada, `degraded` continua verdadeiro e `machine_identity()` deriva só do
+    hostname — honesto, não mentiroso. Acrescentei `machine_salt.txt` ao
+    `.gitignore`, limpei o ficheiro que tinha nascido na raiz e acrescentei um teste
+    (`test_o_sal_nunca_vai_para_o_directorio_do_pacote`) que força a caixa trocada
+    para não deixar o guard adormecer outra vez. 3 mutações confirmam que ele apanha
+    o caso (inclusive a comparação sem `normcase`). (`core/fingerprint.py`,
+    `tests/test_fingerprint.py`, `.gitignore`)
+
+26. **A gravação dizia a etiqueta uma vez e desaparecia — e a tecla errada é
     permanente.** A ajuda que dei para gravar dependia de duas coisas que não
     se defendem: o operador decorar `d PINKY` / `c SHAKA` / `g ROCK`, e
     apanhar o toast de 1,3 s que confirmava a etiqueta. As duas falhavam em

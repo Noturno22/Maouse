@@ -1,9 +1,18 @@
 """Hardware fingerprint -> deterministic machine_id (SHA-256)."""
 import hashlib
 import logging
+import os
+import secrets
+import socket
 import subprocess
 
+import config
+from config import user_data_dir
+
 log = logging.getLogger(__name__)
+
+# Ficheiro do sal, **fora** do store de licença. Ver `_fallback_salt`.
+_SALT_FILE = "machine_salt.txt"
 
 
 def _read_machine_guid() -> str:
@@ -64,10 +73,13 @@ def collect_components() -> dict:
 def degenerate(comps: dict | None = None) -> bool:
     """A máquina não produziu nenhuma identidade.
 
-    Quando isto é verdade, o `machine_id` passa a ser o sha256 de uma string
-    constante — **o mesmo em todas as máquinas degradadas**. E `licensing.py`
-    valida a licença por `machine_id` (`:163`), o que significa que duas
-    máquinas nesse estado aceitam a mesma licença uma da outra.
+    Quando isto é verdade, o `machine_id` deixou de ser derivado de hardware e
+    passou a ser derivado de um sal local (`_degraded_id()`). Deixou de ser a
+    mesma constante em todas as máquinas degradadas — a licença de uma deixou de
+    validar noutra — mas deixou de ser prova de que a máquina é aquela, que era
+    o que o `licensing.py` (`:163`) tacitamente assumia ao validar a licença por
+    este valor. Por isso a resposta viaja agora com o id: `machine_identity()`
+    devolve o par, e o servidor sabe quais os ids em que não deve confiar.
 
     Existe como função, e não como comparação espalhada pelo código, para que a
     condição tenha um nome só. O nome é o que permite escrever um teste que
@@ -78,14 +90,129 @@ def degenerate(comps: dict | None = None) -> bool:
     return not any(v for v in comps.values())
 
 
-def machine_id() -> str:
+def _salt_dir() -> str:
+    """Onde gravar o sal -- e, sobretudo, onde **nao** gravar.
+
+    `config.user_data_dir()` tem um fallback: se nao houver onde criar o
+    directorio de dados do utilizador, devolve o directorio do pacote. Para
+    settings e para modelos isso e razoavel (e melhor que nada). Para um
+    segredo de identidade e exactamente o contrario:
+
+    * o directorio do pacote e **partilhado** por todos os utilizadores daquela
+      instalacao num install portatil -- e o sal e o que separa as maquinas,
+      entao gravar la volta a partir a identidade que este ficheiro existe
+      para fechar;
+    * em desenvolvimento e a raiz do repositorio, e o sal aparecia no
+      `git status` como ficheiro por commitar.
+
+    Por isso aqui esse caminho devolve "" e o chamador trata-o como "nao ha
+    onde gravar": pior, mas honesto. E o `degraded` continua a ser verdadeiro,
+    que e o que importa -- nunca se inventa uma identidade porque o ficheiro
+    ficou bonito.
+    """
+    d = user_data_dir()
+    try:
+        # `normcase`, e nao uma comparacao de strings: no Windows os caminhos
+        # nao distinguem maiusculas e `abspath` nao normaliza a caixa. A versao
+        # anterior comparava `...\DEV\maouse` com `...\DEV\Maouse`, dava
+        # "diferentes" e a guarda nunca disparava -- um guard que nao pode
+        # falhar. Foi o teste que o apanhou, ao usar `pathlib`, que devolve a
+        # caixa que o disco tem.
+        pacote = os.path.dirname(os.path.abspath(config.__file__))
+        if os.path.normcase(os.path.abspath(d)) == os.path.normcase(pacote):
+            return ""
+    except (NameError, OSError, TypeError):
+        pass
+    return d
+
+
+def _fallback_salt() -> str:
+    """Um sal aleatorio, gravado uma vez nos dados do utilizador.
+
+    Vive num ficheiro **a parte** do store de licenca, de proposito. Se
+    vivesse no mesmo sitio, apagar a licenca para a reemitir mudaria tambem a
+    identidade da maquina -- e quem tinha pago ficaria com uma licenca presa ao
+    `machine_id` antigo, sem forma de a recuperar. Apagar a licenca tem de
+    continuar a ser uma operacao sobre a licenca.
+
+    Devolve "" se nao houver onde gravar. Aí o hostname fica a ser a unica
+    coisa que distingue a maquina: melhor do que a constante partilhada de
+    antes, mas nao igual. `degraded` continua a dizer a verdade nos dois casos --
+    e e para isso que ele existe, para nao ter de mentir sobre o que o hash
+    protege.
+    """
+    d = _salt_dir()
+    if not d:
+        log.error(
+            "os dados do utilizador nao dao onde gravar o sal de maquina e o "
+            "fallback seria o directorio do pacote, que e partilhado: nao se "
+            "grava la. O machine_id deriva so do hostname."
+        )
+        return ""
+    path = os.path.join(d, _SALT_FILE)
+    try:
+        with open(path, encoding="ascii") as fh:
+            sal = fh.read().strip()
+        if sal:
+            return sal
+    except OSError:
+        pass
+    sal = secrets.token_hex(16)
+    tmp = path + ".tmp"
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(tmp, "w", encoding="ascii") as fh:
+            fh.write(sal)
+        os.replace(tmp, path)
+    except OSError as e:
+        log.error(
+            "nao ha onde gravar o sal de maquina em %s (%r): o machine_id passa "
+            "a derivar so do hostname, que o Windows batiza de DESKTOP-XXXX e "
+            "repetido em varias maquinas. Continua a funcionar, e continua a "
+            "ser fraco.", path, e,
+        )
+        return ""
+    return sal
+
+
+def _degraded_id() -> str:
+    """Identidade de recurso, para uma maquina que nao deu identidade nenhuma.
+
+    Ja nao e uma constante partilhada: o sal e por maquina, entao a licenca de
+    uma maquina neste estado deixa de validar noutra. E o que fica e honesto
+    -- fraco, e por isso mesmo o `degraded` viaja com o id ate ao servidor.
+    """
+    sal = _fallback_salt()
+    try:
+        host = socket.gethostname() or ""
+    except OSError as e:
+        log.debug("hostname indisponivel: %r", e)
+        host = ""
+    return hashlib.sha256(f"degraded|salt={sal}|host={host}".encode()).hexdigest()
+
+
+def machine_identity() -> tuple:
+    """(machine_id, degradado) -- a fonte unica da identidade da maquina.
+
+    O par e a resposta a pergunta "esta identidade aguenta?", que `machine_id()`
+    nao conseguia responder: devolvia um hash, e um hash bem formado nao diz se
+    por baixo havia hardware ou nada. Quem chama precisa de saber qual dos dois
+    viu, para poder avisar quem paga e dizer ao servidor em que confiar.
+    """
     comps = collect_components()
     if degenerate(comps):
         log.error(
-            "nenhuma componente de hardware foi lida (%s): o machine_id passa a "
-            "ser o mesmo em todas as maquinas neste estado, e a licenca de uma "
-            "valida noutra. Nao e um aviso, e um buraco de receita.",
-            comps,
+            "nenhuma componente de hardware foi lida (%s). O machine_id passa a "
+            "derivar de um sal local em vez de hardware: deixa de ser partilhado "
+            "entre maquinas, mas deixa de ser prova de nada, e o servidor trata "
+            "estes ids como suspeitos.", comps,
         )
+        return _degraded_id(), True
     joined = "|".join(f"{k}={comps[k]}" for k in sorted(comps))
-    return hashlib.sha256(joined.encode()).hexdigest()
+    return hashlib.sha256(joined.encode()).hexdigest(), False
+
+
+def machine_id() -> str:
+    """So o id. Quem so precisa de um hash usa este; quem precisa de avaliar a
+    forca da identidade usa `machine_identity()`."""
+    return machine_identity()[0]

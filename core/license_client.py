@@ -56,21 +56,33 @@ class LicenseClient:
                 continue
         raise LicenseError(f"sem_servidor_reachavel: {last_err}")
 
-    def activate(self, key, machine_id):
+    # `machine_weak` diz ao servidor que o `machine_id` não foi derivado de
+    # hardware. Vai em todos os pedidos, e não só no `activate`, porque o trial
+    # também é chaveado por `machine_id`: é o mesmo id a ser usado como prova
+    # de vez, e é o mesmo id a poder ser clonado. O default e `False` para que
+    # um cliente velho — que nao manda o campo — continue a ser aceito, e para
+    # que o servidor tenha de tratar a ausencia como "nao sei", nunca como
+    # "forte".
+    def activate(self, key, machine_id, machine_weak=False):
         return self._request("POST", "/api/v1/activate",
-                             {"key": key, "machine_id": machine_id})
+                             {"key": key, "machine_id": machine_id,
+                              "machine_weak": bool(machine_weak)})
 
-    def revalidate(self, machine_id, old_lease):
+    def revalidate(self, machine_id, old_lease, machine_weak=False):
         return self._request("POST", "/api/v1/revalidate",
-                             {"machine_id": machine_id, "old_lease": old_lease})
+                             {"machine_id": machine_id, "old_lease": old_lease,
+                              "machine_weak": bool(machine_weak)})
 
-    def trial_start(self, machine_id):
+    def trial_start(self, machine_id, machine_weak=False):
         return self._request("POST", "/api/v1/trial/start",
-                             {"machine_id": machine_id})
+                             {"machine_id": machine_id,
+                              "machine_weak": bool(machine_weak)})
 
-    def trial_report(self, machine_id, used_seconds):
+    def trial_report(self, machine_id, used_seconds, machine_weak=False):
         return self._request("POST", "/api/v1/trial/report",
-                             {"machine_id": machine_id, "used_seconds": used_seconds})
+                             {"machine_id": machine_id,
+                              "used_seconds": used_seconds,
+                              "machine_weak": bool(machine_weak)})
 
     def trial_status(self, machine_id):
         return self._request("GET", f"/api/v1/trial/status?machine_id={machine_id}")

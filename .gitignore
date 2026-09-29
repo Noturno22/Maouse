@@ -55,3 +55,6 @@ temp_baseline_ref.py
 # Node (app movel)
 node_modules/
 mobile/maouse-mobile/node_modules/
+
+# Sal de identidade da maquina (core/fingerprint.py). Segredo por maquina, nunca commitar.
+machine_salt.txt
