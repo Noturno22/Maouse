@@ -535,6 +535,48 @@
     com F1 1.000 nos 12 gestos e 0 cliques fantasma, CI verde nos dois jobs
     (`ci` e `mobile`) em `5440bd6`, `3791659` e `15be498`.
 
+25. **O Bluetooth estava a bloquear o telemóvel, e a premissa do BLE estava por
+    provar: agora está provada.** O adaptador (`hci0`, Realtek
+    `30:F7:72:5F:56:4C`) estava `Soft blocked: yes` e `Powered: no`. Com
+    `rfkill unblock bluetooth` + `bluetoothctl power on` fica utilizável, e
+    o `bluetoothd` responde. A questão seguinte era se o **PC consegue ser
+    peripheral** (servidor GATT) **sem root** — de que depende o plano de
+    ligar o telemóvel por Bluetooth. Ninguém tinha provado, e a documentação
+    do `bluetooth.conf` só diz que qualquer utilizador pode *enviar* a
+    `org.bluez`.
+    **Duas armadilhas, e ambas parecem outra coisa.** A primeira
+    `RegisterApplication` devolveu `NoReply`, que se lê como "a política de
+    segurança bloqueou a resposta" — e quase se foi à frente a mexer no
+    `/etc/dbus-1/system.d/bluetooth.conf`. **Não era** isso: o default de
+    25 s é curto para a primeira chamada, enquanto o daemon inicializa o GATT.
+    Com tempo a shades deu `org.bluez.Error.Failed - No object received`, que
+    já é o BlueZ a falar — logo **não há barreira de permissões**, é o
+    pedido que estava incompleto.
+    A segunda custou mais: com os objectos exportados, o daemon respondeu
+    `chrc_create() Failed to obtain service path for characteristic` e
+    descartou a característica **e o serviço inteiro** — dois sítios de falha
+    para uma causa. A propriedade `Service` é um caminho de objecto (`o`);
+    passada como `str` o BlueZ lê `s` e não a encontra. Com
+    `Variant("o", ...)` dentro de um `a{sv}` o `dbus-next` embrulha o variant
+    duas vezes e o daemon continua cego. A forma certa é o decorador
+    `@property` do `dbus_next.service`, que gera a interface
+    `org.freedesktop.DBus.Properties` com a assinatura certa — e o
+    `ObjectManager` devolve os objectos com as propriedades **vazias**, porque
+    o BlueZ as lê por `GetAll`. Nada disto se deduz da documentação; só se
+    descobre com o daemon em `-d`, e foi assim que se descobriu.
+    *Também:* utilizador normal **não** pode ser dono de um nome no bus de
+    sistema (só `root`) — e não precisa. O `RegisterApplication` só quer o
+    caminho do objecto, e o BlueZ volta a falar por `:1.NNN`, o nome único da
+    ligação. Pedir um nome próprio foi o primeiro erro.
+    *Verificado*: `RegisterApplication` aceite como `fortuna`, sem sudo, sob o
+    `bluetoothd` normal do systemd (não só em modo debug) — `client_ready_cb()
+    GATT application registered`. A aplicação GATT de teste tinha um serviço
+    e uma característica `write`+`notify`, e desregistou limpa. O `dbus-next`
+    ficou instalado no venv **sem** entrar em nenhum manifesto, porque
+    `TestSemDependenciasFantasmas` reprova dependência declarada que o código
+    não importa: o `dbus-next` entra no commit que trouxer
+    `core/remote_ble.py`, e o `zeroconf` no que trouxer `core/discovery.py`.
+
 ### Reserva financeira (Pista A)
 
 Gasto **US$168.34** de **US$222** (cert US$129 + domínio US$14.342 + Play US$25) →
