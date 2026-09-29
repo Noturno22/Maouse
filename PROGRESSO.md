@@ -544,7 +544,7 @@
 | 1 | **Assinatura digital do `.exe`** — pipeline pronto; certificado SSL.com **VALIDADO**; falta **enroll/ativação do eSigner** | 🟡 eSigner por ativar |
 | 2 | **Store listing mobile (Play Console)** — IAP code ✅; falta prebuild/upload/listing. O package agora é `com.maouse.mobile` e o app **ainda não foi submetido**, portanto o rename não custou nada aqui — mas também não há volta: depois do primeiro upload o package é imutável | 🔴 |
 | 3 | **LAB de compatibilidade** — matriz ≥5 dispositivos por categoria    | 🟡 1 🟡 (HP i3-5005U 14.6 fps) |
-| 4 | **Corpus de mãos reais** — a instrumentação está pronta (item 19), mas `--record` e `collect_gestures.py` nunca produziram um ficheiro: o tool estava partido. Recolher é ~3 min por sessão (uma volta dos 13 gestos é ~60 s); a partir de agora cada recolha grava a confiança e a proveniência | 🔴 precisa de mãos reais — **caminho corrigido (itens 21–22), falta gravar** |
+| 4 | **Corpus de mãos reais** — a instrumentação está pronta (item 19), mas `--record` e `collect_gestures.py` nunca produziram um ficheiro: o tool estava partido. Recolher é ~3 min por sessão (uma volta dos 13 gestos é ~60 s); a partir de agora cada recolha grava a confiança e a proveniência | 🔴 precisa de mãos reais — **caminho corrigido (itens 21–22 e 25), falta gravar** |
 | 5 | **`machine_id` degenerado é partilhado entre máquinas** — se nenhuma componente de hardware for lida, o `machine_id` é o sha256 de uma string constante (`751f034653eeaa33…`), o mesmo em todas as máquinas assim, e `core/licensing.py:163` valida a licença por ele: a licença de uma máquina passa a funcionar noutra. **Margem medida (item 24):** no Windows 11 24H2+ o `wmic` foi removido de vez, por isso **1 das 3 componentes** enche; o buraco só abre se o acesso ao registo ao `MachineGuid` falhar também. A defesa do servidor existe (`license-server/service.py:78` recusa quando `claims["sub"] != f"machine:{machine_id}"`) e é exactamente esse valor partilhado que a anula. **Aberto de propósito:** fechar exige que `machine_id()` recuse e que `licensing.py` decida o que fazer sem identidade estável — decisão do dono do produto (item 22) | 🔴 decisão do dono do produto |
 
     > **As duas ferramentas não são o mesmo trabalho**, e o bloqueador tratava-as
@@ -566,6 +566,15 @@
     > tecla **antes** de adoptar a pose. A etiqueta vale a partir do momento da
     > tecla; se adoptares a pose e só depois premires, os primeiros frames ficam
     > com a etiqueta anterior — e esse erro fica gravado para sempre.
+    >
+    > **Onde se retoma.** O procedimento é `HARDWARE/RECOLHA_CORPUS.md` (o
+    > `RECONHECIMENTO_MAOS.md` remete para lá). O preview já diz a etiqueta, a
+    > tecla e os frames do segmento, portanto não há nada a decorar nem a
+    > adivinhar (item 25). **Primeiro passo é um ensaio de 60 s** para
+    > `data\smoke.npz`: serve para provar que a máquina grava, e não é
+    > medível. A sessão a sério só leva três minutos. Ao gravar, o passo
+    > seguinte é `--replay data\sessao1.npz --replay-settle-guard-ms 300`, e a
+    > matriz de confusão lê-se antes de acreditar em qualquer F1.
 
 ### Reserva financeira (Pista A)
 
