@@ -64,3 +64,37 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#MyAppName}}"; Flags: nowait postinstall skipifsilent
+
+[Code]
+{ Regra de firewall para a descoberta automatica (mDNS, UDP 5353).
+
+  Sem isto, o Windows Firewall — que bloqueia entrada por omissao — deixa o
+  telefone fazer as consultas mDNS e o PC nunca responder. O sintoma e o pior
+  possivel para esta funcionalidade: nao ha erro nenhum, o telefone e que
+  "nao encontra o PC", e a unica pista esta no log.
+
+  Vai no bloco [Code] e nao no [Run] porque um `netsh` que falhe (politica de
+  empresa, `netsh` ausente) nao pode fazer o instalador falhar. `Exec` ignora
+  o codigo de saida, que e o comportamento pretendido aqui. }
+
+procedure MaouseAbrePortaMdns;
+var
+  Resultado: Integer;
+begin
+  Exec(
+    ExpandConstant('{sys}\netsh.exe'),
+    'advfirewall firewall add rule name="Maouse Discovery mDNS" dir=in action=allow protocol=UDP localport=5353 profile=any enable=yes',
+    '',
+    SW_HIDE,
+    ewWaitUntilTerminated,
+    Resultado);
+  { A porta de resposta sai, a de consulta nao: o `zeroconf` responde do
+    5353 e o Windows trata a resposta como entrada. E por isso que a regra
+    e `dir=in` para a porta que responde, e nao uma regra de saida. }
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssPostInstall then
+    MaouseAbrePortaMdns;
+end;

@@ -392,6 +392,19 @@ class SettingsDialog(QDialog):
         port_lay.addStretch(1)
         rl.addLayout(port_lay)
 
+        # A descoberta é o que dispensa escrever o IP à mão. Desligar só faz
+        # sentido onde o mDNS não circule (VPN, rede de empresa) — e mesmo
+        # desligada, escrever o IP à mão continua a funcionar.
+        self._remote_discovery_ch = QCheckBox(
+            "Encontrar este PC automaticamente (mDNS)"
+        )
+        self._remote_discovery_ch.setChecked(self._cfg.remote_discovery)
+        self._remote_discovery_ch.setToolTip(
+            "Anuncia este PC na rede local para o telemóvel o encontrar sem "
+            "escrever o IP. O token nunca vai no anúncio."
+        )
+        rl.addWidget(self._remote_discovery_ch)
+
         self._remote_bind_cb = QComboBox()
         self._remote_bind_cb.setObjectName("SettingsCombo")
         self._remote_bind_cb.addItem("Rede local + Internet (0.0.0.0)", "0.0.0.0")
@@ -543,6 +556,7 @@ class SettingsDialog(QDialog):
         self._remote_en_ch.setChecked(defaults.remote_enabled)
         self._remote_port_spin.setValue(defaults.remote_port)
         self._remote_gain_sl.setValue(int(defaults.remote_move_gain * 10))
+        self._remote_discovery_ch.setChecked(defaults.remote_discovery)
         self._tv_btn_ch.setChecked(defaults.tv_button_enabled)
 
     def _save(self):
@@ -573,6 +587,7 @@ class SettingsDialog(QDialog):
         self._cfg.remote_bind = self._remote_bind_cb.currentData()
         self._cfg.remote_token = self._remote_token_edit.text().strip()
         self._cfg.remote_move_gain = max(1.0, self._remote_gain_sl.value() / 10.0)
+        self._cfg.remote_discovery = self._remote_discovery_ch.isChecked()
         self._cfg.tv_button_enabled = self._tv_btn_ch.isChecked()
         self._cfg.tv_tool_combos = self._parse_tv_combos()
         self.accept()

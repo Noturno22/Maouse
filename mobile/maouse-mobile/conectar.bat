@@ -11,6 +11,7 @@ REM    8081/TCP  Metro (bundler)          <- o APK dev falha SEM esta
 REM    8765/TCP  PC remoto (WebSocket)    <- gestos nao chegam ao PC SEM esta
 REM    8000/TCP  license-server
 REM    61120-61121/UDP  Expo discovery
+REM    5353/UDP      mDNS (descoberta automatica do PC)
 REM ============================================================
 cd /d "%~dp0"
 
@@ -43,7 +44,7 @@ REM ------------------------------------------------------------
 REM [1] Limpar regras antigas (por prefixo, evita duplicados)
 REM ------------------------------------------------------------
 echo [1/4] A remover regras de firewall antigas...
-for %%P in (8081 8000 8765 61120 61121) do (
+for %%P in (8081 8000 8765 61120 61121 5353) do (
   netsh advfirewall firewall delete rule name="%RULE_PREFIX% Metro %%P" >nul 2>&1
   netsh advfirewall firewall delete rule name="%RULE_PREFIX% Remote %%P" >nul 2>&1
   netsh advfirewall firewall delete rule name="%RULE_PREFIX% License %%P" >nul 2>&1
@@ -64,6 +65,9 @@ call :AddRule "%RULE_PREFIX% Remote %P_REMOTE%" TCP %P_REMOTE%   "PC remoto (Web
 call :AddRule "%RULE_PREFIX% License %P_LIC%"   TCP %P_LIC%     "license-server (entitle IAP)"
 call :AddRule "%RULE_PREFIX% Discovery 61120"   UDP 61120       "Expo discovery"
 call :AddRule "%RULE_PREFIX% Discovery 61121"   UDP 61121       "Expo discovery"
+REM 5353 e o mDNS. Sem esta regra o Windows Firewall bloqueia as consultas
+REM do telefone, e a descoberta automatica falha em silencio.
+call :AddRule "%RULE_PREFIX% Discovery 5353"    UDP 5353        "Maouse mDNS - descoberta automatica"
 
 echo.
 echo       A verificar as regras...
@@ -72,6 +76,7 @@ call :CheckRule "%RULE_PREFIX% Remote %P_REMOTE%" FAIL
 call :CheckRule "%RULE_PREFIX% License %P_LIC%"   FAIL
 call :CheckRule "%RULE_PREFIX% Discovery 61120"   FAIL
 call :CheckRule "%RULE_PREFIX% Discovery 61121"   FAIL
+call :CheckRule "%RULE_PREFIX% Discovery 5353"    FAIL
 if "%FAIL%"=="1" (
   echo.
   echo [FALHA] Nao foi possivel criar as regras. Confirma o antivirus.

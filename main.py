@@ -204,7 +204,7 @@ def resolve_assistant(cfg):
 
 def run_gui(cfg, cam, tracker, mouse, smooth_idx, gesture_ai, voice, tuner, speaker,
             snap, assistant, magnifier, ctx, state, tray_icon, license_mgr=None,
-            remote=None):
+            remote=None, discovery=None):
     """Arranca a janela nativa PySide6 (MainWindow) como interface principal.
 
     A MainWindow apresenta o feed com o esqueleto e overlays; a lógica de
@@ -230,7 +230,7 @@ def run_gui(cfg, cam, tracker, mouse, smooth_idx, gesture_ai, voice, tuner, spea
         cfg, cam, tracker, mouse, gesture_ai=gesture_ai, voice=voice,
         tuner=tuner, speaker=speaker, snap=snap,
         assistant=assistant, magnifier=magnifier,
-        license_mgr=license_mgr, remote=remote,
+        license_mgr=license_mgr, remote=remote, discovery=discovery,
         state=state,
     )
     window.setWindowTitle("Mãouse")
@@ -451,10 +451,14 @@ def main():
             # Só anuncia quem tem algo para anunciar: um `_maouse._tcp` a
             # apontar para uma porta fechada é pior do que não anunciar, porque
             # o telefone escolhe-o e perde tempo a sondar.
+            #
+            # O objecto passa à janela mesmo quando o anúncio não arrancou.
+            # Perder a referência aqui significava perder a única hipótese de
+            # repassar quando a rede voltasse; `_apply_discovery` tenta de novo
+            # a cada vez que as definições são gravadas.
             if cfg.remote_discovery:
                 discovery = MaouseAdvertiser(cfg)
-                if not discovery.start():
-                    discovery = None
+                discovery.start()
     else:
         log.info("Controlo remoto por telemovel desativado.")
     tuner = AutoTuner(cfg)
@@ -582,6 +586,7 @@ def main():
                 cfg, cam, tracker, mouse, smooth_idx, gesture_ai, voice,
                 tuner, speaker, snap, assistant, magnifier, ctx, state,
                 tray_icon, license_mgr=lic_, remote=remote,
+                discovery=discovery,
             )
             if result is None:
                 log.info("A usar preview OpenCV (sem PySide6).")

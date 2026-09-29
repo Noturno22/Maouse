@@ -46,7 +46,7 @@ class MainWindow(QMainWindow):
     def __init__(self, cfg, cam, tracker, mouse, gesture_ai=None,
                  voice=None, tuner=None, speaker=None, snap=None,
                  assistant=None, magnifier=None, license_mgr=None, remote=None,
-                 state=None):
+                 discovery=None, state=None):
         super().__init__()
         init_gesture_colors()
 
@@ -63,6 +63,7 @@ class MainWindow(QMainWindow):
         self._magnifier = magnifier
         self._license = license_mgr
         self._remote = remote
+        self._discovery = discovery
 
         self._paused = False
         self._show_help = False
@@ -489,6 +490,30 @@ class MainWindow(QMainWindow):
             if self._remote.is_running:
                 self._remote.stop()
                 self._toast.show_toast("REMOTO OFF")
+        self._apply_discovery()
+
+    def _apply_discovery(self):
+        """Mantém o anúncio mDNS a dizer a verdade sobre o servidor.
+
+        Sem isto, mudar a porta nas definições deixava o `_maouse._tcp` a
+        apontar para a porta antiga — o telefone encontrava o PC e levava com
+        uma ligação recusada, que é a pior forma de "descobrir" o PC. E
+        desligar o remoto pela UI deixava o anúncio no ar, o contrário do que
+        o anúncio promete (só anuncia quem tem porta aberta).
+
+        Repassa também quando o anúncio não está de pé: pode ter falhado no
+        arranque (sem rede, interface a cair) e entretanto a rede ter voltado.
+        """
+        adv = self._discovery
+        if adv is None:
+            return
+        servidor = bool(self._remote is not None and self._remote.is_running)
+        if not (servidor and self._cfg.remote_discovery):
+            adv.stop()
+            return
+        if adv.running and adv.port == int(self._cfg.remote_port):
+            return
+        adv.restart()
 
     def _toggle_trading_master(self, checked):
         """Ativa/desativa o Modo Trading Master: liga o controlo remoto por

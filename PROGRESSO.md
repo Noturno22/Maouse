@@ -577,6 +577,69 @@
     não importa: o `dbus-next` entra no commit que trouxer
     `core/remote_ble.py`, e o `zeroconf` no que trouxer `core/discovery.py`.
 
+26. **A descoberta mDNS announce o PC — e cinco faturas ficaram por pagar até
+    ao dia seguinte.** O `core/discovery.py` do `e4da026` anunciava
+    `_maouse._tcp` com a porta do `RemoteServer` e o token fora dos TXT (allowlist
+    fechada de `v` e `id`, com `test_token_nunca_vai_nos_txt` a segurar a porta).
+    O desenho estava certo; o que faltava era o que rodeia o desenho, e cada
+    uma das cinco coisas era do mesmo feitio — **uma afirmação no docstring que
+    o código não sustentava**.
+    * **A promessa de "falhar é normal" era falsa no arranque.**
+      `main.py:33` importava `core.discovery`, que importava `zeroconf` ao
+      nível do módulo. Num venv instalado antes daquele commit — exactamente
+      o que o `setup.bat` diz para executar *uma vez* — a Maouse **não
+      arrancava**: `ImportError` no import, não uma mensagem no log. É a mesma
+      classe do `cryptography` em falta (item 13), pelo caminho inverso: o
+      manifesto estava certo e a degradação prometida não existia.
+      **Corrigido** com o import dentro de `_zeroconf()`, que devolve `None` e
+      deixa `build_info()`/`start()` a dizerem que não há o que anunciar.
+      Provado por `TestSemZeroconfInstalado`, que corre `import main` num
+      subprocesso com o `zeroconf` bloqueado no `sys.meta_path` — o teste
+      importa o módulo no topo, portanto prová-lo aqui não provaria nada.
+    * **O `device_id()` prometia estabilidade entre arranques e não a tinha.**
+      `uuid.getnode()` **não devolve o MAC nesta máquina**: devolve
+      `5b:95:ac:79:2c:49`, que não é o `enp7s0` (`70:5a:…`) nem o `wlp13s0`
+      (`30:f7:…`), e tem o bit multicast ligado — que por RFC 4122 §4.5 significa
+      "endereço pseudo-aleatório, não um IEEE address". `_ip_getnode()` devolve
+      o MAC certo; `getnode()` vai antes a `_unix_getnode()`. O valor só
+      parece estável porque o módulo `uuid` o memoriza **no processo**, que
+      morre com o processo: o `id` mudava a cada arranque e o telefone via um
+      "PC novo" sempre. O teste antigo (`a == b`) provava exactamente o que
+      `uuid` garante por si, que é o oposto do que interessa.
+      **Corrigido**: `_hardware_id()` só aceita o valor quando o bit multicast
+      está desligado; sem hardware, o id vai para `%LOCALAPPDATA%\Maouse\device_id`
+      e é relido daí. Ficheiro e não `settings.json` porque tem de sobreviver a
+      um `settings.json` apagado.
+    * **O anúncio não acompanhava a porta.** `_apply_remote_config`
+      (`ui/main_window.py`) reiniciava o `RemoteServer` quando a porta mudava e
+      nunca tocava no anúncio — que nem sequer era passado à janela. Mudar a
+      porta deixava o `_maouse._tcp` a apontar para a porta antiga: o telefone
+      encontrava o PC e levava com ligação recusada, que é a pior forma de
+      "descobrir" o PC. Desligar o remoto pela UI deixava o anúncio no ar, o
+      contrário do que o anúncio promete. **Corrigido** com `_apply_discovery()`,
+      testado por `TestAnuncioSegueOPortao` (o método é chamado com um `self`
+      emprestado, para não precisar de câmara, tracker e event loop Qt).
+    * **`remote_discovery` não tinha um único sítio onde se mexer.** Estava em
+      `config.py` (carrega e guarda) e em lado nenhum da interface. O comentário
+      do config dizia "desligar em redes onde o mDNS não circule" — e não havia
+      forma de o fazer sem editar o `settings.json` à mão.
+    * **Nada abria a UDP 5353, e o `.exe` não trazia o `zeroconf`.** O mDNS é
+      UDP 5353: o `conectar.bat` abria 61120/61121 (Expo) e o instalador não
+      tinha regra nenhuma. Combinado com a falha silenciosa por desenho, no
+      Windows isto falha sem rasto — o telefone é que "não encontra o PC". E o
+      `maouse.spec` só fazia `collect_all` de `mediapipe` e `vosk`, deixando de
+      fora os `.pyd`/`.so` compilados do `zeroconf`.
+      **Corrigido**: `collect_all("zeroconf")` no spec, regra UDP 5353 no
+      `installer.iss` (num bloco `[Code]` com `Exec`, para que um `netsh` que
+      falhe não faça o instalador falhar) e no `conectar.bat`.
+    * *Verificado*: ruff limpo, **705** testes do cliente (1 falha ambiental
+      pré-existente, `PortAudio`), `tests/test_discovery.py` **38/38**.
+      **Não verificado, e é honesto dizê-lo**: o `.exe` a anunciar num Windows
+      com firewall. O `collect_all` é o que a documentação do PyInstaller manda
+      usar, mas ninguém viu o `.exe` num Windows com o `NsdManager` do Android a
+      encontrar o PC. O `maouse.spec` e o `installer.iss` também não têm teste
+      — são lidos, não executados.
+
 ### Reserva financeira (Pista A)
 
 Gasto **US$168.34** de **US$222** (cert US$129 + domínio US$14.342 + Play US$25) →

@@ -30,6 +30,17 @@ for pkg in ("mediapipe", "vosk"):
     binaries += b
     hiddenimports += h
 
+# `zeroconf` (core/discovery.py) traz modulos de extension compilados — os
+# `.pyd`/`.so` de `_cache`, `_dns`, `_history`, `_listener` — e submódulos que
+# a analise estatica nao segue todos. Sem isto, o `.exe` anunciava o PC no
+# desenvolvimento e calava-se no produto, sem erro nenhum: `import zeroconf`
+# funciona, e o que falha e o anuncio. `collect_all` e o que a propria
+# documentacao do PyInstaller manda usar para este caso.
+d, b, h = collect_all("zeroconf")
+datas += d
+binaries += b
+hiddenimports += h
+
 # `core/licensing.py` importa este módulo DENTRO de uma função, por isso a
 # análise estática do PyInstaller não o vê. Sem esta linha, o .exe distribuído
 # fica sem o endpoint do license-server e a ativação de chaves Pro não
