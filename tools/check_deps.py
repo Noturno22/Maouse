@@ -44,12 +44,27 @@ MODULE_TO_DIST = {
     "faster_whisper": "faster-whisper",
     "piper": "piper-tts",
     "PIL": "Pillow",
+    # O `pip` instala `dbus-next`, o `import` e `dbus_next`. Sem esta linha o
+    # scanner via o modulo a mao e o manifesto declara a distribuicao, e a
+    # comparacao dos dois nomes nunca bate: o teste de manifests acusaria uma
+    # dependencia em falta que esta declarada, ou deixaria passar uma que nao
+    # esta.
+    "dbus_next": "dbus-next",
 }
 
 # Dependencias so para Windows. O `core/snap.py` faz o import dentro de um
 # try/except, por isso o produto corre no Linux sem elas — e por isso o
 # `requirements-linux.txt` as omite de proposito.
 WINDOWS_ONLY = frozenset({"uiautomation"})
+
+# O inverso: dependencias so para Linux, que o `requirements.txt` (o manifesto
+# do Windows) omite. `dbus-next` fala com o `bluetoothd` pela D-Bus de sistema,
+# que é uma coisa de Linux — no Windows não há BlueZ para publicar um peripheral
+# GATT, e a dependencia só custaria uma falha de instalação. Fica em lista
+# própria, e não em `WINDOWS_ONLY`, porque o nome desse conjunto passaria a
+# mentir: `uiautomation` é o que o Windows precisa, `dbus-next` é o que o
+# Windows dispensa.
+LINUX_ONLY = frozenset({"dbus-next"})
 
 # Manifestos de instalacao de que o produto depende. `requirements-build.txt`
 # fica de fora de proposito: `pyinstaller` e dependencia de build, nao de

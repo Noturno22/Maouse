@@ -220,6 +220,14 @@ class Config:
     # o mDNS nao circule (VPN, redes de empresa) — mesmo desligado, o controlo
     # remoto por IP continua a funcionar.
     remote_discovery: bool = True
+    # Publicar também um peripheral BLE GATT, para o telefone controlar o PC
+    # sem rede nenhuma. É independente do WiFi: funciona em redes onde o mDNS
+    # não circule, e até sem rede, porque o Bluetooth não passa por ela.
+    #
+    # Desligado por omissão porque é a única opção que depende de hardware que
+    # pode não existir (e de `bluetoothd` a correr), e quem não a quer não deve
+    # pagar o custo de tentar.
+    remote_ble: bool = False
 
     # ── Modo Trading Master (botão circular tv.png no dashboard) ──────
     # Modo dedicado a trading (multi-monitor): liga o controlo remoto por
@@ -350,6 +358,8 @@ def load_settings(cfg):
             )
         if "remote_discovery" in data:
             cfg.remote_discovery = bool(data["remote_discovery"])
+        if "remote_ble" in data:
+            cfg.remote_ble = bool(data["remote_ble"])
         if "trading_master_enabled" in data:
             cfg.trading_master_enabled = bool(data["trading_master_enabled"])
         if "tv_button_enabled" in data:
@@ -415,6 +425,7 @@ def save_settings(cfg, smooth_name):
                     "remote_token": str(cfg.remote_token),
                     "remote_move_gain": round(cfg.remote_move_gain, 2),
                     "remote_discovery": bool(cfg.remote_discovery),
+                    "remote_ble": bool(cfg.remote_ble),
                     "trading_master_enabled": bool(cfg.trading_master_enabled),
                     "tv_button_enabled": bool(cfg.tv_button_enabled),
                     "tv_tool_combos": dict(cfg.tv_tool_combos),

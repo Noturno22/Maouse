@@ -41,6 +41,17 @@ datas += d
 binaries += b
 hiddenimports += h
 
+# `dbus_next` (core/remote_ble.py) tem a mesma razao, mais uma: os imports sao
+# FEITOS DENTRO DE UMA FUNCAO (`_dbus()`), porque sem `dbus-next` a Maouse tem de
+# arrancar na mesma. A analise estatica do PyInstaller so segue imports ao nivel
+# do modulo, por isso nao os ve — e um `import` dentro de uma funcao que o
+# empacotador nao recolhe da a uma falha que so aparece no produto, com o
+# Bluetooth ja instalado e o `bluetoothd` a correr.
+d, b, h = collect_all("dbus_next")
+datas += d
+binaries += b
+hiddenimports += h
+
 # `core/licensing.py` importa este módulo DENTRO de uma função, por isso a
 # análise estática do PyInstaller não o vê. Sem esta linha, o .exe distribuído
 # fica sem o endpoint do license-server e a ativação de chaves Pro não

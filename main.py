@@ -44,6 +44,8 @@ from core.llm import ChatClient
 from core.log import get_logger, setup_logging
 from core.mouse_ctl import MouseCtl, MuteMouse
 from core.remote import RemoteArbiter, RemoteServer, lan_ips
+from core.remote_ble import SERVICE_UUID as BLE_SERVICE_UUID
+from core.remote_ble import RemoteBLE
 from core.snap import SnapEngine
 from core.tracker import HandTracker, ensure_model
 from core.tray import TrayAppAdapter, TrayIcon
@@ -204,7 +206,7 @@ def resolve_assistant(cfg):
 
 def run_gui(cfg, cam, tracker, mouse, smooth_idx, gesture_ai, voice, tuner, speaker,
             snap, assistant, magnifier, ctx, state, tray_icon, license_mgr=None,
-            remote=None, discovery=None):
+            remote=None, discovery=None, ble=None):
     """Arranca a janela nativa PySide6 (MainWindow) como interface principal.
 
     A MainWindow apresenta o feed com o esqueleto e overlays; a lógica de
@@ -231,7 +233,7 @@ def run_gui(cfg, cam, tracker, mouse, smooth_idx, gesture_ai, voice, tuner, spea
         tuner=tuner, speaker=speaker, snap=snap,
         assistant=assistant, magnifier=magnifier,
         license_mgr=license_mgr, remote=remote, discovery=discovery,
-        state=state,
+        ble=ble, state=state,
     )
     window.setWindowTitle("Mãouse")
     window.resize(900, 640)
@@ -443,6 +445,7 @@ def main():
     mouse = MuteMouse() if mute_output else MouseCtl()
     remote = None
     discovery = None
+    ble = None
     if cfg.remote_enabled:
         remote = RemoteServer(cfg, mouse)
         if remote.start():
@@ -459,6 +462,31 @@ def main():
             if cfg.remote_discovery:
                 discovery = MaouseAdvertiser(cfg)
                 discovery.start()
+
+            # O BLE é um **segundo transporte para o mesmo rato**: o `RemoteBLE`
+            # não tem comandos próprios, entrega-os ao `_handle` deste mesmo
+            # servidor. Por isso só é criado aqui — sem um `RemoteServer` vivo não
+            # há a quem entregar o comando — e não como uma via separada, que
+            # acabaria com duas implementações da mesma coisa.
+            if cfg.remote_ble:
+                # Importar `dbus_next` e falar com o `bluetoothd` não é
+                # garantido. Uma falha aqui não pode impedir a Maouse de
+                # arrancar: quem não tem Bluetooth fica com o WiFi, que é o
+                # que já existia, e o log diz porquê.
+                try:
+                    ble = RemoteBLE(cfg, remote)
+                    if ble.start():
+                        log.info("Controlo remoto por BLE ativo (servico %s).",
+                                 BLE_SERVICE_UUID)
+                    else:
+                        log.warning(
+                            "BLE nao arrancou (bluetoothd parado, adaptador "
+                            "desligado ou sem permissao D-Bus). O WiFi continua."
+                        )
+                        ble = None
+                except Exception as exc:
+                    log.warning("BLE indisponivel (%s); a usar apenas WiFi.", exc)
+                    ble = None
     else:
         log.info("Controlo remoto por telemovel desativado.")
     tuner = AutoTuner(cfg)
@@ -586,7 +614,7 @@ def main():
                 cfg, cam, tracker, mouse, smooth_idx, gesture_ai, voice,
                 tuner, speaker, snap, assistant, magnifier, ctx, state,
                 tray_icon, license_mgr=lic_, remote=remote,
-                discovery=discovery,
+                discovery=discovery, ble=ble,
             )
             if result is None:
                 log.info("A usar preview OpenCV (sem PySide6).")
@@ -635,6 +663,14 @@ def main():
         if speaker is not None:
             speaker.stop()
         snap.stop()
+        # O BLE antes do `RemoteServer`: o `RemoteBLE` usa-o para entregar
+        # comandos, e um `WriteValue` a meio do encerramento encontraria um
+        # servidor já parado. A ordem é o contrário do que se lê bem.
+        if ble is not None:
+            try:
+                ble.stop()
+            except Exception:
+                pass
         if remote is not None:
             try:
                 remote.stop()

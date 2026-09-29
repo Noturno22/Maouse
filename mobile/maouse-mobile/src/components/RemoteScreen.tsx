@@ -4,6 +4,7 @@ import {
   KeyboardAvoidingView,
   PanResponder,
   Platform,
+  ScrollView,
   StyleSheet,
   Switch,
   Text,
@@ -12,7 +13,7 @@ import {
   View,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { remote } from '../services/remoteClient';
+import { remote } from '../services/remoteTransport';
 import { useRemoteStore } from '../store/remote';
 
 interface Props {
@@ -58,10 +59,20 @@ export default function RemoteScreen({ onBack }: Props) {
     status,
     screen,
     error,
+    scanning,
+    blePeers,
+    peers,
+    discovering,
+  mdnsRunning,
+  stopDiscover,
     saveConfig,
     setForwardGestures,
     connect,
     disconnect,
+    discover,
+    scanBle,
+    connectBle,
+    connectPeer,
   } = useRemoteStore();
 
   const [hostDraft, setHostDraft] = useState(host);
@@ -78,6 +89,14 @@ export default function RemoteScreen({ onBack }: Props) {
     setPortDraft((v) => v || port);
     setTokenDraft((v) => v || token);
   }, [host, port, token]);
+
+  // Sair da tela tem de parar a procura. O `NsdManager` é um registo nativo
+  // que vive para sempre: sem isto, voltar a abrir a tela reencontra a procura
+  // anterior a correr, os peers accumulate-se aos poucos entre visitas, e o
+  // `NativeEventEmitter` continua a emitir para um componente que já não
+  // existe — que em Android é uma `IllegalStateException` de acesso a um
+  // CatalystInstance destruído, e só quando o utilizador abre a tela outra vez.
+  useEffect(() => () => stopDiscover(), [stopDiscover]);
 
   const haptic = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
@@ -436,13 +455,91 @@ export default function RemoteScreen({ onBack }: Props) {
     </View>
   );
 
+  // Procura o PC por mDNS ou por Bluetooth.
+  //
+  // As duas vias ficam lado a lado porque resolvem problemas diferentes: o
+  // mDNS acha o PC em qualquer rede onde circule, e o BLE funciona sem rede
+  // nenhuma — que é o caso de uma rede de empresa onde o multicast está
+  // bloqueado, ou de um telemóvel em dados móveis com o PC em Ethernet.
+  const renderDiscoveryPanel = () => (
+    <View style={styles.discoveryPanel}>
+      <View style={styles.discoveryRow}>
+        <TouchableOpacity
+          style={styles.discoveryBtn}
+          onPress={discovering ? stopDiscover : discover}
+          disabled={mdnsRunning && !discovering}
+        >
+          {discovering ? (
+            <ActivityIndicator color={ACCENT} />
+          ) : (
+            <Text style={styles.discoveryBtnText}>
+              {mdnsRunning ? 'PARAR PROCURA' : 'PROCURAR NA REDE'}
+            </Text>
+          )}
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.discoveryBtn}
+          onPress={() => scanBle(8)}
+          disabled={scanning}
+        >
+          {scanning ? (
+            <ActivityIndicator color={ACCENT} />
+          ) : (
+            <Text style={styles.discoveryBtnText}>PROCURAR POR BLUETOOTH</Text>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {peers.map((p) => (
+        <TouchableOpacity
+          key={`${p.host}:${p.port}`}
+          style={styles.peerRow}
+          onPress={() => {
+            saveConfig({ token: tokenDraft });
+            connectPeer(p);
+          }}
+        >
+          <Text style={styles.peerName}>{p.name || p.host}</Text>
+          <Text style={styles.peerAddr}>
+            {p.host}:{p.port}
+          </Text>
+        </TouchableOpacity>
+      ))}
+
+      {blePeers.map((p) => (
+        <TouchableOpacity
+          key={p.address}
+          style={styles.peerRow}
+          onPress={() => {
+            saveConfig({ token: tokenDraft });
+            void connectBle(p.address);
+          }}
+        >
+          <Text style={styles.peerName}>{p.name || p.address}</Text>
+          <Text style={styles.peerAddr}>{p.address}</Text>
+        </TouchableOpacity>
+      ))}
+
+      {peers.length === 0 && blePeers.length === 0 && !scanning && !discovering ? (
+        <Text style={styles.discoveryHint}>
+          A procura na rede só funciona se o telemóvel e o PC estiverem na mesma
+          rede local e o multicast não estiver bloqueado. O Bluetooth não usa a
+          rede, mas precisa de «Controlar também por Bluetooth» ligado nas
+          definições do PC.
+        </Text>
+      ) : null}
+    </View>
+  );
+
   const renderConnectForm = () => (
     <View style={styles.form}>
       <Text style={styles.title}>Ligar ao PC</Text>
       <Text style={styles.subtitle}>
-        No PC abre Definições → «Controlo remoto (mobile)» e copia o IP, a porta
-        e o token que aparecem lá.
+        Procura o PC sozinha, ou escreve o IP à mão. O token é o mesmo nos dois
+        casos e só vive aqui e no PC.
       </Text>
+
+      {renderDiscoveryPanel()}
 
       <Text style={styles.label}>IP do PC</Text>
       <TextInput
@@ -540,7 +637,21 @@ export default function RemoteScreen({ onBack }: Props) {
         </View>
       </View>
 
-      {connected ? renderConnected() : renderConnectForm()}
+      {connected ? (
+        renderConnected()
+      ) : (
+        // O formulário ganhou o painel de descoberta, e a lista de PCs
+        // encontrados cresce a cada anúncio. Num ecrã pequeno o formulário
+        // passa do fundo — e o botão LIGAR, que é o que se quer alcançar,
+        // é o último.
+        <ScrollView
+          style={styles.formScroll}
+          contentContainerStyle={styles.form}
+          keyboardShouldPersistTaps="handled"
+        >
+          {renderConnectForm()}
+        </ScrollView>
+      )}
     </KeyboardAvoidingView>
   );
 }
@@ -587,10 +698,69 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
 
-  form: {
+  formScroll: {
     flex: 1,
+  },
+  form: {
+    flexGrow: 1,
     paddingHorizontal: 24,
     paddingTop: 8,
+    paddingBottom: 32,
+  },
+  discoveryPanel: {
+    marginBottom: 16,
+    padding: 12,
+    borderRadius: 10,
+    backgroundColor: PANEL,
+    borderWidth: 1,
+    borderColor: BORDER,
+  },
+  discoveryRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  discoveryBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: ACCENT,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 40,
+  },
+  discoveryBtnText: {
+    color: ACCENT,
+    fontSize: 11,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  peerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
+    marginTop: 8,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    backgroundColor: KEY_BG,
+  },
+  peerName: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '600',
+    flexShrink: 1,
+  },
+  peerAddr: {
+    color: '#9E9E9E',
+    fontSize: 12,
+    marginLeft: 10,
+  },
+  discoveryHint: {
+    color: '#9E9E9E',
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 10,
   },
   title: {
     color: '#FFF',

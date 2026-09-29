@@ -46,7 +46,7 @@ class MainWindow(QMainWindow):
     def __init__(self, cfg, cam, tracker, mouse, gesture_ai=None,
                  voice=None, tuner=None, speaker=None, snap=None,
                  assistant=None, magnifier=None, license_mgr=None, remote=None,
-                 discovery=None, state=None):
+                 discovery=None, ble=None, state=None):
         super().__init__()
         init_gesture_colors()
 
@@ -64,6 +64,14 @@ class MainWindow(QMainWindow):
         self._license = license_mgr
         self._remote = remote
         self._discovery = discovery
+        # O peripheral BLE. É o mesmo objecto que o `main.py` criou e arrancou,
+        # passado aqui para que haja **um** dono e **um** registo GATT: com
+        # `None` aqui, o primeiro `_apply_ble()` (qualquer gravação das
+        # definições do remoto) construía um segundo `RemoteBLE` e registava uma
+        # segunda aplicação nos mesmos caminhos de objecto — duas threads, duas
+        # ligações ao bus de sistema, e nenhuma knows qual das duas está a servir
+        # o telefone.
+        self._ble = ble
 
         self._paused = False
         self._show_help = False
@@ -490,7 +498,56 @@ class MainWindow(QMainWindow):
             if self._remote.is_running:
                 self._remote.stop()
                 self._toast.show_toast("REMOTO OFF")
+        self._apply_ble()
         self._apply_discovery()
+
+    def _apply_ble(self):
+        """Liga/desliga o peripheral BLE conforme as definições.
+
+        O BLE é um segundo transporte para o mesmo `RemoteServer`, e é por isso
+        que vive aqui dentro de `_apply_remote_config` e não numa fila própria: se
+        o servidor remoto for desligado, o BLE tem de cair com ele, ou fica um
+        peripheral publicado que aceita comandos e não os executa.
+
+        Uma falha aqui é um aviso, nunca um crash: o Bluetooth é opcional e quem
+        não o tem fica com o WiFi.
+        """
+        cfg = self._cfg
+        servidor = self._remote is not None and self._remote.is_running
+        if not (servidor and cfg.remote_ble):
+            if self._ble is not None:
+                try:
+                    self._ble.stop()
+                except Exception:
+                    pass
+                self._ble = None
+            return
+        if self._ble is not None and self._ble.is_running:
+            return
+        if self._ble is not None:
+            # Um `RemoteBLE` que ficou aqui sem estar a correr — o `start()`
+            # devolveu `False` e o objecto sobreviveu — vai ser substituído por
+            # outro. Parar o velho primeiro é o que garante que nunca ficam dois
+            # registos GATT vivos ao mesmo tempo, que é o que o `main.py` já
+            # fazia por omissão e este caminho já não repete.
+            try:
+                self._ble.stop()
+            except Exception:
+                pass
+            self._ble = None
+        try:
+            from core.remote_ble import RemoteBLE
+
+            self._ble = RemoteBLE(cfg, self._remote)
+            if self._ble.start():
+                self._toast.show_toast("BLE ON")
+            else:
+                self._ble = None
+                self._toast.show_toast("BLE NAO ARRANCOU", danger=True)
+        except Exception as exc:
+            self._ble = None
+            log.warning("BLE indisponivel (%s); a usar apenas WiFi.", exc)
+            self._toast.show_toast("BLE INDISPONIVEL", danger=True)
 
     def _apply_discovery(self):
         """Mantém o anúncio mDNS a dizer a verdade sobre o servidor.
@@ -837,6 +894,15 @@ class MainWindow(QMainWindow):
                 self._mouse.release_left()
         except Exception as e:
             log.debug("Falha ao largar o botao no fecho: %s", e)
+        # O BLE antes do servidor remoto: durante o `stop()` do `RemoteServer`
+        # ainda pode chegar um `WriteValue` do telefone, e ele precisa de um
+        # `_handle` vivo.
+        if self._ble is not None:
+            try:
+                self._ble.stop()
+            except Exception as e:
+                log.debug("Falha ao parar o BLE: %s", e)
+            self._ble = None
         if self._remote is not None:
             try:
                 self._remote.stop()

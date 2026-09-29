@@ -640,6 +640,122 @@
       encontrar o PC. O `maouse.spec` e o `installer.iss` também não têm teste
       — são lidos, não executados.
 
+27. **O BLE do PC é um peripheral GATT a sério — e o `Flags` estava escrito
+    ao contrário do que o BlueZ lê.** O `core/remote_ble.py` exporta serviço,
+    RX e TX, e entrega tudo ao `RemoteServer._handle` (o mesmo caminho do
+    WebSocket, por decisão: duas implementações de comandos divergem). O
+    `RegisterApplication` era rejeitado com
+    `org.bluez.Error.Failed: No valid service object found`, sem log — porque
+    `bluetoothd` corre como root e aqui não há.
+    * **O `Flags` é `as`, não `q`.** A documentação que se encontra online diz
+      `q` (bitfield) e é o que qualquer um escreve primeiro. O
+      `parse_flags()` do BlueZ faz `get_arg_type(&iter) != DBUS_TYPE_ARRAY →
+      return false`, e o `chrc_create()` que a chama põe a app em `failed`. A
+      mensagem fala do **serviço** quando o problema é a **característica**.
+      Como não há log, a causa achou-se por teste diferencial contra o
+      próprio `bluetoothd`, subindo a cascata: nada exportado →
+      `No object received`; só o serviço → **REGISTOU**; serviço +
+      característica → falha. Só o serviço a registar isola a falha no
+      `chrc_create()`. Valores correctos: RX
+      `["write","write-without-response"]`, TX `["read","notify"]`.
+      `TestContratoGattDbus` segura a porta, e verifica a **assinatura
+      D-Bus** que o daemon lê — o objecto Python estava correcto, testá-lo não
+      provaria nada.
+    * **O `RegisterApplication` não devolve valor algum.** Atribuir o retorno
+      ao caminho da app punha `None` no sítio do path: o daemon aceitava o
+      registo e o `start()` devolvia `False`. Passa a guardar o caminho
+      enviado depois do sucesso.
+    * **O `Notifying` é só de leitura e o BlueZ escreve nele.** A CCC activa-se
+      por `Properties.Set`, que num `readwrite` faz sentido e num `read` dá
+      `PropertyReadOnly` — telefone ligado, PC mudo.
+    * **Fragmentos de 22 bytes e o link layer recorta em silêncio.** O valor de
+      uma característica é `MTU - 3` = 20 com a MTU por omissão, e o
+      cabeçalho de 2 bytes do framing sai **desse** total. Confundir "20" com o
+      corpo dá 22 bytes por fragmento, e não há excepção nem `status` — só um
+      rato que não obedece. Daí `ATT_WRITE_MAX` e `CHUNK_BODY` serem duas
+      constantes. O `GattManager1` também vive no **adaptador**
+      (`/org/bluez/hci0`), não em `/org/bluez` — primeira coisa a errar, porque
+      `/org/bluez` é onde o `ObjectManager` responde.
+    * **O `move` vai em binário, não em JSON.** Um `move` em JSON são ~30 bytes
+      contra 20 de valor de característica: partir-se-ia sempre, e a 60 Hz
+      seriam 120 escritas por segundo. `0x01` + dois `int16` em décimos = 7
+      bytes, uma escrita. É a única constante do protocolo duplicada
+      (`OP_MOVE`/`MOVE_SCALE`), e a única que diverge em silêncio.
+    * **O cliente Android e a descoberta `NsdManager` estão escritos, não
+      testados.** `BleRemoteModule.kt` (scan, GATT, MTU, CCC, `auth`, `move`)
+      e `MdnsDiscoveryModule.kt` (`_maouse._tcp`, TXT `v`/`id`) estão registados
+      no `MaousePackage.kt`, com `BLUETOOTH_SCAN`/`CONNECT` e
+      `CHANGE_WIFI_MULTICAST_STATE` no manifest. O token continua fora dos TXT
+      e a ir na primeira frame BLE, como no WebSocket.
+    * *Verificado*: ruff limpo, 38/38 em `tests/test_remote_ble.py`,
+      12/12 em `tests/test_manifests.py`, `npm run typecheck` limpo, e
+      **`RemoteBLE.start()` a devolver `True` contra o `bluetoothd` real**
+      (BlueZ 5.64, `hci0`) com as três características aceites.
+      **Não verificado, e é honesto dizê-lo**: nada disto foi contra um
+      telefone. Não há Android nesta máquina, e sem aparelho não há scan, nem
+      MTU negociada, nem CCC, nem `auth`, nem `move` a mexer o rato. O Kotlin
+      não foi compilado; o `NsdManager` não viu um PC. §1.16 do
+      `RECONHECIMENTO_REMOTE.md` diz o mesmo com mais detalhe.
+
+28. **O BLE ficou com dois dono e a thread não saía — e há mais quatro coisas
+    deste commit que ficam por corrigir, de propósito.** As duas primeiras
+    corriam-se neste commit; as outras quatro não, e ficam aqui porque são a
+    diferença entre "isto não funciona" e "isto funciona mal", e nenhuma delas
+    se resolve sem uma decisão ou sem um aparelho.
+
+    * **Corrigido: o `RemoteBLE` era registado duas vezes.** O `main.py`
+      criava e arrancava o objecto mas **não o passava** à janela, que punha
+      `self._ble = None` no `__init__`. Ao primeiro `_apply_ble()` — ou seja,
+      à primeira gravação das definições do remoto — a janela construía um
+      segundo `RemoteBLE` e registava uma segunda aplicação GATT **nos mesmos
+      caminhos de objecto** (`/org/maouse/app0/...`): duas threads, duas
+      ligações ao bus de sistema, e nenhuma delas a saber qual está a servir o
+      telefone. Passa a ser o mesmo objecto que o `discovery` já era.
+    * **Corrigido: um `start()` que falhava deixava a thread e o bus abertos.**
+      `_thread_main` caía no `run_forever()` mesmo com o registo recusado, e
+      o `main.py` **descartava** o objecto sem nunca lhe chamar `stop()`. Cada
+      falha deixava uma thread e uma ligação ao bus de sistema até ao fim do
+      processo — invisível, porque o `start()` já tinha devolvido `False` — e
+      tornava o BLE irrecoverável sem matar a aplicação, porque `start()` via a
+      guarda `is_alive()`. Medido: 3 tentativas, 3 threads vivas; depois da
+      correcção, 0.
+    * **Em aberto: o `notifying` não é por sessão.** O `_on_properties_changed`
+      filtra por `msg.path != TX_PATH`, e esse caminho é **um só para todas as
+      ligações** — o BlueZ não dá identidade de ligação num `PropertiesChanged`.
+      Por isso o código põe o sinal em *todas* as sessões, e com dois
+      telefones as respostas podem ir para o errado. **Não se corrige com um
+      patch**: exige uma decisão (flag global optimista, ou um `Value` por
+      dispositivo, que o GATT deste lado não tem) e um telefone para a provar.
+    * **Em aberto: as `_sessions` nunca são despejadas.** Só saem numa falha de
+      `auth` (`core/remote_ble.py:751`). As características não levam
+      `authenticated-signed-writes` nem `secure-read`, portanto qualquer
+      dispositivo emparelhado ao alcance que escreva lixo cria uma entrada
+      permanente. Num produto de utilizador único é um leak lento; num PC com o
+      adaptador ligado numa sala partilhada, é crescimento sem fundo. Precisa de
+      um `disconnect` por sessão, e o BlueZ só o dá se aCharacteristic for
+      removido.
+    * **Em aberto, e é a mais grave das quatro: o BLE é só-Linux e nada o diz.**
+      O `dbus-next` está em `LINUX_ONLY` (`tools/check_deps.py`) e a
+      implementação é BlueZ/D-Bus pura — no Windows **não há** como publicar um
+      peripheral GATT por este caminho. Mas `ui/settings_dlg.py` mostra a
+      checkbox a toda a gente, incluindo ao `.exe`, onde ela nunca pode
+      funcionar. É exactamente a classe que o item 26 fechou no outro lado: uma
+      **afirmação que o código não sustenta**, aqui na interface e no produto.
+      Nem o item 27 nem o §1.16 do `RECONHECIMENTO_REMOTE.md` dizem "Linux
+      only", e há `tests/test_help_truthfulness.py` para isto. Corrigir é
+      decidível em uma linha (esconder a checkbox fora do Linux) e honesto.
+    * **Em aberto, e do lado do telefone, que não foi provado com um:** o
+      `App.tsx:25` continua a importar o `remoteClient` antigo em vez da
+      fachada `remoteTransport` — o reencaminhamento da câmara para o PC está
+      **morto nos dois transportes**, e é a função que o produto chama por
+      "mãos". O `BleRemoteModule.kt` exige `BLUETOOTH_SCAN`/`CONNECT`, que não
+      existem abaixo de API 31, o que mata o BLE em Android 7–11 — a faixa que
+      o próprio módulo diz suportar. E a fila de escrita esvazia-se a partir do
+      `onCharacteristicWrite`, que nem todas as versões do Android entregam
+      para escritas *sem resposta*, com o topo da fila a ser descartado quando
+      o link atrasa. Nenhum destes se fecha sem um aparelho: o Kotlin nunca foi
+      compilado, e o `NsdManager` nunca viu um PC.
+
 ### Reserva financeira (Pista A)
 
 Gasto **US$168.34** de **US$222** (cert US$129 + domínio US$14.342 + Play US$25) →

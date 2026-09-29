@@ -41,6 +41,8 @@ Estado do repositório em **2026-09-28**. Documento irmão: `RECONHECIMENTO_MAOS
   - [1.12 Mapa de ficheiros](#112-mapa-de-ficheiros)
   - [1.13 Referência de configuração](#113-referência-de-configuração)
   - [1.14 Verificação desta auditoria](#114-verificação-desta-auditoria)
+  - [1.15 Descoberta automática do PC (mDNS)](#115-descoberta-automática-do-pc-mdns)
+  - [1.16 Controlo remoto por Bluetooth (BLE)](#116-controlo-remoto-por-bluetooth-ble)
 - [Parte 2 — Lacunas face ao mercado](#parte-2--lacunas-face-ao-mercado)
   - [2.1 Como o mercado faz](#21-como-o-mercado-faz)
   - [2.2 Tabela comparativa](#22-tabela-comparativa)
@@ -567,6 +569,7 @@ Consolidadas e verificadas no repositório em 2026-09-28.
 | Ficheiro | Papel |
 |---|---|
 | `core/remote.py` | Servidor asyncio, auth, dispatch, injecção de teclado/rato, token |
+| `core/discovery.py` | Anúncio mDNS `_maouse._tcp` — **ver §1.15** |
 | `core/mouse_ctl.py` | Escrita no rato, métricas de ecrã virtual, clamp, `SendInput` |
 | `core/hotkeys.py` | Mapa de teclas **duplicado** (caminho câmara/voz) |
 | `ui/settings_dlg.py` | Bind, porto, token na UI |
@@ -587,6 +590,7 @@ Consolidadas e verificadas no repositório em 2026-09-28.
 | `remote_bind` | `0.0.0.0` | interface de escuta |
 | `remote_port` | `8765` | porto TCP (1024–65535) |
 | `remote_token` | gerado, 64 bits | auth de primeira frame |
+| `remote_discovery` | `true` | anuncia o PC por mDNS (ver §1.15) |
 
 | Constante (mobile) | Valor | Ficheiro |
 |---|---|---|
@@ -750,6 +754,218 @@ dependências, `py-modules` a empacotar `config.py`/`i18n.py` num pacote
 que ninguém constrói. Um teste que impõe uma ficção é pior do que nenhum teste:
 faz a configuração morta parecer necessária, e a próxima pessoa que a apanhar
 não tem como saber que é inerte. **Cortar foi a correcção, não a escrita.**
+
+---
+
+## 1.15 Descoberta automática do PC (mDNS)
+
+`core/discovery.py` anuncia o PC na rede local como `_maouse._tcp`, com a porta
+do `RemoteServer` num TXT próprio. O telefone passa a encontrar o PC **sem
+escrever o IP à mão** — que era o passo onde a esmagadora maioria dos
+utilizadores desistia, e o passo que nenhuma das ondas acima resolvia.
+
+### O que é anunciado
+
+| Chave | Valor | Porquê |
+|---|---|---|
+| TXT `v` | `1` | versão do esquema, para o cliente ignorar PCs a anunciar diferente |
+| TXT `id` | id estável do PC | distinguir dois PCs com o mesmo nome de máquina |
+| Porta | `remote_port` | onde ligar |
+
+**O token não vai nos TXT.** A sessão continua a autenticar com
+`remote_token` na primeira frame, como sempre. Um TXT é lido por *qualquer*
+dispositivo na LAN, incluindo o guest Wi-Fi do café e a rede da empresa; a
+única coisa que o torna aceitável é **não ser segredo nenhum**. Os TXT são uma
+allowlist fechada — só `v` e `id` saem, o que evita o modo de falha de um
+`ServiceInfo` onde o token acabava numa linha de log do sistema operativo.
+`test_token_nunca_vai_nos_txt` existe para segurar essa porta.
+
+### O `id` tem de ser estável entre arranques
+
+`uuid.getnode()` **não serve**, e era o que se usava. Nesta máquina devolve
+`5b:95:ac:79:2c:49`, que não é o MAC de nenhuma interface (`enp7s0` é
+`70:5a:…`, `wlp13s0` é `30:f7:…`) e tem o bit multicast ligado — que por
+RFC 4122 §4.5 é o sinal de "endereço pseudo-aleatório, não um IEEE address".
+Só parece estável porque o módulo `uuid` o memoriza **no processo**.
+
+Um `id` que muda a cada arranque faz o telefone tratar o mesmo PC como um PC
+novo, todas as vezes. O id é hoje o `uuid.getnode()` **se e só se** o bit
+multicast estiver desligado; caso contrário vai para
+`%LOCALAPPDATA%\Maouse\device_id` e é relido daí. Ficheiro à parte, e não
+dentro de `settings.json`, para sobreviver a um `settings.json` apagado.
+
+### Três coisas que têm de estar certas fora do código
+
+O anúncio **não funciona** sem cada uma destas, e nenhuma delas dá erro quando
+falha — que é o que torna esta funcionalidade silenciosamente inútil quando o
+`main.py` está certo:
+
+1. **UDP 5353 aberta.** O `installer.iss` cria a regra de firewall na
+   instalação; o `conectar.bat` também, para desenvolvimento. A regra é
+   `dir=in` na 5353 porque o `zeroconf` **responde** de lá.
+2. **O `zeroconf` no `.exe`.** O `maouse.spec` faz `collect_all("zeroconf")`:
+   são módulos de extensão compilados (`_cache`, `_dns`, `_history`,
+   `_listener`) que a análise estática não segue. Sem isto, `import zeroconf`
+   funciona e é o anúncio que falha.
+3. **O `zeroconf` presente no ambiente.** É uma dependência opcional a sério: o
+   import é tardio, e sem ele a aplicação **arranca na mesma** e diz que não
+   tem o que anunciar. Um `ImportError` no arranque seria repetir, ao
+   contrário, o bug do `cryptography` (§1.14.2).
+
+### O telefone descobre o PC — `MdnsDiscoveryModule.kt`
+
+O `NsdManager` do Android é o `zeroconf` do telefone. Fica no mesmo plugin dos
+outros módulos nativos, e não é um pacote de terceiros a resolver versões.
+
+O `NsdManager` tem três comportamentos que só se descobrem a correr, e cada um
+deles dá uma falha que não se parece com a causa:
+
+1. **O `serviceName` chega a ser só o rótulo.** O PC publica
+   `Maouse 1._maouse._tcp.local.` e o Android entrega `Maouse 1`. Ligar
+   directamente dá `UnknownHostException`, por isso o nome é normalizado.
+2. **A resolução é assíncrona e tem de ser pedida.** `onServiceFound` traz os
+   metadados anunciados; o endereço só chega depois de `resolveService`. Pedir
+   o IP no `onServiceFound` dá `null` — e um `null` que se parece com "o PC
+   está noutra sub-rede".
+3. **O `NsdManager` precisa do WiFi ligado, mesmo com o PC em Ethernet.**
+   `CHANGE_WIFI_MULTICAST_STATE` sem a qual o Android não entra em multicast, e
+   o multicast é o mDNS inteiro. Sem esta permissão funciona no emulador e
+   falha num telefone. É por isso que o módulo avisa **antes** de arrancar se o
+   WiFi do telefone está desligado: uma lista vazia sem explicação é
+   indistinguível de um PC desligado.
+
+### Não verificado
+
+O `NsdManager` **não foi corrido num aparelho**: não há Android disponível
+nesta máquina. O que está verificado é a lógica do PC
+(`tests/test_discovery.py`, 38 testes, com `Zeroconf` trocado por um duplo), a
+tipagem do lado do telemóvel (`npm run typecheck`) e o `AndroidManifest`
+gerado (permissões correctas e sem duplicados em `prebuild` repetido). O
+empacotamento Windows continua por verificar: o `installer.iss` e o
+`maouse.spec` são lidos, não executados.
+
+---
+
+## 1.16 Controlo remoto por Bluetooth (BLE)
+
+Um segundo transporte para o **mesmo rato**. O telefone controla o PC sem rede
+nenhuma — a via que funciona numa rede de empresa onde o multicast está
+bloqueado, ou com o telemóvel em dados móveis e o PC em Ethernet, que é
+justamente onde o mDNS (§1.15) não funciona.
+
+### Um peripheral, não um servidor
+
+O PC é o **peripheral** GATT e o telefone é o **central**. É o inverso do
+WebSocket: em vez de o PC abrir uma porta à espera de alguém, publica-se como
+um serviço BLE que o telefone procura e a quem se liga.
+
+| | | |
+|---|---|---|
+| Serviço | `D9905F51-F497-49A4-88DF-784D82249EFD` | o que o telefone filtra nos anúncios |
+| RX | `4C7F582E-BD6F-40ED-B181-AE537DD154ED` | escrita: comandos do telefone |
+| TX | `64DB3D43-0354-4142-8EBE-EDE62429DD8A` | notificação: `ok`/`err`/`pong` |
+
+O `GattManager1` vive no **adaptador** (`/org/bluez/hci0`), não em
+`/org/bluez` — e é a primeira coisa que se erra, porque `/org/bluez` é onde
+`ObjectManager` responde.
+
+**Um só caminho de comandos.** `RemoteBLE` não implementa um servidor de
+comandos: entrega cada mensagem ao `RemoteServer._handle`, o mesmo que
+trata o WebSocket. Uma segunda implementação seria duas listas de comandos a
+divergirem, e o texto passava a funcionar e o `media` não.
+
+### `Flags` é um array de strings, não uma bitfield
+
+Este foi o bug que custou a sessão, e vale registá-lo porque **nenhum teste o
+apanhou**.
+
+`org.bluez.GattCharacteristic1.Flags` é declarado como `q` na documentação
+encontrada online, e é isso que qualquer um escreve primeiro. O BlueZ real
+espera um **array de strings** (`as`): `parse_flags()` faz
+
+```c
+if (dbus_message_iter_get_arg_type(&iter) != DBUS_TYPE_ARRAY)
+    return false;
+```
+
+e o `chrc_create()` que a chama acaba em `app->failed = true`. O
+`RegisterApplication` responde então:
+
+```
+org.bluez.Error.Failed: No valid service object found
+```
+
+que **fala do serviço** quando o problema é a **característica**. Três causas
+distintas — nenhum proxy recebido, `Service` que não é um caminho de objecto,
+`Flags` com o tipo errado — e a mesma mensagem.
+
+Como achar a causa sem o log do daemon (que é root, e aqui não há): teste
+diferencial contra o próprio `bluetoothd`, subindo cada vez mais fundo na
+cascata.
+
+| Exportado | Resultado |
+|---|---|
+| nada | `No object received` |
+| só o serviço | **REGISTOU** |
+| serviço + 1 característica | `No valid service object found` |
+
+Só o serviço a registar isola a falha no `chrc_create()`. A partir daí é ler
+`parse_flags()` e comparar com o que o `dbus-next` produz.
+
+`TestContratoGattDbus` existe para isto não voltar: verifica a **assinatura
+D-Bus** que o daemon lê, e não o objecto Python, que estava correcto.
+
+### O resto das armadilhas, e o que cada uma custa
+
+| Coisa | Se estiver errado | Como aparece |
+|---|---|---|
+| `RegisterApplication` não devolve nada | atribuir o retorno ao caminho da app | regista bem e `start()` devolve `False` |
+| `Notifying` só de leitura | o BlueZ recebe `PropertyReadOnly` ao activar a CCC | telefone ligado, PC mudo |
+| Fragmentos de 22 bytes (MTU+3) | o link layer recorta sem erro | o rato não obedece, sem diagnóstico |
+| `Service` como `s` e não `o` | o daemon descarta a característica | `No valid service object found` |
+
+O limite de MTU é o mais subtil: o valor de uma característica é `MTU - 3` = 20
+bytes com a MTU por omissão, e o cabeçalho de 2 bytes do framing sai **desse
+total**. Confundir "20" com o corpo produz fragmentos de 22 bytes, e o erro é
+que o link layer recorta em silêncio — não há excepção, não há `status`, não há
+nada. Daí `ATT_WRITE_MAX` e `CHUNK_BODY` serem duas constantes e não uma.
+
+### O framing não garante entrega
+
+O cabeçalho de 2 bytes com o total da mensagem é o suficiente para recuperar
+de uma perda no **primeiro** fragmento (o total não bate certo e o receptor
+recomeça), e **não** para uma perda a meio com o total igual. Comandos do rato
+e o `auth` cabem num fragmento cada; o que precisa de fragmentar é texto longo,
+onde o pior caso é texto trocado. Numerar os fragmentos (3 bytes em vez de 2,
+corpo com 17) é a correcção se algum dia um comando multi-fragmento precisar de
+entrega garantida. Está escrito no código, não escondido.
+
+### O `move` vai em binário
+
+O JSON de um `move` são ~30 bytes e o valor de uma característica são 20:
+qualquer `move` partir-se-ia em dois fragmentos, e a 60 Hz isso são 120
+escritas por segundo. O caminho binário é `0x01` e dois `int16` em décimos de
+píxel — 7 bytes com cabeçalho, uma escrita. `OP_MOVE` e `MOVE_SCALE` têm de
+bater certo dos dois lados; é a única constante do protocolo duplicada, e a
+única que pode divergir em silêncio.
+
+Os `move` continuam acumulados e enviados de 24 em 24 ms, como no WebSocket, e
+pelo mesmo motivo: com `write-without-response` cada escrita ocupa a ligação.
+
+### O que está verificado e o que não
+
+**Verificado contra o `bluetoothd` real:** `RemoteBLE.start()` devolve `True`
+nesta máquina (BlueZ 5.64, adaptador `hci0`), e o `RegisterApplication` é
+aceito com as três características.
+
+**Não verificado:** nada de Android. Não há aparelho, e sem ele não há scan,
+nem MTU negociada, nem ACCC, nem auth, nem `move` a mexer o rato a sério. O
+lado do telemóvel está por `npm run typecheck` e por leitura; o Kotlin não foi
+compilado.
+
+Isto é o limite honesto desta secção: o protocolo está provado contra o daemon
+que vai estar do outro lado, e o cliente ainda não foi ao encontro de um
+telefone.
 
 ---
 

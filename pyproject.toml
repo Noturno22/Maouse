@@ -42,6 +42,20 @@ ignore = ["B008"]
 [tool.ruff.lint.per-file-ignores]
 "i18n.py" = ["E501"]
 
+# As anotacoes de retorno de `@dbus_property` e `@method` sao **assinaturas
+# D-Bus**, nao anotacoes Python: `-> "o"` e um caminho de objecto, `-> "as"` e um
+# array de strings, `-> "ay"` e um array de bytes. Nao existe nome `as` em
+# Python, e um `o` solto seria uma variavel por resolver, portanto o ruff
+# acusa F722 (erro de sintaxe numa anotacao) e F821 (nome indefinido) em codigo
+# que esta certo.
+#
+# O UP037 e o outro lado da mesma moeda: manda tirar as aspas, e sem elas
+# `-> as` passa a ser erro de sintaxe e `-> o` uma variavel por resolver.
+#
+# Silenciar aqui e nao em todo o projecto: F821 e uma regra que apanha bugs a
+# serio, e so este ficheiro usa assinaturas D-Bus como anotacoes.
+"core/remote_ble.py" = ["F722", "F821", "UP037"]
+
 [tool.mypy]
 python_version = "3.10"
 exclude = [".venv", "build", "dist"]
