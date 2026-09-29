@@ -7,12 +7,17 @@ runs and keeps the console clean.
 """
 import logging
 import os
+import time
 from logging.handlers import RotatingFileHandler
 
 LOGGER_NAME = "airmouse"
 DEFAULT_LEVEL = logging.INFO
 
 log = logging.getLogger(LOGGER_NAME)
+
+# RastreioVerbose de quem mexe no rato (camara vs telemovel). Diagnostico:
+# AIRMOUSE_TRACE=1 no arranque. Silencioso por omissao.
+TRACE = os.environ.get("AIRMOUSE_TRACE", "").strip() not in ("", "0", "false")
 
 _FMT = "%(asctime)s %(levelname)-5s %(name)s: %(message)s"
 
@@ -58,3 +63,13 @@ def get_logger(name=""):
     if name:
         return logging.getLogger(f"{LOGGER_NAME}.{name}")
     return log
+
+
+def trace(msg, *args):
+    """Rastreio de quem mexe no rato, com tempo monotónico de alta resolução.
+
+    O formato do log tem resolução de 1 s e o emissor corre a 180 Hz: sem o
+    ``monotonic`` não dava para intercalar a câmara e o telemóvel.
+    """
+    if TRACE:
+        log.info("[%9.3f] " + msg, time.monotonic(), *args)

@@ -209,6 +209,12 @@ class Config:
     remote_bind: str = "0.0.0.0"
     # Token de autenticação (gerado automaticamente à primeira execução).
     remote_token: str = ""
+    # Ganho do movimento RELATIVO do touchpad do telemóvel. O dedo percorre
+    # píxeis de ecrã 1:1, mas o touchpad tem ~330 px e o ecrã 1366 — com 1:1
+    # uma varredura do dedo só cobre um quarto do ecrã, o cursor ficava a meio
+    # caminho e o toque seguinte teletransportava-o para o ponto tocado (o
+    # "salto" que o utilizador viu). 3.0 cruza o ecrã em ~1,5 varreduras.
+    remote_move_gain: float = 3.0
 
     # ── Modo Trading Master (botão circular tv.png no dashboard) ──────
     # Modo dedicado a trading (multi-monitor): liga o controlo remoto por
@@ -333,6 +339,10 @@ def load_settings(cfg):
             cfg.remote_bind = str(data["remote_bind"])
         if "remote_token" in data:
             cfg.remote_token = str(data["remote_token"])
+        if "remote_move_gain" in data:
+            cfg.remote_move_gain = min(
+                max(float(data["remote_move_gain"]), 1.0), 8.0
+            )
         if "trading_master_enabled" in data:
             cfg.trading_master_enabled = bool(data["trading_master_enabled"])
         if "tv_button_enabled" in data:
@@ -396,6 +406,7 @@ def save_settings(cfg, smooth_name):
                     "remote_port": int(cfg.remote_port),
                     "remote_bind": str(cfg.remote_bind),
                     "remote_token": str(cfg.remote_token),
+                    "remote_move_gain": round(cfg.remote_move_gain, 2),
                     "trading_master_enabled": bool(cfg.trading_master_enabled),
                     "tv_button_enabled": bool(cfg.tv_button_enabled),
                     "tv_tool_combos": dict(cfg.tv_tool_combos),

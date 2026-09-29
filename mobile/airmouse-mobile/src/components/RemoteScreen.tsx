@@ -134,7 +134,7 @@ export default function RemoteScreen({ onBack }: Props) {
   const layoutRef = useRef<PadRect>({ w: 1, h: 1, pageX: 0, pageY: 0 });
   const padRef = useRef<View>(null);
 
-  // `measureInWindow` dá a posição do touchpad na janela, para depoisconverter
+  // `measureInWindow` dá a posição do touchpad na janela, para depois converter
   // `pageX`/`pageY` (que são absolutos) em coordenadas relativas ao touchpad.
   const measurePad = useCallback(() => {
     const node = padRef.current;
@@ -145,6 +145,7 @@ export default function RemoteScreen({ onBack }: Props) {
       }
     });
   }, []);
+
   const touchState = useRef({
     count: 0,
     last: new Map<number, TouchPos>(),
@@ -165,7 +166,7 @@ export default function RemoteScreen({ onBack }: Props) {
       onPanResponderGrant: (evt) => {
         const ts = touchState.current;
         // Remedir a cada toque: o teclado abrir/fechar ou o telefone rodar
-        // mudam a posição do touchpad sem necessariamente mudar o tamanho, e o
+        // mudam a posição do pad sem necessariamente mudar o tamanho, e o
         // `onLayout` só dispara quando o tamanho muda.
         measurePad();
         ts.count = evt.nativeEvent.touches.length;
@@ -272,6 +273,14 @@ export default function RemoteScreen({ onBack }: Props) {
               // recebeu o toque. `locationX` depende — e o touchpad tem o texto
               // de dica e o distintivo do ecrã por cima, portanto tocar neles
               // mandava o cursor para outra direção.
+              //
+              // O toque é ABSOLUTO (clica onde o dedo toca) e o arrasto é
+              // RELATIVO. É esta mistura que resolve: com o toque relativo o
+              // clique dependia de o cursor já estar no sítio certo, e chegar
+              // lá exige acertar no ganho — qualquer erro aparecia como "o
+              // clique salta". Com o toque absoluto não há mira a acertar: o
+              // clique vai para o ponto tocado, e o `move_to` + `left_click`
+              // chegam ao PC no mesmo comando, sob o mesmo árbitro.
               const pad = layoutRef.current;
               x = Math.max(0, Math.min(1, (touch.pageX - pad.pageX) / pad.w));
               y = Math.max(0, Math.min(1, (touch.pageY - pad.pageY) / pad.h));
@@ -340,11 +349,11 @@ export default function RemoteScreen({ onBack }: Props) {
           accessible
           accessibilityRole="none"
           accessibilityLabel="Rato — área de toque"
-          accessibilityHint="Um dedo move o cursor, toque faz clique, manter arrasta, dois dedos faz scroll."
+          accessibilityHint="Um dedo move o cursor, toque clica no ponto tocado, manter arrasta, dois dedos faz scroll."
           {...panResponder.panHandlers}
         >
           <Text style={styles.touchpadHint}>
-            1 dedo = mover · toque = clique · manter = arrastar · 2 dedos = scroll · 2/3 dedos tocar = dir/meio
+            1 dedo = mover · toque = clique no ponto · manter = arrastar · 2 dedos = scroll · 2/3 dedos tocar = dir/meio
           </Text>
           <View style={styles.screenPill}>
             <Text style={styles.screenPillText}>

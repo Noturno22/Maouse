@@ -16,7 +16,324 @@ Formato de uma entrada:
 
 ---
 
-## [2026-09-27 00:46] Desktop: a câmara disputava o rato ao telemóvel (o clique saltava)
+## ONDE RETOMAR (2026-09-27 23:15) — o PC foi desligado aqui
+
+**Estado:** o clique está corrigido e confirmado no aparelho real. Nada
+pendente de código. A única coisa em aberto é uma medição de confirmação.
+
+**Primeiro, arrancar os serviços** (o PC reinicia e perde os três):
+```bash
+cd /home/fortuna/Desktop/Maouse-main/license-server && set -a && . ../.env && set +a && \
+  setsid nohup ../.venv/bin/python -m uvicorn app:app --host 127.0.0.1 --port 8899 \
+  > /tmp/maouse-ls.log 2>&1 < /dev/null &
+cd /home/fortuna/Desktop/Maouse-main/mobile/airmouse-mobile && \
+  setsid nohup npx expo start --host lan --port 8081 > logs/expo-dev.log 2>&1 < /dev/null &
+cd /home/fortuna/Desktop/Maouse-main && \
+  AIRMOUSE_TRACE=1 setsid nohup .venv/bin/python main.py > /tmp/maouse-run.log 2>&1 < /dev/null &
+```
+- Token do remoto: `a693…` (o valor completo está em `settings.json`, que é
+  gitignored — não o repetir aqui).
+- O trace vai para `logs/airmouse.log`; o arranque vai para `/tmp/maouse-run.log`.
+- O `AIRMOUSE_TRACE=1` é só diagnóstico — sem ele o log é limpo e o código
+  corre exactamente igual (`core/log.py:trace`).
+- Confirmação de que a sessão é X11: `echo $XDG_SESSION_TYPE` → tem de dar
+  `x11`. Em Wayland o `pynput` **não** mexe no cursor virtual e nada disto
+  se mede.
+
+**A medição que fica em aberto.** Falta comparar o clique píxel a píxel contra
+um alvo calibrado. O trace já prova que o `move_to` vai para as coordenadas
+certas e que o clique segue no mesmo comando — o que falta é a confirmação de
+que o ponto que o utilizador *tocou* corresponde mesmo ao ponto que *vê* no
+ecrã. Como o touchpad tem 328 px de largura e o ecrã 1366, qualquer erro de
+origem/dimensão do pad (`RemoteScreen.tsx:measurePad`, `PadRect`) é
+exactamente o que aparece aqui.
+Como fazer, sem instrumentação nova:
+1. No telemóvel, carregar em 4 pontos, incluindo por cima do texto de dica e do
+   distintivo do ecrã (os dois que já causaram o `locationX` relativo à vista
+   errada, entrada das 23:02 de 26-09).
+2. Cada clique deixa no trace `REMOTE move_to (x,y) -> (px,py)`, que é o pixel
+   exacto. Comparar esse pixel com o ponto que se vê no ecrã depois do clique.
+   Desvio 0 px nos quatro = fechado.
+Se não quiseres comparar visualmente, diz e faço um teste com um alvo
+calibrado no ecrã.
+
+**Estado da árvore de trabalho** (nada disto foi commitado — o trabalho das
+02:50 e o de hoje estão todos por commitar):
+```
+ M HISTORICO.md
+ M config.py                              remote_move_gain novo (3.0)
+ M core/log.py                            trace() novo, atrás de AIRMOUSE_TRACE
+ M core/remote.py                         árbitro begin/end, _move_rel com ganho
+ M main.py                                liga on_command_begin/end ao árbitro
+ M ui/settings_dlg.py                     slider do ganho remoto
+ M tests/test_remote.py                   +5 testes (TestToqueAbsoluto, ganho 1x)
+ M mobile/.../RemoteScreen.tsx            toque absoluto reposto
+ M mobile/.../remoteClient.ts             flushMoves antes de cada comando; sem ganho
+?? logs/                                  logs de diagnóstico, gitignored
+```
+Para commitar: `git add -A ':!logs'` e depois `git commit`.
+
+**Última suíte:** `302 passed`, `ruff` limpo, `tsc --noEmit` exit 0.
+
+---
+
+## [2026-09-27 03:20] O clique no telefone continuava a saltar: eram três defeitos, um deles de ordem
+
+- **Objetivo:** o utilizador voltou a dizer que o clique no telefone salta,
+  depois de três entradas seguidas a tentar corrigir o mesmo sintoma. A
+  entrada das 02:50 ficou **Parcial** à espera de confirmação no aparelho.
+  Antes de mexer em código, li o que estava por commitar — e havia uma
+  inversão de design e dois bugs por detrás.
+
+- **Defeito 1 — o toque tinha passado a relativo, contra a decisão tomada.**
+  A entrada das 02:50 regista que o utilizador escolheu explicitamente o
+  comportamento **absoluto** ("clicar onde toca no touchpad"). A alteração por
+  commitar inverteu isso: o toque passou a mandar `gesture tap` **sem
+  coordenadas**, e apagou o `PadRect`/`measureInWindow` que convertia o toque
+  em coordenadas absolutas. Com o toque relativo, acertar o ponto passa a
+  depender de acertar o **ganho** — e um erro no ganho deixa de se ver como
+  "o rato é rápido" e passa a ver-se como "o clique saltou". Confirmado com
+  o utilizador: escolhe o **híbrido** (toque absoluto, arrasto relativo).
+  Reposto o tap absoluto, mantendo o arrasto relativo.
+
+- **Defeito 2 — o ganho era aplicado duas vezes.** `remoteClient.ts` tinha
+  `MOVE_GAIN = 1.8` desde o commit original (`7079103`), e a alteração por
+  commitar acrescenta `remote_move_gain = 3.0` no PC. Os dois multiplicam:
+  **efectivo 5,4x**. Com o touchpad a medir 328 px (`tx/ty/px/pw` medidos) e o
+  ecrã a 1366, uma varredura do dedo na largura do pad atirava o cursor
+  **1780 px** — mais do que a largura do ecrã, ou seja, batia sempre no
+  limite. O toque seguinte clicava onde o cursor tinha ficado em vez de onde o
+  dedo parou. Os testes não apanhavam isto: `tests/test_remote.py` exercita
+  `_move_rel` isolado, e o `1.8` vive em TypeScript, onde este projeto não
+  tem framework de teste.
+  **Decisão:** o ganho fica num sítio só, no PC (`remote_move_gain`), que é
+  afinável no ecrã das definições sem recompilar a app. Removido o `1.8` do
+  telefone; `pendingDx`/`pendingDy` passaram a acumular em vírgula flutuante
+  (o `Math.round` por evento perdia meio píxel de cada vez).
+
+- **Defeito 3 — a ordem de envio estava trocada, e é o que mais explica
+  "salta".** `move` era acumulado e enviado de 24 em 24 ms, mas
+  `gesture`/`click`/`press` iam **imediatos**. O servidor executa um comando
+  de cada vez, pela ordem de chegada: ao carregar havia até 24 ms de
+  movimentos do dedo por aplicar, que ficavam **para trás** do clique. O
+  clique assentava no sítio antigo e o cursor só avançava **depois** — o
+  inverso do que o dedo queria dizer, e a origem mais provável do termo
+  "salta".
+
+- **Alterações:**
+  - `remoteClient.ts:29` — `MOVE_GAIN` removido; o ganho passa a ser só o do
+    PC. Comentário a explicar porque é que não pode voltar a haver ganho
+    nos dois lados.
+  - `remoteClient.ts:112` — `move()` acumula em vírgula flutuante, sem ganho.
+  - `remoteClient.ts:180` — `sendRaw()` passou a fazer `flushMoves()` antes de
+    enviar. Todos os comandos discretos passam por ela, portanto a ordem de
+    escrita no WebSocket passa a ser a ordem em que o utilizador fez as
+    coisas. `flushMoves()` usa `rawSend` (não `sendRaw`) para não se chamar a
+    si próprio indefinidamente.
+  - `RemoteScreen.tsx` — reposto o `PadRect`/`padRef`/`measurePad()` e o
+    `ref`/`onLayout` no touchpad; o toque volta a converter `pageX`/`pageY`
+    em normalizados e a mandar `gesture('tap', x, y)`. `measurePad()` corre no
+    `onLayout` e a cada `onPanResponderGrant` (o teclado abrir/fechar muda a
+    posição do pad sem mudar o tamanho). `accessibilityHint` e o texto de dica
+    voltaram ao "toque clica no ponto tocado".
+  - `core/remote.py:1` — docstring do protocolo: `gesture tap` com x/y é o
+    caminho normal; o caminho sem x/y fica documentado como o que preferem os
+    clientes que usam o rato como alvo.
+  - `tests/test_remote.py` — `FakeMouse` passou a registar `click_at`, a
+    posição do cursor no instante exato de cada clique. Sem isso não dava para
+    provar nada: o `move_to` e o `left_click` acontecem no mesmo comando e a
+    posição final é a mesma nos dois casos.
+  - `tests/test_remote.py:TestToqueAbsoluto` (novo, 4 testes) — o clique cai
+    no ponto tocado; cai no ponto tocado com movimento relativo pendente;
+    acerta nos quatro cantos; e com o ganho no extremo (1.0, 3.0, 8.0) o
+    ponto tocado dá sempre a mesma coordenada.
+  - `tests/test_remote.py:test_ganho_aplicado_so_pelo_pc` (novo) — uma
+    varredura do pad tem de dar `pad_w x ganho` e não atravessar o ecrã, para
+    a regressão do ganho duplicado ser óbvia.
+  - `tests/test_remote.py:TestTouchpadRelativo` — o docstring dizia que
+    misturar relativo e absoluto era o bug. Passou a descrever o híbrido, e o
+    teste do `gesture tap` sem coordenadas foi requalificado (o servidor
+    continua a aceitá-lo; o app é que já não o usa).
+
+- **Verificação:**
+  - `pytest tests/ --ignore=tests/test_voice_direct.py` → **302 passed**
+    (baseline 297; +5).
+  - `ruff check core/ tests/ main.py ui/` → limpo.
+  - `npx tsc --noEmit` (em `mobile/airmouse-mobile`) → exit 0.
+  - `test_toque_cai_no_ponto_tocado_mesmo_com_movimento_relativo_pendente`
+    fixa a ordem: com 20 `move` de 1 px e ganho 3.0, o cursor estava em
+    (160, 100) e o clique assentou no ponto tocado — nem no sítio anterior
+    nem a meio caminho entre os dois.
+
+- **Verificação no aparelho (feita, com o telemóvel do utilizador):**
+  Serviços arrancados — o PC tinha reiniciado às 21:04 e não havia nada a
+  correr: license-server em `127.0.0.1:8899` (`/health` → `{"status":"ok"}`),
+  Metro em `*:8081`, e `main.py` com `AIRMOUSE_TRACE=1` (sessão **X11**, o que
+  importa: em Wayland o `pynput` não mexe no cursor virtual).
+  - **O bundle que o Metro serve já tem as três correções**, lido do bundle
+    real (`curl index.bundle?platform=android&dev=true`, 7.5 MB):
+    `pendingDx += dx` (sem `Math.round(MOVE_GAIN * dx)`);
+    `sendRaw(cmd){ if(!this.ready) return; this.flushMoves(); this.rawSend(cmd); }`;
+    e `gesture('tap', x, y)`.
+  - **Um toque real do aparelho, no trace:**
+    ```
+    7608.234  REMOTE recv {"cmd":"gesture","event":"tap","x":0.6189,"y":0.5308}
+    7608.236  ARBITER toma o rato por 1.50s (pausa a camara)
+    7608.242  REMOTE move_to (0.6189,0.5308) -> (844,407)
+    7608.247  REMOTE done  gesture -> TAP (espera 14 ms)
+    7609.820  ARBITER devolve o rato a camara
+    ```
+    Ou seja: o toque chega **absoluto** (prova de que o aparelho recarregou e
+    apanhou o bundle novo), a câmara é silenciada 2 ms **antes** do salto, o
+    `move_to` e o clique seguem no mesmo comando com **14 ms** de latência (a
+    corrida de GIL das 02:50 não se repetiu), e **não entra um único `move`
+    depois do clique**. A janela de 1,5 s cumpre-se a partir do fim.
+  - **Dois arrastos reais, com a câmara a ver:** 49 e 32 `move`, e
+    **0 decisões da câmara** em ambos. O árbitro segura durante o arrasto.
+  - **O telefone envia o dedo a 1:1 — medido na distribuição dos deltas.** Dos
+    1026 componentes de `move` no trace, **54,5% são de 1 px**. Com o
+    `MOVE_GAIN = 1.8` isso era aritmeticamente impossível (`round(1.8 × 1) = 2`:
+    nunca sairia 1). Prova directa de que o ganho duplicado desapareceu.
+  - `remote_move_gain` em runtime = **3.0**, vindo do omisso: a chave não
+    existe no `settings.json`, logo não há segundo ganho a somar. E o
+    `test_ganho_aplicado_so_pelo_pc` fixa `pad_w × ganho` sem atravessar o ecrã.
+
+- **Armadilha da medição (registada porque quase deu um falso "OK"):** a
+  primeira tentativa de medir o ganho no rato real deu 0.42. A causa foi o
+  utilizador estar a mexer no touchpad ao mesmo tempo — os comandos que o
+  trace atribuí ao script eram do dedo dele. Só se mede o ganho com o
+  telemóvel quieto, ou pelo trace (que é imune a quem mexe no rato).
+
+- **Nota:** o `remote_move_gain` a 3.0 é o valor por omisso com a calibragem
+  assumida (pad 328 px, ecrã 1366 px) e é afinável em Definições. Só afecta o
+  **arrasto**, agora que o toque é absoluto.
+- **Estado:** OK — corrigido, coberto por testes e confirmado no aparelho real
+  (bundle, toque absoluto, ordem, arrasto com a câmara activa, ganho 1:1).
+  Fica por medir o **ponto exato** do clique contra um alvo conhecido: o trace
+  prova o `move_to` e que o clique seguiu no mesmo comando, mas eu não tinha
+  um alvo calibrado para comparar píxel a píxel.
+
+## [2026-09-27 02:50] O clique do telemóvel caía no sítio errado: a janela de silêncio expirava a meio do comando
+
+- **Objetivo:** o utilizador passou a dizer que não era um salto depois de
+  clicar, mas que **o clique caía no sítio errado**. Decidiu manter o
+  comportamento **absoluto** (clicar onde toca no touchpad).
+- **As coordenadas estavam certas.** Com instrumentação no telefone
+  (payload `d` com `tx/ty/px/py/pw/ph`) e no PC, um toque no centro do pad deu
+  `tx=180`, rect `px=16 pw=328` → `x = (180-16)/328 = 0.5000` exacto, e o
+  cursor foi para o centro do ecrã, (682, 361). Um segundo toque deu
+  `tx=44 ty=128.5` → `x=0.0854 y=0.0650` → (116, 49). A aritmética do touchpad
+  está certa.
+- **A pista anterior dos "656" era um erro meu.** Impus que `pageX` fosse
+  inteiro e exigi que `x·w` desse inteiro; como o telefone devolve meio
+  píxel (`ty=128.5`), concluí falsamente que a largura era o dobro. Com
+  `w=328` todos os valores anteriores são plausíveis. O rect nunca mudou.
+- **A causa real era uma corrida no árbitro.** O trace mostrou o comando a
+  *chegar* e a *executar* 2,02 s depois:
+  `REMOTE recv` às 4351.034 → `ARBITER devolve o rato a camara` às 4352.544 →
+  `REMOTE move_to` às 4352.829 → clique às 4353.057. A janela de silêncio de
+  1,5 s arrancava na **recepção** e expirava **durante a execução**; a câmara
+  reabria o rato e o clique aterrava onde ela tivesse deixado o cursor. O
+  comando demora porque a inferência MediaPipe segura a GIL — é intermitente, o
+  toque seguinte demorou 2 ms.
+- **Alterações:**
+  - `core/remote.py:140` — `RemoteArbiter.begin_command()` / `end_command()`:
+    mantêm a câmara calada durante toda a execução do comando, por mais tempo
+    que a GIL o segure, e re-armam os 1,5 s a contar do fim (quando o clique
+    já aconteceu).
+  - `core/remote.py:193` — `tick()` deixa de devolver o rato à câmara enquanto
+    há comando em voo.
+  - `core/remote.py:418` — o ciclo de comando passou a envolver
+    `_handle()` em `begin`/`end`, com `finally` para não deixar o rato preso
+    se o comando lançar excepção. `trace` passou a registar a latência
+    `recv → done` em ms.
+  - `core/remote.py:244` — `_begin_command()` / `_end_command()` no servidor,
+    com degradação segura para `_note_activity()`.
+  - `main.py:380` — liga os dois callbacks novos ao árbitro.
+  - `tests/test_remote.py:307` — teste de regressão com relógio controlado.
+- **Verificação:**
+  - `pytest tests/ --ignore=tests/test_voice_direct.py` → **290 passed**;
+    `ruff check core/ tests/ main.py` → limpo; license-server → **72 passed**.
+  - O teste de regressão **falha sem a correcção** (`False != True`) e passa
+    com ela — verificado por reversão temporária.
+  - `/tmp/opencode/e2e_gil.py` (novo, ponta a ponta com X11 real): com comando
+    atrasado 2,5 s, o clique sai **7 px fora do alvo** sem a correcção e
+    **2 px** (só arredondamento do `move_to`) com ela, e o rato fica parado no
+    alvo durante a execução.
+  - `/tmp/opencode/diag_drag.py`: durante um arrasto de 3 s, **0** decisões da
+    câmara com o árbitro a segurar, em 8/8 execuções.
+  - Corrigido o artefacto de medição do `/tmp/opencode/e2e_click.py`: o
+    sampler começava antes do handshake e contava como falha a janela em que
+    ainda não tinha chegado comando nenhum.
+- **Resta por verificar no aparelho real:** com a mão à frente da câmara, o
+  clique tem de cair no ponto tocado mesmo que a latência seja de segundos.
+- **Nota de ambiente (não resolvido):** a latência de 2 s vem da inferência da
+  câmara a segurar a GIL. A correcção garante que o clique é correcto, mas o
+  atraso em si é um problema de performance à parte.
+- **Estado:** Parcial — código corrigido e coberto por testes; falta confirmar
+  no aparelho com a mão em cena.
+
+## [2026-09-27 01:25] Verificação do clique do telemóvel finally fechada (o X11 deixou de estar congelado)
+
+- **Objetivo:** retomar a entrada das 00:46, que ficou **Parcial** por causa da
+  nota de ambiente: o ponteiro do X11 estava congelado no centro do ecrã e
+  bloqueava a verificação ponta a ponta do clique.
+- **Estado do ambiente ao arrancar:** nenhum processo vivo (o PC voltou a
+  reiniciar) e a árvore de trabalho limpa — o código do árbitro já estava
+  commitado em `caddd76`.
+- **O bloqueio do X11 já não existe.** Medi antes de mexer em nada:
+  `pynput.Controller().position` respondeu a quatro `warp` seguidos para
+  (100,100), (1200,700), (683,384) e (300,500), ficando em cada um, e um clique
+  real foi aceite. A janela 1366x768 está presente. Podia-se, portanto, medir.
+- **Nenhuma alteração a código nesta entrada.** O que segue é a verificação que
+  faltava, feita com a máquina real e só a mão simulada.
+- **Verificação 1 — teste ponta a ponta com tudo real** (`/tmp/opencode/e2e_click.py`):
+  servidor `RemoteServer` real, `MouseCtl` real sobre X11, `SmoothEmitter` real
+  a 180 Hz, `RemoteArbiter` real, e uma frame loop que reproduz o que
+  `core/engine.py:212` faz a cada frame (`arbiter.tick()` e o gate de
+  `state["paused"]`). Só a mão é simulada — empurra 7 px por frame a ~20 Hz.
+  - base, sem telemóvel: a câmara mexe o rato (123 px em 0,6 s);
+  - 6 cliques absolutos (cantos, centro e intermédios): todos exactamente no
+    sítio, com a mão a competir;
+  - arrasto de 3 s a 30 Hz (o que o app envia): **0** decisões da câmara, contra
+    ~60 esperadas sem telemóvel; árbitro a segurar 60 das 61 amostras;
+  - clique em (0,72; 0,31) com a sessão viva: **desvio 0 px** em 26 amostras de
+    1,2 s — o clique não é arrastado;
+  - passado 1,5 s de silêncio: a câmara retoma, `holding` falso, `paused` limpo.
+- **Verificação 2 — contra o processo real em produção** (`main.py` a correr com
+  a câmara ligada, porta 8765): 4 cliques em (0,25;0,4), (0,7;0,6), (0,5;0,85) e
+  (0,05;0,95). Todos assentam no alvo em **30–40 ms** e ficam **imóveis, desvio
+  0 px**, em ~36 amostras de 1,2 s cada.
+- **Suítes:** `289` testes desktop e `72` server verdes; `ruff` limpo.
+- **Nota (não é bug):** o `ping` é tratado com `continue` **antes** de
+  `_note_activity()` (`core/remote.py:344`), logo o keepalive do telemóvel não
+  re-arma o árbitro. É inofensivo: `PING_INTERVAL_MS = 15000`
+  (`remoteClient.ts:29`) contra uma janela de 1,5 s — o ping nunca cairia no
+  prazo de qualquer forma, e o silêncio é precisamente o sinal para devolver o
+  rato à câmara.
+- **Duas armadilhas da própria harness, ambas minhas, ambas por premissa errada**
+  (registadas porque só uma delas dava um falso "OK"):
+  1. o `arbiter.tick()` só é chamado pelo `process_frame` do engine. Sem frame
+     loop, `paused` ficava preso a `True` e os testes de clique passavam **sem
+     competição nenhuma** — verde falso;
+  2. o servidor responde a cada comando; um cliente simulado que não leia as
+     respostas trava o `send` do servidor e os comandos deixam de chegar, o que
+     fez o teste "a câmara cala-se" falhar com 171 decisões em 3 s. O cliente
+     real do app lê as respostas.
+- **Por confirmar no aparelho:** o clique no touchpad, com a câmara a ver uma
+  mão. As medições acima usam uma mão simulada porque não há mão à frente da
+  câmara a esta hora; a câmara real não detetou nada
+  (`(1234,129)` → `(1234,129)` em 1,5 s).
+- **Serviços arrancados** (o PC tinha reiniciado e perdera todos):
+  - license-server em `127.0.0.1:8899` (`/health` → `{"status":"ok"}`);
+  - Metro em `*:8081` (log em `mobile/airmouse-mobile/logs/expo-dev4.log`);
+  - `main.py` → `License: PRO`, `Camera 0 ativa`, `Controlo remoto ativo em
+    0.0.0.0:8765`, token `a693…`.
+- **Estado:** OK no código e na verificação medida; falta só a confirmação com
+  a mão real à frente da câmara.
+
+---
+
 
 - **Objetivo:** com o `locationX` e a dead zone já corrigidos, o toque chegava ao
   PC com as coordenadas certas mas o clique continuava a saltar — "os comandos
@@ -332,7 +649,7 @@ Formato de uma entrada:
   - `airmouse.spec` lista `core._license_endpoint` em `hiddenimports` — sem isto
     o módulo não entra no binário, porque o import é feito dentro de uma função
     e a análise estática do PyInstaller não o vê.
-- **Problema 4 —上没有 `.env`:** nada no repo lia o `.env` para estas vars, e o
+- **Problema 4 — não havia `.env`:** nada no repo lia o `.env` para estas vars, e o
   `.env.example` existia sem consumidor para o licensing. Novo `core/envcfg.py`
   (`env_value` / `env_int`, sem dependências) é agora usado por
   `core/licensing.py` e `ui/license_dlg.py`. Ordem: env var > `.env` (cwd, depois

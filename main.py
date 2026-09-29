@@ -377,6 +377,8 @@ def main():
     state["_remote_arbiter"] = arbiter
     if remote is not None:
         remote.on_activity = arbiter.note
+        remote.on_command_begin = arbiter.begin_command
+        remote.on_command_end = arbiter.end_command
     tray_icon = None
     tray_adapter = None
 

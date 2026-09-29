@@ -28,6 +28,9 @@ Desktop.ini
 
 # Logs
 *.log
+# Os rotados do RotatingFileHandler levam sufixo numerico (airmouse.log.1) e
+# nao sao apanhados pelo *.log de cima. Sao MB de diagnostico por arranque.
+logs/
 
 # Secrets
 .env

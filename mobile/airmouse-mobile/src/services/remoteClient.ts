@@ -27,8 +27,20 @@ export interface RemoteClientCallbacks {
 }
 
 const PING_INTERVAL_MS = 15000;
+// Os `move` são acumulados e enviados de 24 em 24 ms. 24 ms é a taxa com que
+// o Android entrega touch events, por isso isto não perde nada e reduz o
+// número de comandos (e de respostas do servidor) por segundo.
 const MOVE_INTERVAL_MS = 24;
-const MOVE_GAIN = 1.8;
+
+// O ganho do movimento relativo NÃO é aplicado aqui: vive no PC, em
+// `remote_move_gain` (config.py), e é afinável no ecrã das definições sem
+// recompilar a app. Havia um `MOVE_GAIN = 1.8` TAMBÉM aqui, o que dava um
+// ganho efectivo de 1.8 x 3.0 = 5.4: uma varredura do dedo na largura do
+// touchpad (~330 px) atirava o cursor 1780 px, mais do que a largura do ecrã.
+// Era o "clique salta": o cursor batia no limite do ecrã e o toque clicava
+// no sítio onde ele tinha ficado, não onde o dedo tinha parado.
+// `pendingDx`/`pendingDy` acumulam em vírgula flutuante e só se arredonda no
+// flush, para não perder meio píxel a cada evento.
 
 export function buildWsUrl(host: string, port: string | number): string {
   const h = String(host || '')
@@ -111,8 +123,10 @@ export class RemoteClient {
 
   move(dx: number, dy: number): void {
     if (!this.ready) return;
-    this.pendingDx += Math.round(MOVE_GAIN * dx);
-    this.pendingDy += Math.round(MOVE_GAIN * dy);
+    // Acumula em vírgula flutuante, sem ganho: o ganho é do PC
+    // (`remote_move_gain`) e o arredondamento só acontece no flush.
+    this.pendingDx += dx;
+    this.pendingDy += dy;
   }
 
   moveTo(x: number, y: number): void {
@@ -176,10 +190,18 @@ export class RemoteClient {
     ws.send(JSON.stringify(cmd));
   }
 
+  // Todo comando discreto (clique, pressão, tecla, gesto) passa por aqui, e
+  // QUALQUER um deles tem de ser precedido pelo esvaziamento do buffer de
+  // `move`. Sem isso a ordem chega trocada ao PC: os `move` ficam à espera do
+  // flush de 24 ms, mas o clique vai imediato, e o servidor — que executa um
+  // comando de cada vez, pela ordem de chegada — carrega o botão com o cursor
+  // ainda no sítio anterior aos últimos 24 ms de dedo. O clique saía no sítio
+  // errado e o cursor só avançava DEPOIS do clique, o que se lê exactamente
+  // como "o clique salta".
   private sendRaw(cmd: Record<string, unknown>): void {
-    const ws = this.ws;
-    if (!this.ready || !ws || ws.readyState !== 1) return;
-    ws.send(JSON.stringify(cmd));
+    if (!this.ready) return;
+    this.flushMoves();
+    this.rawSend(cmd);
   }
 
   private handleMessage(raw: string): void {
@@ -243,7 +265,11 @@ export class RemoteClient {
     this.pendingDx = 0;
     this.pendingDy = 0;
     if (dx !== 0 || dy !== 0) {
-      this.sendRaw({ cmd: 'move', dx, dy });
+      // `rawSend`, não `sendRaw`: um `sendRaw` aqui voltaria a chamar
+      // `flushMoves` indefinidamente. É também o que garante a ordem — quem
+      // chama o `flushMoves` já vai enviar o comando logo a seguir, e o
+      // WebSocket preserva a ordem de escrita.
+      if (this.ready) this.rawSend({ cmd: 'move', dx, dy });
     }
   }
 

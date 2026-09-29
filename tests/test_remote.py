@@ -39,15 +39,27 @@ class FakeMouse:
         self.pressed = []
         self.released = []
         self.scrolled = []
+        # Onde o cursor estava no momento EXACTO de cada clique. Sem isto não
+        # se pode provar que o clique caiu no ponto tocado: o `move_to` e o
+        # `left_click` acontecem no mesmo comando e a posição final é a mesma
+        # nos dois casos.
+        self.click_at = []
 
     def move_by(self, dx, dy):
         self.moves.append((dx, dy))
+        x, y = self.mouse.position
+        self.mouse.position = (
+            min(max(x + dx, 0), self.screen_w - 1),
+            min(max(y + dy, 0), self.screen_h - 1),
+        )
 
     def left_click(self):
         self.clicks.append("left")
+        self.click_at.append(("left", self.mouse.position))
 
     def right_click(self):
         self.clicks.append("right")
+        self.click_at.append(("right", self.mouse.position))
 
     def press_left(self):
         self.pressed.append("left")
@@ -57,6 +69,26 @@ class FakeMouse:
 
     def scroll(self, dy):
         self.scrolled.append(dy)
+
+
+class _FakeConnection:
+    """Ligação WebSocket mínima: entrega uma lista de mensagens já prontas."""
+
+    def __init__(self, messages):
+        self._messages = [json.dumps(m) for m in messages]
+        self.remote_address = ("192.168.0.189", 51234)
+        self.sent = []
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        if not self._messages:
+            raise StopAsyncIteration
+        return self._messages.pop(0)
+
+    async def send(self, payload):
+        self.sent.append(payload)
 
 
 def test_generate_token_is_unique():
@@ -101,6 +133,7 @@ def test_key_aliases_arrow_keys():
 def test_dispatch_move_click_scroll_press():
     cfg = Config()
     cfg.remote_token = "tok"
+    cfg.remote_move_gain = 1.0
     mouse = FakeMouse()
     srv = RemoteServer(cfg, mouse)
 
@@ -143,12 +176,251 @@ def test_dispatch_unknown_command_raises():
         srv._handle("coiso", {})
 
 
+class TestTouchpadRelativo:
+    """O arrasto de um dedo é RELATIVO: o dedo move o cursor a partir de onde
+    ele está, com o ganho de ``remote_move_gain``.
+
+    O TOQUE é que é absoluto (ver ``TestToqueAbsoluto``): é a única forma de o
+    clique não depender de uma mira. Estas duas coisas juntas — arrasto
+    relativo, toque absoluto — são o design escolhido, e é a combinação que
+    elimina o "o clique salta" que o utilizador reportou três vezes."""
+
+    def test_toque_clica_onde_o_cursor_esta_sem_o_saltar(self):
+        """Um ``gesture tap`` sem coordenadas é um clique trackpad: não pode
+        teletransportar o rato. O app do telemóvel já não usa este caminho (manda
+        sempre x/y), mas o servidor continua a aceitá-lo para clientes que
+        queiram o rato como alvo."""
+        cfg = Config()
+        cfg.remote_token = "tok"
+        mouse = FakeMouse()
+        srv = RemoteServer(cfg, mouse)
+
+        # O utilizador arrastou o cursor até aqui...
+        mouse.mouse.position = (1000, 130)
+        srv._handle("gesture", {"event": "tap"})
+
+        assert mouse.mouse.position == (1000, 130), (
+            "o toque moveu o rato: o cursor tem de carregar onde já está, "
+            "não saltar para o ponto tocado"
+        )
+        assert mouse.clicks == ["left"]
+
+    def test_toque_com_coordenadas_mantem_o_salto_explicito(self):
+        """Clientes que mandem x/y continuam a poder saltar antes de clicar."""
+        cfg = Config()
+        cfg.remote_token = "tok"
+        mouse = FakeMouse()
+        srv = RemoteServer(cfg, mouse)
+
+        srv._handle("gesture", {"event": "tap", "x": 0.5, "y": 0.5})
+        assert mouse.mouse.position == (959, 539)
+        assert mouse.clicks == ["left"]
+
+    def test_ganho_default_torna_o_ecra_alcancavel(self):
+        """O touchpad tem ~330 px e o ecrã 1366.
+
+        A 1:1 (o bug) uma varredura do dedo cobria 330 dos 1366 px: o cursor
+        ficava a um quarto do caminho e o toque seguinte — absoluto — atirava-o
+        para o outro lado. Com o ganho por omissão, uma varredura tem de chegar
+        a pelo menos dois terços do ecrã, e o canto oposto tem de ficar
+        alcançável sem dificuldade.
+        """
+        cfg = Config()
+        mouse = FakeMouse()
+        mouse.screen_w, mouse.screen_h = 1366, 768
+        srv = RemoteServer(cfg, mouse)
+        pad_w = 330
+
+        for _ in range(pad_w):
+            srv._handle("move", {"dx": 1, "dy": 0})
+        uma_varredura = mouse.mouse.position[0]
+
+        assert uma_varredura >= 2 * mouse.screen_w // 3, (
+            f"uma varredura do pad cobriu só {uma_varredura} de "
+            f"{mouse.screen_w} px: o ganho não está a compensar o touchpad"
+        )
+        # Continuar a varrer tem de levar ao canto oposto.
+        for _ in range(pad_w):
+            srv._handle("move", {"dx": 1, "dy": 0})
+        assert mouse.mouse.position[0] == mouse.screen_w - 1
+
+    def test_ganho_nao_perde_pixels_fracionarios(self):
+        """Ganho fraccionário tem de acumular: arredondar por evento perde
+        meio píxel de cada vez e, com centenas de eventos, o cursor ficava
+        progressivamente atrasado."""
+        cfg = Config()
+        cfg.remote_move_gain = 2.5
+        mouse = FakeMouse()
+        srv = RemoteServer(cfg, mouse)
+
+        for _ in range(100):
+            srv._handle("move", {"dx": 1, "dy": 0})
+
+        assert mouse.mouse.position[0] == 250
+
+    def test_ganho_fora_de_raio_e_limitado(self):
+        for bruto, esperado in ((0.1, 1.0), (99.0, 8.0), (-5.0, 1.0)):
+            cfg = Config()
+            cfg.remote_token = "tok"
+            cfg.remote_move_gain = bruto
+            mouse = FakeMouse()
+            srv = RemoteServer(cfg, mouse)
+            srv._handle("move", {"dx": 1, "dy": 0})
+            assert mouse.moves == [(esperado, 0)]
+
+    def test_salto_absolvo_zera_o_resto_fraccionario(self):
+        """Depois de um salto absoluto, o resto fraccionário do movimento
+        relativo já não tem sentido: sem o reset, o primeiro `move` following
+        arrancava um deslocamento fantasma."""
+        cfg = Config()
+        cfg.remote_token = "tok"
+        cfg.remote_move_gain = 2.5
+        mouse = FakeMouse()
+        srv = RemoteServer(cfg, mouse)
+
+        srv._handle("move", {"dx": 1, "dy": 0})  # deixa 0.5 px de resto
+        srv._handle("move_to", {"x": 0.5, "y": 0.5})
+        mouse.moves.clear()
+        srv._handle("move", {"dx": 1, "dy": 0})
+
+        assert mouse.moves == [(2, 0)]
+
+    def test_ganho_esta_guardado_nas_definicoes(self, monkeypatch, tmp_path):
+        import config as config_mod
+
+        monkeypatch.setattr(
+            config_mod, "SETTINGS_FILE", str(tmp_path / "settings.json")
+        )
+        cfg = Config()
+        cfg.remote_token = "tok"
+        cfg.remote_move_gain = 4.5
+        config_mod.save_settings(cfg, "NORMAL")
+
+        lido = Config()
+        config_mod.load_settings(lido)
+        assert lido.remote_move_gain == 4.5
+
+    def test_ganho_aplicado_so_pelo_pc(self):
+        """O ganho vive num sítio só: o PC.
+
+        Havia `MOVE_GAIN = 1.8` no telefone E `remote_move_gain = 3.0` aqui, e
+        os dois multiplicavam. Uma varredura do dedo na largura do touchpad
+        levava o cursor a 1780 px num ecrã de 1366 — ou seja, batia sempre no
+        limite, e o toque clicava onde o cursor tinha ficado em vez de onde o
+        dedo parou. Este teste fixa o rácio pad/ecrã para esse tipo de regressão
+        voltar a ser óbvio: o cliente envia o delta do dedo a 1:1 e o ganho é
+        aplicado uma vez.
+        """
+        cfg = Config()
+        mouse = FakeMouse()
+        mouse.screen_w, mouse.screen_h = 1366, 768
+        cfg.remote_move_gain = 3.0
+        srv = RemoteServer(cfg, mouse)
+        pad_w = 330
+
+        for _ in range(pad_w):
+            srv._handle("move", {"dx": 1, "dy": 0})
+
+        # 1 varredura = pad_w x ganho. Com o ganho duplicado dava 1780.
+        assert mouse.mouse.position[0] == pad_w * 3
+        assert mouse.mouse.position[0] < mouse.screen_w, (
+            "uma varredura do pad já atravessa o ecrã: o ganho está a ser "
+            "aplicado mais do que uma vez"
+        )
+
+
+class TestToqueAbsoluto:
+    """O toque é ABSOLUTO: carrega no ponto tocado, não onde o cursor estiver.
+
+    Esta é a regressão do sintoma que o utilizador reportou ("o clique no
+    telefone continua a saltar"). Com o toque relativo, o clique dependia de o
+    cursor já estar no sítio certo — e o cursor só lá chega se o ganho estiver
+    certo. Com o toque absoluto não há mira: o ponto tocado é o ponto do
+    clique."""
+
+    def _srv(self, cfg=None, mouse=None):
+        cfg = cfg or Config()
+        cfg.remote_token = "tok"
+        mouse = mouse or FakeMouse()
+        return RemoteServer(cfg, mouse), mouse
+
+    def test_toque_cai_no_ponto_tocado(self):
+        srv, mouse = self._srv()
+        mouse.mouse.position = (1000, 130)
+
+        srv._handle("gesture", {"event": "tap", "x": 0.25, "y": 0.4})
+
+        esperado = (int(0.25 * (mouse.screen_w - 1)), int(0.4 * (mouse.screen_h - 1)))
+        assert mouse.click_at == [("left", esperado)], (
+            f"o clique carregou em {mouse.click_at}, esperava {esperado}"
+        )
+
+    def test_toque_cai_no_ponto_tocado_mesmo_com_movimento_relativo_pendente(
+        self,
+    ):
+        """O caso que falha na vida real: o utilizador anda a arrastar o
+        cursor e carrega. Todo o movimento relativo anterior tem de estar
+        aplicado ANTES do clique — o clique assenta no ponto tocado e o cursor
+        não fica a andar depois dele.
+
+        Do lado do telefone isto é o `flushMoves` antes de cada comando
+        discreto; do lado do PC é a ordem de chegada. O teste fixa o
+        resultado, que é o que o utilizador vê."""
+        cfg = Config()
+        cfg.remote_move_gain = 3.0
+        srv, mouse = self._srv(cfg)
+        mouse.mouse.position = (100, 100)
+
+        for _ in range(20):
+            srv._handle("move", {"dx": 1, "dy": 0})
+        antes_do_toque = mouse.mouse.position
+        srv._handle("gesture", {"event": "tap", "x": 0.75, "y": 0.75})
+
+        esperado = (int(0.75 * (mouse.screen_w - 1)), int(0.75 * (mouse.screen_h - 1)))
+        assert mouse.click_at == [("left", esperado)]
+        # O cursor não pode ter ficado a meia caminho: ou está no ponto do
+        # clique, ou no fim do movimento. Nunca nos dois.
+        assert mouse.mouse.position == esperado
+        assert antes_do_toque == (100 + 20 * 3, 100)
+
+    def test_toque_nos_quatro_cantos(self):
+        """Precisão nas pontas: o clamp a [0..1] e a conversão para píxeis têm
+        de acertar também em (0,0) e (1,1), que é onde o dedo vai quando o
+        alvo é um botão no canto."""
+        srv, mouse = self._srv()
+        for x, y in ((0.0, 0.0), (1.0, 1.0), (0.0, 1.0), (1.0, 0.0)):
+            mouse.click_at.clear()
+            srv._handle("gesture", {"event": "tap", "x": x, "y": y})
+            assert mouse.click_at == [
+                ("left", (int(x * (mouse.screen_w - 1)), int(y * (mouse.screen_h - 1))))
+            ]
+
+    def test_toque_com_pedrao_no_ganho_continua_exacto(self):
+        """O ganho é o que fazia o cursor passar do ponto; o clique absoluto
+        não pode depender dele. Com o ganho no extremo, o ponto tocado tem de
+        dar a mesma coordenada."""
+        for ganho in (1.0, 3.0, 8.0):
+            cfg = Config()
+            cfg.remote_move_gain = ganho
+            srv, mouse = self._srv(cfg)
+            for _ in range(50):
+                srv._handle("move", {"dx": 7, "dy": -3})
+            mouse.click_at.clear()
+            srv._handle("gesture", {"event": "tap", "x": 0.3, "y": 0.6})
+            assert mouse.click_at == [
+                ("left", (int(0.3 * (mouse.screen_w - 1)), int(0.6 * (mouse.screen_h - 1))))
+            ], f"ganho {ganho} deslocou o clique"
+
+
 @pytest.mark.websocket
 def test_auth_and_commands_over_websocket():
     cfg = Config()
     cfg.remote_bind = "127.0.0.1"
     cfg.remote_port = 0
     cfg.remote_token = "segredo123"
+    # Ganho a 1: este teste é sobre o protocolo e o auth, não sobre a
+    # velocidade do touchpad (ver TestTouchpadRelativo).
+    cfg.remote_move_gain = 1.0
     mouse = FakeMouse()
     srv = RemoteServer(cfg, mouse)
     assert srv.start() is True
@@ -283,3 +555,48 @@ class TestRemoteArbiter:
 
         srv.on_activity = boom
         srv._note_activity()  # a excepção é engolida e registada em debug
+
+    def test_arbitro_cala_a_camara_durante_o_clique(self, monkeypatch):
+        """Regressão: um comando atrasado não pode clicar com a câmara livre.
+
+        A inferência da câmara segura a GIL e o comando pode ficar à espera
+        mais tempo do que a janela de silêncio. Se o árbitro se armasse na
+        recepção, expirava antes do clique, a câmara voltava a mexer no rato a
+        meio do `move_to` + `left_click` e o clique aterrava noutro sítio.
+        """
+        clock = {"t": 0.0}
+        monkeypatch.setattr("core.remote.time.monotonic", lambda: clock["t"])
+        monkeypatch.setattr("core.engine.time.monotonic", lambda: clock["t"])
+
+        state = {"paused": False}
+        arb = RemoteArbiter(state, hold_s=1.5)
+        srv = RemoteServer(Config(), FakeMouse())
+        srv.on_activity = arb.note
+        srv.on_command_begin = arb.begin_command
+        srv.on_command_end = arb.end_command
+
+        pausa_durante_o_clique = []
+
+        def lento(cmd, data):
+            # A câmara não rende a GIL: é o que a inferência em background
+            # provoca num Raspberry Pi sobrecarregado.
+            clock["t"] += 3.0
+            for _ in range(10):
+                arb.tick()  # a thread do motor vai libertando o rato
+            pausa_durante_o_clique.append(state["paused"])
+            return "TAP"
+
+        srv._handle = lento
+
+        conn = _FakeConnection(
+            [
+                {"cmd": "auth", "token": srv._cfg.remote_token},
+                {"cmd": "gesture", "event": "tap", "x": 0.5, "y": 0.5},
+            ]
+        )
+        asyncio.run(srv._on_connect(conn))
+
+        assert pausa_durante_o_clique == [True], (
+            "a câmara tinha de estar calada no instante do clique, mesmo com o "
+            "comando atrasado 3 s"
+        )
