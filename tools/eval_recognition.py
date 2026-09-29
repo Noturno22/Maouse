@@ -436,6 +436,8 @@ class Report:
     duration_s: float = 0.0
     width: int = 0
     height: int = 0
+    provenance: str = "unknown"
+    provenance_note: str = ""
     score: Score = field(default_factory=Score)
     acceptance: Acceptance = field(default_factory=Acceptance)
 
@@ -453,6 +455,7 @@ class Report:
                 "duration_s": round(self.duration_s, 3),
                 "width": self.width,
                 "height": self.height,
+                "source": self.provenance,
             },
             "frames": self.score.frames,
             "labelled": self.score.total,
@@ -496,6 +499,11 @@ class Report:
         d = self.to_dict()
         lines = [
             f"Corpus        : {self.corpus_path}",
+            # A primeira linha depois do caminho, e nao uma nota no fim: o F1
+            # macro 1.0000 de um corpus gerado e o F1 macro 1.0000 de maos
+            # reais sao o mesmo numero com significado completamente diferente,
+            # e so um deles diz alguma coisa sobre o produto.
+            f"Origem        : {self.provenance_note or self.provenance}",
             f"Frames / maos : {d['corpus']['frames']} / {d['corpus']['hands']}"
             f"  ({d['corpus']['duration_s']:.1f}s)"
             f"  [{self.width}x{self.height}]",
@@ -628,6 +636,8 @@ def evaluate(
         duration_s=corpus.duration_s(),
         width=width,
         height=height,
+        provenance=corpus.source,
+        provenance_note=corpus.provenance(),
         score=score,
         acceptance=acceptance_report(
             score, min_f1, min_pinch_precision, max_phantom_per_hour
