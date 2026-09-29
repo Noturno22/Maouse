@@ -41,6 +41,46 @@ def draw_hand(frame, hand_frame, color):
     cv2.circle(frame, (px, py), 9, color, 2)
 
 
+#: Cor de um gesto que o reconhecedor produz mas que ainda não tem rótulo
+#: próprio. Neutra de propósito: é um estado por decidir, não um estado
+#: bonito. Um amarelo vivo seria a tentação e seria o erro — a cor é o que o
+#: utilizador lê antes da palavra, e diria "isto é um gesto oficial" quando é
+#: uma lacuna.
+#:
+#: Não é o cinzento de `BADGES[Gesture.NONE]` (150, 150, 150): essa é a cor de
+#: "não estou a ver a mão", e aqui quer-se o contrário disso. Também não é
+#: nenhuma cor de `BADGES`, para que um gesto por nomear não se pareça com um
+#: gesto já decidido — o esqueleto da mão é desenhado com esta cor, e dois
+#: estados que se vêem iguais são dois estados que o utilizador não consegue
+#: distinguir. `tests/test_overlay_badge_honesty.py` verifica as duas coisas.
+COLOR_SEM_ROTULO = (200, 200, 200)
+
+
+def _badge(hf):
+    """O rótulo e a cor do gesto de `hf`.
+
+    `BADGES` cobre os gestos que o utilizador já viu nomeados. O que falta
+    **não pode cair no rótulo de NONE**: `BADGES.get(g, BADGES[Gesture.NONE])`
+    punha "SEM MAO" com a mão no enquadramento, e o motor produz `THUMB_DOWN`
+    (`core/gestures.py:248`) e `ROCK` (`:260`, confirmado pela IA em `:297`),
+    nenhum dos dois com entrada em `BADGES`.
+
+    O efeito era o pior possível num ecrã de feedback: o utilizador faz o gesto,
+    o classificador concorda, e o único sinal que tem diz que o programa não
+    está a ver a mão. Percebe que "não está a funcionar", repete o gesto — e é
+    exactamente a tentativa cansativa que este projecto existe para tirar.
+
+    O rótulo provisório é o `name` do enum, não uma palavra escolhida: o que
+    fazer com estes dois gestos é decisão do dono do produto e ainda não está
+    tomada, e inventar um rótulo aqui seria tomá-la em silêncio. Um nome de
+    código no ecrã é feio e é honesto.
+    """
+    par = BADGES.get(hf.gesture)
+    if par is not None:
+        return par
+    return (hf.gesture.name, COLOR_SEM_ROTULO)
+
+
 def draw_overlay(frame, all_frames, active_side, last_scroll, fps, cfg,
                  smooth_name, paused, show_help, flash, ui):
     h, w = frame.shape[:2]
@@ -48,7 +88,7 @@ def draw_overlay(frame, all_frames, active_side, last_scroll, fps, cfg,
     color = BADGES[Gesture.NONE][1]
 
     for side, hf in all_frames.items():
-        c = BADGES.get(hf.gesture, BADGES[Gesture.NONE])[1]
+        c = _badge(hf)[1]
         if side != active_side:
             draw_hand(frame, hf, COLOR_GRAY)
         else:
@@ -62,10 +102,12 @@ def draw_overlay(frame, all_frames, active_side, last_scroll, fps, cfg,
                 cv2.circle(frame, mid, 7, BADGES[Gesture.FIST][1], 2)
             color = c
 
-    label = "PAUSA" if paused else BADGES.get(
-        hand_frame.gesture if hand_frame is not None else Gesture.NONE,
-        BADGES[Gesture.NONE],
-    )[0]
+    if paused:
+        label = "PAUSA"
+    elif hand_frame is None:
+        label = BADGES[Gesture.NONE][0]
+    else:
+        label = _badge(hand_frame)[0]
     cv2.rectangle(frame, (12, 10), (268, 66), COLOR_DARK, -1)
     cv2.rectangle(frame, (12, 10), (268, 66), color, 2)
     cv2.putText(frame, label, (24, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.0, color, 2, cv2.LINE_AA)

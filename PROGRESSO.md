@@ -341,6 +341,47 @@
     F1, há zero frames, e o F1 principal continua impresso em cima.
     `tests/test_settle_guard.py`, 18 testes.
 
+21. **O ecrã dizia "SEM MÃO" com a mão no enquadramento.** Quinta tabela
+    divergida, e a única que chega ao utilizador a cada frame.
+    O `BADGES` de `core/overlay.py` tem 11 entradas; o `Gesture` tem 13 membros.
+    Faltam **`THUMB_DOWN` e `ROCK`**, e os dois são produzidos:
+    `core/gestures.py:248` devolve `THUMB_DOWN` pelo caminho geométrico, `:260`
+    devolve `ROCK`, e `:297` deixa a IA confirmá-lo. O `draw_overlay` procurava
+    o rótulo com `BADGES.get(hf.gesture, BADGES[Gesture.NONE])`, e para esses
+    dois o fallback é o de `NONE`: o overlay desenhava **"SEM MAO"** a
+    cinzento, com a mão no enquadramento.
+    *O que torna isto pior do que um rótulo em falta é o sítio.* O badge é a
+    única resposta que o utilizador tem em tempo real sobre o que o reconhecedor
+    achou que ele fez. Se faz o gesto, o classificador concorda, e o ecrã diz
+    que não há mão, a conclusão é "isto não funciona" — e repetir o gesto é a
+    tentativa cansativa que este projecto existe para tirar. Não há excepção, não
+    há log, e ninguém repara sem ter a mão à frente.
+    **Não se inventou o rótulo.** A palavra que o utilizador deve ler para estes
+    dois é decisão do dono do produto e continua por decidir (o badge do
+    `THUMB_DOWN` já foi recusado). O overlay mostra o `name` do enum, a
+    cinzento-claro — feio e honesto. Escolher a palavra aqui, dentro de um bug de
+    ecrã, era tomá-la sem o dono do produto dar por isso. A cor também não é a
+    de nenhum outro estado, porque o esqueleto da mão é desenhado com ela, e dois
+    estados que se vêem iguais não são estados que se consiga ler.
+    *O guard* (`tests/test_overlay_badge_honesty.py`, 8 testes) percorre
+    `Gesture.__members__` e **não** uma lista escrita à mão — pela mesma razão
+    que o `test_gesture_labels.py`: a iteração sobre o `Enum` não vê aliases, e
+    o `PEACE` apagado em silêncio passou justamente numa verificação feita com
+    ela. Os gestos que o motor produz são lidos do `core/gestures.py` por AST,
+    com um mínimo que falha se a extracção esvaziar.
+    *Duas guardas nasceram erradas aqui também.* Uma contava quantas vezes o
+    overlay citava `Gesture.` acima de um limite — contava também o que está
+    nos *docstrings*, que é onde a correcção se descreve, e o número não
+    significa nada; trocada por uma afirmação de sanidade sobre o que
+    interessa. E a outra comparava `cor == COLOR_SEM_ROTULO`, **o módulo
+    consigo próprio**: mudar a constante deixava o teste verde, porque importa
+    a mesma constante que mudou. Quinta vez nesta série que um guard meu não
+    conseguia falhar. Trocada pela propriedade — a cor tem de ser diferente da
+    de todos os estados já decididos, incluindo o de "sem mão". As duas
+    mutações morrem; a anterior não.
+    *Verificado*: ruff limpo, **560** testes do cliente, `--replay-gate` ACEITE,
+    3 mutações testadas.
+
 ### 🔴 Bloqueadores em aberto (Sprint 2 → 1.ª venda paga)
 
 | # | Bloqueador | Estado |
