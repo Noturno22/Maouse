@@ -27,6 +27,7 @@ from core.licensing import active_license
 from core.light import LightBoost
 from core.log import get_logger
 from core.motion import SmoothEmitter, lead_offset
+from core.mouse_ctl import MuteMouse
 from core.overlay import draw_overlay
 from core.twohand import (
     BrightnessCtl,
@@ -418,7 +419,8 @@ def process_frame(cfg, cam, tracker, mouse, gesture_ai, voice, tuner, ctx, state
             if left_x and only.gesture == Gesture.FIST:
                 cmd_fist = True
     if E.fist_close.update(cmd_fist, now):
-        _keyboard_shortcut("alt+f4")
+        if not state.get("mute_output"):
+            _keyboard_shortcut("alt+f4")
         E.toast("FECHAR JANELA (Alt+F4)")
 
     # Luminosidade com Dois Dedos (PEACE) na mao DIREITA: aumenta o brilho.
@@ -426,7 +428,10 @@ def process_frame(cfg, cam, tracker, mouse, gesture_ai, voice, tuner, ctx, state
     right_peace = False
     if len(results) == 2 and "Right" in results:
         right_peace = results["Right"][0].gesture == Gesture.PEACE
-    if right_peace and not E.right_peace_prev:
+    # O brilho e a unica saida que corromperia o proprio corpus: a camara ve o
+    # ecrã, e se a aplicacao escurece o ambiente no meio de uma recolha, a
+    # luz muda sem ninguem mexer em nada. Durante o `--record` fica calado.
+    if right_peace and not E.right_peace_prev and not state.get("mute_output"):
         E.toast(E.brightness.increase())
     E.right_peace_prev = right_peace
 
@@ -555,35 +560,46 @@ def process_frame(cfg, cam, tracker, mouse, gesture_ai, voice, tuner, ctx, state
         event = None
 
     if event and (not state["paused"] or event == "left_up"):
+        # Durante o `--record` nenhum destes efeitos chega ao sistema: sao
+        # cliques a serio, Ctrl+C/Ctrl+V na janela que estiver em foco e scroll.
+        # O toast continua a aparecer — e ele que diz ao operador o que o
+        # pipeline reconheceu, que e a unica coisa de que precisa para etiquetar.
+        mute = bool(state.get("mute_output"))
         if event == "left_down":
-            _click_assist(ctx, state, mouse, cfg)
-            mouse.press_left()
+            if not mute:
+                _click_assist(ctx, state, mouse, cfg)
+                mouse.press_left()
             state["button_down"] = True
             state["freeze_until"] = now + cfg.click_freeze_ms / 1000.0
             state["flash"] = 5
             E.emitter.clear()
         elif event == "left_up":
-            mouse.release_left()
+            if not mute:
+                mouse.release_left()
             state["button_down"] = False
             E.emitter.clear()
         elif event == "right_click":
-            _click_assist(ctx, state, mouse, cfg)
-            mouse.right_click()
+            if not mute:
+                _click_assist(ctx, state, mouse, cfg)
+                mouse.right_click()
             state["freeze_until"] = now + cfg.click_freeze_ms / 1000.0
             state["flash"] = 5
             E.emitter.clear()
         elif event == "copy":
-            _keyboard_shortcut("ctrl+c")
+            if not mute:
+                _keyboard_shortcut("ctrl+c")
             E.toast("COPIAR (Ctrl+C)")
             state["freeze_until"] = now + cfg.click_freeze_ms / 1000.0
             state["flash"] = 5
         elif event == "paste":
-            _keyboard_shortcut("ctrl+v")
+            if not mute:
+                _keyboard_shortcut("ctrl+v")
             E.toast("COLAR (Ctrl+V)")
             state["freeze_until"] = now + cfg.click_freeze_ms / 1000.0
             state["flash"] = 5
         elif event == "scroll" and ev_value is not None:
-            mouse.scroll(ev_value * cfg.scroll_gain_factor)
+            if not mute:
+                mouse.scroll(ev_value * cfg.scroll_gain_factor)
         else:
             media_note = _handle_media_event(event, ev_value)
             if media_note:
@@ -598,11 +614,13 @@ def process_frame(cfg, cam, tracker, mouse, gesture_ai, voice, tuner, ctx, state
             and hand_frame.gesture not in (Gesture.NONE, Gesture.PEACE, Gesture.THREE)
             and not state["paused"]):
         if E.fist_cycle.update(hand_frame.gesture, now):
-            _keyboard_shortcut("win+d")
+            if not state.get("mute_output"):
+                _keyboard_shortcut("win+d")
             E.toast("WIN+D")
         if hand_frame.gesture == Gesture.OPEN:
             if E.wave.update(hand_frame.palm_center[0], now):
-                _keyboard_shortcut("win+down")
+                if not state.get("mute_output"):
+                    _keyboard_shortcut("win+down")
                 E.toast("BYE BYE")
 
     tune_note = tuner.maybe_apply(time.monotonic(), E.filters, cfg)
@@ -788,6 +806,11 @@ def run_loop(cfg, cam, tracker, mouse, smooth_idx, gesture_ai, voice, tuner, ctx
                 )
             else:
                 log.warning("Corpus vazio: nada gravado em %s", E.recorder.path)
+            # Prova, em vez de promessa, de que a gravacao nao mexeu no
+            # sistema: o que foi engolido esta contado aqui.
+            if isinstance(mouse, MuteMouse) and mouse.swallowed:
+                log.info("Saida mudada (--record sem --record-live): %s",
+                         mouse.summary())
         if state["button_down"]:
             mouse.release_left()
             state["button_down"] = False
