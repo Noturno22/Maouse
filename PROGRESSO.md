@@ -97,12 +97,32 @@
     que impõe uma ficção é pior do que nenhum teste, porque faz a config morta
     parecer necessária. Ver `RECONHECIMENTO_REMOTE.md` §1.14.3.
 
+16. **Rename `AirMouse` → `Maouse` feito e commitado (`4c4c43d`, 139 ficheiros).**
+    O produto chamava-se AirMouse desde o início; o nome certo estava no README
+    enquanto o código, o manifesto, o package Android e as variáveis de ambiente
+    diziam outra coisa. Além do rename entraram as **guardas** que faltavam —
+    `tests/test_naming.py`, 7 testes que comparam o package Android, o product id
+    e o conjunto de variáveis com **o sítio onde cada um é mesmo declarado**
+    (servidor, `render.yaml`, `app.json`, Kotlin) e falham nos dois sentidos.
+    Não repetem a constante, que é o que fazia `test_mobile_entitle.py` passar
+    sempre. A segunda lista de dependências que escondeu o `cryptography` foi
+    exactamente um valor que divergia em silêncio — a mesma classe de bug.
+    *Verificado*: ruff limpo, 442 testes do cliente, 67 do license-server,
+    `--replay-gate` F1 macro 1.0000, `npm run typecheck` e `expo config` no
+    mobile com `com.maouse.mobile` em todas as chaves.
+    *Duas coisas que o rename **não** toca, de propósito*: a URL do modelo em
+    `core/gesture_ai.py` (`airmouse-ai` é um org GitHub de terceiros) e as
+    entradas antigas em `IDENTIDADE_VISUAL.md`, que listam o que não se escreve.
+    *Sem alias de compatibilidade* — seguro porque ainda não há utilizadores
+    para perder (instalador por assinar, listing por criar).
+
 ### 🔴 Bloqueadores em aberto (Sprint 2 → 1.ª venda paga)
 
 | # | Bloqueador | Estado |
 |---|---|---|
+| 0 | **Renomear as 16 variáveis no painel do Render** — `AIRMOUSE_*` → `MAOUSE_*`, **antes do próximo deploy**. O `render.yaml` versionado já está no prefixo novo; as do painel não se renomeiam sozinhas (`sync: false`, e o Render nunca as mostra). Chegam como string vazia: o `mobile/entitle` deixa de validar compras, o admin recusa o login, o SMTP cala-se — sem erro nenhum. Passo a passo em `license-server/DEPLOY_RENDER.md` | 🔴 antes de qualquer deploy |
 | 1 | **Assinatura digital do `.exe`** — pipeline pronto; certificado SSL.com **VALIDADO**; falta **enroll/ativação do eSigner** | 🟡 eSigner por ativar |
-| 2 | **Store listing mobile (Play Console)** — IAP code ✅; falta prebuild/upload/listing | 🔴 |
+| 2 | **Store listing mobile (Play Console)** — IAP code ✅; falta prebuild/upload/listing. O package agora é `com.maouse.mobile` e o app **ainda não foi submetido**, portanto o rename não custou nada aqui — mas também não há volta: depois do primeiro upload o package é imutável | 🔴 |
 | 3 | **LAB de compatibilidade** — matriz ≥5 dispositivos por categoria    | 🟡 1 🟡 (HP i3-5005U 14.6 fps) |
 
 ### Reserva financeira (Pista A)

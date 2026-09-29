@@ -14,8 +14,25 @@ CLOCK_SKEW_TOLERANCE = 600
 
 
 def _private_key_path() -> str:
-    return os.getenv("MAOUSE_LS_PRIVATE_KEY",
-                     os.path.join(os.path.dirname(__file__), "private.pem"))
+    """Caminho OU conteudo PEM da chave privada (ver `_load_private_key`).
+
+    O `os.getenv(nome, default)` e um buraco: devolve `""` quando a variavel
+    **esta definida e vazia**, e so usa o default quando ela nao existe. No
+    Render, onde o `private.pem` do repositorio nao esta, a diferenca entre
+    "renomeei a variavel e deixei-a vazia" e "a variavel nao existe" e a
+    diferenca entre um `open("")` a rebentar na primeira activacao e um erro
+    que diz o que falta. Ver DEPLOY_RENDER.md.
+    """
+    valor = os.getenv("MAOUSE_LS_PRIVATE_KEY")
+    if valor is not None and not valor.strip():
+        raise RuntimeError(
+            "MAOUSE_LS_PRIVATE_KEY esta definida mas vazia. No Render a variavel "
+            "tem de conter o PEM inteiro (ver DEPLOY_RENDER.md 2), ou entao "
+            "apaga a variavel para o servidor usar o private.pem ao lado."
+        )
+    if valor is None:
+        return os.path.join(os.path.dirname(__file__), "private.pem")
+    return valor
 
 
 def _load_private_key():
@@ -32,8 +49,15 @@ def _load_public_key_embedded():
     from cryptography.hazmat.primitives import serialization as _ser
     priv_dir = os.path.dirname(_private_key_path())
     pub_f = os.path.join(priv_dir, "public.pem")
-    with open(pub_f, "rb") as fh:
-        return _ser.load_pem_public_key(fh.read())
+    try:
+        with open(pub_f, "rb") as fh:
+            return _ser.load_pem_public_key(fh.read())
+    except OSError as exc:
+        raise RuntimeError(
+            f"sem chave publica para verificar as leases: nem MAOUSE_LS_PUBLIC_KEY "
+            f"esta definida nem ha um public.pem ao lado da privada (procurado em "
+            f"{pub_f!r}). No Render define MAOUSE_LS_PUBLIC_KEY com o PEM inteiro."
+        ) from exc
 
 
 def _load_public_key():

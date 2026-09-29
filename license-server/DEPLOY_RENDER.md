@@ -59,6 +59,23 @@ Antes de começares, fica registado o que já está confirmado e corrigido:
 > degrada-se: o `mobile/entitle` deixa de validar compras, o painel admin
 > recusa o login, o SMTP cala-se. Nenhum disso aparece num teste.
 >
+> **Excepção que muda a prioridade: o par de chaves não é silencioso.**
+> `MAOUSE_LS_PRIVATE_KEY` vazia não degrada — rebenta. Medido, com a variável
+> definida e vazia (o que é exactamente o que o Render entrega se a chave não
+> for renomeada):
+>
+> ```
+> sign()            -> FileNotFoundError: [Errno 2] No such file or directory: ''
+> _load_public_key()-> FileNotFoundError: 'public.pem'
+> ```
+>
+> `_private_key_path()` só cai no `private.pem` do repositório quando a variável
+> **não existe**; no Render esse ficheiro não está lá (é gitignored). Com a
+> variável presente e vazia o `open("")` é que rebenta — na **primeira
+> activação**, não no arranque. Ou seja: os health checks passam, a landing
+> serve, o admin entra, e nenhum cliente consegue activar o Pro. Um 500 que só
+> aparece quando há dinheiro em jogo. Renomear estas duas primeiro.
+>
 > **No painel do Render, para cada chave, apaga a antiga e cria a nova:**
 > `AIRMOUSE_*` → `MAOUSE_*`, com o mesmo valor. São 16 chaves. A lista exacta
 > está no `render.yaml`; `tests/test_naming.py::TestVariaveisDeAmbienteDoRender`

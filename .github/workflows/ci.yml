@@ -83,3 +83,12 @@ jobs:
 
       - name: Typecheck
         run: npm run typecheck
+
+      # `tsc` so olha para o TypeScript. O `app.json` e o config plugin local
+      # sao lidos pelo Expo, nao pelo compilador: se o directorio do plugin for
+      # movido e o `plugins` do app.json nao for, o typecheck continua verde e
+      # o prebuild rebenta no EAS, no momento de build, com a loja a espera.
+      # `expo config` resolve a config toda, incluindo o caminho do plugin, e
+      # sai != 0 se algo nao fechar.
+      - name: Expo config (app.json + config plugins resolvem)
+        run: npx expo config --type public > /dev/null

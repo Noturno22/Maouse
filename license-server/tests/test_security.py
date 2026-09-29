@@ -42,3 +42,44 @@ def test_tampered_token_rejected_with_content_envs(content_keys):
     tampered = token[: -len(sig)] + repl + sig[1:]
     with pytest.raises(InvalidSignatureError):
         security.decode_jwt(tampered)
+
+
+class TestVariavelDefinidaEVazia:
+    """`os.getenv(nome, default)` só usa o default quando a variável **não existe**.
+
+    Quando existe e está vazia devolve `""`, e o `default` nunca é tocado. É a
+    diferença entre "renomeei AIRMOUSE_LS_PRIVATE_KEY → MAOUSE_LS_PRIVATE_KEY e
+    deixei-a vazia" e "a variável não existe": no Render, onde o `private.pem`
+    do repositório não está, a primeira dava `open("")` -> FileNotFoundError na
+    **primeira activação**, com health checks a passar e a landing a servir.
+    Ninguém descobre isso até haver uma compra para activar.
+
+    Estes testes existem para o erro dizer o que falta, não para o `""` passar a
+    ser-o-key do default: `_load_public_key` trata `""` como "usa a emparelhada"
+    de propósito (dev), e isso não deve mudar.
+    """
+
+    def test_a_privada_vazia_diz_qual_variavel_falta(self, monkeypatch):
+        monkeypatch.setenv("MAOUSE_LS_PRIVATE_KEY", "")
+        with pytest.raises(RuntimeError) as exc:
+            security.sign({"sub": "machine:abc"})
+        assert "MAOUSE_LS_PRIVATE_KEY" in str(exc.value)
+        # o erro tem de ser sobre a configuração, não um "no such file: ''"
+        assert "No such file" not in str(exc.value)
+
+    def test_publica_sem_emparelhada_diz_qual_variavel_falta(self, monkeypatch):
+        monkeypatch.setenv("MAOUSE_LS_PUBLIC_KEY", "")
+        monkeypatch.setenv("MAOUSE_LS_PRIVATE_KEY", "C:/nao/existe/private.pem")
+        with pytest.raises(RuntimeError) as exc:
+            security._load_public_key()
+        assert "MAOUSE_LS_PUBLIC_KEY" in str(exc.value)
+
+    def test_apagar_a_variavel_continua_a_usar_o_default(self, monkeypatch):
+        """O outro lado da distinção: ausente ≠ vazia.
+
+        Sem a variável, `_private_key_path()` tem de continuar a devolver o
+        `private.pem` ao lado do módulo — que é como o dev funciona sem `.env`.
+        """
+        monkeypatch.delenv("MAOUSE_LS_PRIVATE_KEY", raising=False)
+        assert security._private_key_path().endswith("private.pem")
+        assert os.path.isabs(security._private_key_path())
