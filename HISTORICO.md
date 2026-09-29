@@ -36,10 +36,33 @@ Formato de uma entrada:
 - **Verificação:** `git log --format='%h %an <%ae>' d9def7d..HEAD` → os 10
   commits passaram todos a `josefortunafortuna54-byte
   <josefortunafortuna54@gmail.com>`.
-- **Estado:** Em curso — falta push de `feature/touch`, merge em `main`
-  (conflitos esperados: `core/remote.py`, `core/licensing.py`, `core/engine.py`,
-  `config.py`, `core/log.py`, `build.bat`; renames `airmouse.spec`→`maouse.spec`
-  e `mobile/airmouse-mobile/`→`mobile/maouse-mobile/`) e push de `main`.
+- **Conflitos resolvidos no merge (`main`):**
+  - `build.bat` — fiquei com o guard pré-build do `main`
+    (`tools/check_prod_license_url.py`) + o passo de embed do endpoint
+    (`tools/gen_license_endpoint.py`, nosso), tudo com o nome `Maouse` e 7
+    passos coerentes (`[1/7]`…`[7/7]`).
+  - `core/licensing.py` — ficou a versão do `feature/touch` (mais rica:
+    `store_lock`, baked endpoint `core/_license_endpoint.py`,
+    `license_server_configured()`/`license_server_status()`, escrita atómica;
+    usa env `AIRMOUSE_*`, coerente com `core/envcfg.py`, `gen_license_endpoint.py`
+    e os testes). O license-server continuou com `MAOUSE_*` (lado do `main`).
+    Pendente de decisão futura: unificar o prefixo de env vars em `MAOUSE_*`.
+  - `docs/DESKTOP_LICENSE_URL.md` e `license-server/DEPLOY_RENDER.md` — versão
+    `feature/touch` (coerente com o `core/licensing.py` escolhido).
+  - `mobile/…/useAccessibilityStatus.ts` — conflito de localização (ficheiro
+    nosso dentro da pasta que o `main` renomeou); resolvido em
+    `mobile/maouse-mobile/src/hooks/useAccessibilityStatus.ts`.
+  - Removida a pasta residual `mobile/airmouse-mobile/` (artefactos de build
+    pré-renomeação: node_modules/.expo/logs/android, nenhum ficheiro tracked).
+- **Verificação:** `git push origin feature/touch` (d9def7d→f6d3e1e),
+  `git merge feature/touch`→`main` = `0159b9d`, `git push origin main`
+  (c1fcac8→0159b9d). Merge commit assinado por
+  `josefortunafortuna54-byte <josefortunafortuna54@gmail.com>`. Testes:
+  `pytest tests/test_license_server_url.py tests/test_license_recovery.py
+  tests/test_remote.py tests/test_check_prod_license_url.py` — 90 ok.
+- **Estado:** OK — `main` e `feature/touch` publicados; o outro computador
+  (Noturno22) vai ver os 10 commits atribuídos a `josefortunafortuna54-byte`
+  com `git pull origin main`.
 
 ---
 
