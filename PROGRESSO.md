@@ -288,6 +288,59 @@
     2 mutações testadas (mudar o atalho no motor, e esvaziar a lista de
     atalhos do painel).
 
+21. **Gravar um corpus tinha efeitos colaterais na máquina de quem grava.** O
+    `mouse = MouseCtl()` e o `SmoothEmitter` eram construídos e corriam sempre, e
+    o recorder é puramente passivo — portanto, durante a recolha, o cursor
+    movia-se, cada PINCH clicava a sério no que estivesse por baixo, e cada
+    PINKY/SHAKA soltava `Ctrl+C`/`Ctrl+V` **na janela que estivesse em foco**.
+    Quem grava ficava a mirar ao que davam os gestos. O comentário em
+    `main.py` dizia que o `--record` "nunca toca no rato": era verdade sobre as
+    teclas de etiqueta e falso sobre o rato, e foi essa frase que fez o defeito
+    passar por característica.
+    *Não é um mau hábito do operador, é uma propriedade da ferramenta* — por isso
+    que o silêncio é o **predefinido** e `--record-live` é que o desliga.
+    `MuteMouse` substitui o rato e **conta** o que engoliu: o fim da sessão
+    imprime o que ficou calado, e um `0x0` porque o código está errado não
+    provaria nada. O toast continua a falar — é ele que diz ao operador o que
+    foi reconhecido, que é a única informação de que precisa para etiquetar.
+    *Três garantias*, porque silenciar a saída podia estragar a gravação: a mão do
+    cursor é escolhida pela palma filtrada (`_active_hand_index`), não pela
+    posição do rato do sistema; o emissor corre igual, porque é a aritmética dos
+    acumuladores que fixa o ritmo a que cada frame é processado; e o brilho
+    também é mudado, por ser a única saída que corromperia o próprio ficheiro — a
+    câmara vê o ecrã, e se a aplicação escurece o ambiente a meio da recolha a
+    luz muda sem ninguém mexer em nada.
+    `tests/test_mute_output.py`, 13 testes.
+
+22. **Um corpus de mãos reais não conseguia levar o rótulo `SETTLE`** — e sem ele
+    o primeiro F1 real sairia mais baixo do que é, por uma razão que não é
+    má qualidade do classificador. `LABEL_KEY_CHOICES` não tem SETTLE, e não tem
+    porquê: SETTLE não é um gesto e o operador não tem quando o aplicar. Só a
+    fixture sintética o produz. O que sobra num corpus real é a verdade
+    desconfortável de que a etiqueta muda no instante da tecla e a mão só chega à
+    pose uns centimos de segundo depois — e sem uma janela, **todo** início de
+    segmento contaria como erro, medindo a velocidade da mão humana em vez da
+    qualidade do classificador.
+    `settle_frames()` deriva a janela da **mudança de etiqueta**, que é a única
+    coisa que um corpus real tem para dizer "aqui começou um segmento": por
+    definição, um frame cujo ground truth difere do anterior é um frame de
+    transição. Duas decisões que os testes trancam:
+    * A janela é um intervalo de **tempo**, não uma contagem de frames. O mesmo
+      corpus lido a 14,6 fps (HP i3-5005U) e a 30 fps tem de dar a mesma resposta
+      ao mesmo intervalo em ms; uma guarda em frames mediria coisas diferentes em
+      máquinas diferentes e o "F1" deixaria de ser comparável entre corpora.
+    * A janela é um **diagnóstico ao lado** do F1, nunca a sua substituta. O gate
+      avalia sempre `macro_f1`; se fosse o outro caminho, a janela passava a ser
+      um parâmetro de afinação do alvo e 0,97 deixaria de valer alguma coisa.
+    `--replay-settle-guard-ms`, fechada por omissão: o baseline do CI não se move,
+    e há teste a assegurar que `macro_f1` e `passed` são idênticos com e sem
+    guarda. *Um caso que o relatório precisou de aprender a dizer*: com uma janela
+    maior que um segmento não sobra nada para avaliar, e imprimir `F1 0.0000`
+    manda quem lê concluir que o classificador está partido — acontece a justo a
+    este corpus, feito de segmentos de 6 frames (~200 ms). A linha diz que não há
+    F1, há zero frames, e o F1 principal continua impresso em cima.
+    `tests/test_settle_guard.py`, 18 testes.
+
 ### 🔴 Bloqueadores em aberto (Sprint 2 → 1.ª venda paga)
 
 | # | Bloqueador | Estado |
@@ -296,7 +349,27 @@
 | 1 | **Assinatura digital do `.exe`** — pipeline pronto; certificado SSL.com **VALIDADO**; falta **enroll/ativação do eSigner** | 🟡 eSigner por ativar |
 | 2 | **Store listing mobile (Play Console)** — IAP code ✅; falta prebuild/upload/listing. O package agora é `com.maouse.mobile` e o app **ainda não foi submetido**, portanto o rename não custou nada aqui — mas também não há volta: depois do primeiro upload o package é imutável | 🔴 |
 | 3 | **LAB de compatibilidade** — matriz ≥5 dispositivos por categoria    | 🟡 1 🟡 (HP i3-5005U 14.6 fps) |
-| 4 | **Corpus de mãos reais** — a instrumentação está pronta (item 19), mas `--record` e `collect_gestures.py` nunca produziram um ficheiro: o tool estava partido. Recolher é ~20 min por gesto e não se repete; a partir de agora cada recolha grava a confiança e aproveniência | 🔴 precisa de mãos reais |
+| 4 | **Corpus de mãos reais** — a instrumentação está pronta (item 19), mas `--record` e `collect_gestures.py` nunca produziram um ficheiro: o tool estava partido. Recolher é ~20 min por gesto e não se repete; a partir de agora cada recolha grava a confiança e a proveniência | 🔴 precisa de mãos reais — **caminho corrigido (itens 21–22), falta gravar** |
+
+    > **As duas ferramentas não são o mesmo trabalho**, e o bloqueador tratava-as
+    > como se fossem. `tools/eval_recognition.py` — e portanto o `--replay` e o
+    > `--replay-gate` — consome um `Corpus` **temporal**: frames com timestamp,
+    > frames sem mão e a janela `SETTLE`.
+    >
+    > | Ferramenta | Formato | O que sai daqui |
+    > |---|---|---|
+    > | `main.py --record FICHEIRO` | `Corpus` temporal | **F1, cliques fantasma/h, latência em mãos reais.** É esta que fecha o bloqueador. |
+    > | `tools/collect_gestures.py` | saco de amostras (`X`/`y`/`classes`/`conf`) | **Dados de treino** do MLP. Nada mais. |
+    >
+    > `collect_gestures.py` por si só **nunca** responde "como é o reconhecimento
+    > em mãos reais": produz material de treino, que `train_gesture_ai.py::load_real`
+    > consome. É plausível que o "nunca houve um ficheiro" venha de se ter gravado
+    > com a ferramenta errada, ou com a ferramenta certa para a pergunta errada.
+    >
+    > **A ordem dentro de cada segmento decide se os 20 minutos servem:** premir a
+    > tecla **antes** de adoptar a pose. A etiqueta vale a partir do momento da
+    > tecla; se adoptares a pose e só depois premires, os primeiros frames ficam
+    > com a etiqueta anterior — e esse erro fica gravado para sempre.
 
 ### Reserva financeira (Pista A)
 
