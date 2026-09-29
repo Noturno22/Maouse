@@ -44,6 +44,10 @@ const KEY_BG = '#2a2a2a';
 const BORDER = '#333333';
 
 const DRAG_HOLD_MS = 380;
+// Deslocamento total, em píxeis de ecrã, a partir do qual o gesto passa a
+// contar como arrasto. A tremedeira normal do dedo num toque fica abaixo
+// disto, portanto não desloca o cursor nem descarta o clique.
+const TAP_SLOP_PX = 12;
 
 export default function RemoteScreen({ onBack }: Props) {
   const {
@@ -145,7 +149,10 @@ export default function RemoteScreen({ onBack }: Props) {
     count: 0,
     last: new Map<number, TouchPos>(),
     startTime: 0,
+    startX: 0,
+    startY: 0,
     moved: false,
+    holdArmed: false,
     dragging: false,
     scrollAcc: 0,
   });
@@ -164,11 +171,19 @@ export default function RemoteScreen({ onBack }: Props) {
         ts.count = evt.nativeEvent.touches.length;
         ts.startTime = Date.now();
         ts.moved = false;
+        ts.holdArmed = false;
         ts.dragging = false;
         ts.scrollAcc = 0;
         ts.last.clear();
         for (const touch of evt.nativeEvent.touches as any[]) {
           ts.last.set(touch.identifier, { x: touch.pageX, y: touch.pageY });
+        }
+        // Origem do gesto: o limiar de arrasto mede a distância a este ponto,
+        // e não a distância entre dois eventos (que a tremedeira dispara).
+        const first = evt.nativeEvent.touches[0] as any;
+        if (first) {
+          ts.startX = first.pageX;
+          ts.startY = first.pageY;
         }
       },
       onPanResponderMove: (evt) => {
@@ -198,13 +213,24 @@ export default function RemoteScreen({ onBack }: Props) {
             const dx = cur.x - prev.x;
             const dy = cur.y - prev.y;
             const now = Date.now();
-            if (Math.abs(dx) > 2 || Math.abs(dy) > 2) ts.moved = true;
-            if (!ts.dragging && !ts.moved && now - ts.startTime > DRAG_HOLD_MS) {
-              ts.dragging = true;
+            if (Math.hypot(cur.x - ts.startX, cur.y - ts.startY) > TAP_SLOP_PX) {
+              ts.moved = true;
+            }
+            // Arrasto exige parar E depois mexer: armar ao fim de DRAG_HOLD_MS
+            // sem sair do limiar, mas carregar o botão só quando o dedo começa
+            // a mexer. Assim soltar sem ter mexido é um toque no ponto tocado, e
+            // não um clique na posição em que o cursor por acaso estava.
+            if (!ts.moved && !ts.holdArmed && now - ts.startTime > DRAG_HOLD_MS) {
+              ts.holdArmed = true;
               haptic();
+            }
+            if (!ts.dragging && ts.holdArmed && ts.moved) {
+              ts.dragging = true;
               remote.press('left');
             }
-            if (dx !== 0 || dy !== 0) {
+            // Dead zone: dentro do limiar não se mexe o cursor. `ts.last` já foi
+            // reancorado acima, por isso a travessia do limiar não dá um salto.
+            if ((ts.dragging || ts.moved) && (dx !== 0 || dy !== 0)) {
               remote.move(dx, dy);
             }
           }
@@ -230,11 +256,11 @@ export default function RemoteScreen({ onBack }: Props) {
       },
       onPanResponderRelease: (evt) => {
         const ts = touchState.current;
-        const dur = Date.now() - ts.startTime;
         if (ts.dragging) {
           remote.release('left');
           ts.dragging = false;
-        } else if (!ts.moved && dur < 260) {
+        } else if (!ts.moved) {
+          // Sem limite de tempo: um toque deliberado e lento também é toque.
           if (ts.count === 1) {
             const all = evt.nativeEvent.touches as any[];
             const changed = (evt.nativeEvent as any).changedTouches;
@@ -263,7 +289,10 @@ export default function RemoteScreen({ onBack }: Props) {
         ts.last.clear();
         ts.count = 0;
         ts.moved = false;
+        ts.holdArmed = false;
         ts.scrollAcc = 0;
+        ts.startX = 0;
+        ts.startY = 0;
       },
       onPanResponderTerminate: () => {
         const ts = touchState.current;
@@ -274,7 +303,10 @@ export default function RemoteScreen({ onBack }: Props) {
         ts.last.clear();
         ts.count = 0;
         ts.moved = false;
+        ts.holdArmed = false;
         ts.scrollAcc = 0;
+        ts.startX = 0;
+        ts.startY = 0;
       },
     })
   ).current;

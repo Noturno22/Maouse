@@ -16,6 +16,60 @@ Formato de uma entrada:
 
 ---
 
+## [2026-09-27 00:05] Mobile: o cursor saltava com a tremedeira do dedo no toque
+
+- **Objetivo:** o `locationX` já estava corrigido e as coordenadas do toque
+  chegavam certas ao PC, mas o cursor continuava a saltar — muitos toques nem
+  sequer carregavam.
+- **Diagnóstico (por medição, não por leitura):** log temporário de todos os
+  comandos recebidos do telemóvel. As coordenadas do toque estavam **certas** em
+  todos os quadrantes (0,131/0,148 → (178,113) num ecrã 1366x768, etc.), logo o
+  `pageX` do fix anterior estava bem. O que aparecia era **36 `move` para 6
+  toques**: a tremedeira do dedo gerava um `move` relativo por evento, e o
+  cursor paseava-se antes de o clique o reposicionar. Noutra ronda chegaram
+  36 `move` e **zero** toques.
+- **Causa raiz:** a distinção toque/arrasto media o deslocamento **entre dois
+  eventos** e ligava aos 2 px, e o toque tinha um limite de 260 ms. Uma
+  tremedeira normal de 3 px já marcava o gesto como arrasto (descartando o
+  clique) e um toque deliberado de 300 ms não contava como toque. Em ambos os
+  casos só ficavam os `move` relativos — que é o "salto" que se via.
+- **Alterações** (`mobile/airmouse-mobile/src/components/RemoteScreen.tsx`):
+  - `TAP_SLOP_PX = 12`: o limiar passa a medir o deslocamento **total** desde o
+    `onPanResponderGrant` (`startX`/`startY` no `touchState`), e não o delta
+    entre eventos;
+  - **dead zone**: `remote.move` só é enviado quando `ts.dragging || ts.moved`.
+    A tremedeira deixa de mexer no cursor, e como `ts.last` é reancorado a cada
+    evento, a travessia do limiar não dá um salto;
+  - **sem limite de tempo** no toque: um toque lento e deliberado também conta;
+  - **arrasto em duas fases** (`holdArmed`): passar `DRAG_HOLD_MS` sem sair do
+    limiar *arma* o gesto, mas o botão só carrega quando o dedo começa a mexer.
+    Sem isto, um toque parado de mais de 380 ms fazia `press`+`release` e
+    carregava na posição em que o cursor por acaso estava em vez do ponto
+    tocado; e exigir movimento para armar faria qualquer arrasto normal com mais
+    de 380 ms carregar o botão.
+- **Verificação:**
+  - `npx tsc --noEmit` → limpo; fix confirmado no bundle servido pelo Metro
+    (`Math.hypot`, dead zone, `holdArmed`).
+  - **Medição no aparelho**, por blocos de comandos recebidos:
+    - 4 toques em quadrantes distintos → **0 `move`** antes de cada `gesture tap`,
+      coordenadas corretas;
+    - arrasto rápido (32 `move`) → **nenhum** `press`/`click`, só mexe o cursor;
+    - parar ~1 s e mexer (90 e 62 `move`) → `press` → arrastar → `release`;
+    - toque lento de ~1 s → `gesture tap (0.540, 0.559)` com 0 `move` e **sem
+      `press`**;
+    - 2 dedos a mexer → `scroll`; 2 dedos parados → `click(right)`.
+  - Regressão apanhada nesta mesma ronda e corrigida: a primeira versão do fix
+    exigia `moved` para carregar o botão, o que fazia *todo* arrasto com mais de
+    380 ms clicar. Daí o `holdArmed` acima.
+  - `281` testes desktop e `72` testes server verdes; `ruff` limpo.
+  - `main.py` reiniciado com o código final (sem os logs de diagnóstico):
+    `License: PRO`, controlo remoto ativo em `0.0.0.0:8765`.
+- **Fora deste fix:** a sensibilidade do movimento relativo continua 1:1 px, ou
+  seja num touchpad de ~400 px só se cobre 400 px de um ecrã de 1366 px.
+- **Estado:** OK — medido no aparelho.
+
+---
+
 ## [2026-09-26 23:02] Mobile: o toque/clique mandava o cursor para outra direção
 
 - **Objetivo:** no telemóvel, arrastar funcionava mas o toque (clique) colocava
