@@ -9,7 +9,7 @@ Protocolo (JSON por mensagem):
   <- {"cmd": "auth", "ok": true, "w": 1920, "h": 1080}
   -> {"cmd": "ping"}
   <- {"ok": true, "pong": true}
-  -> {"cmd": "move", "dx": 12, "dy": -4}          # movimento relativo (px)
+  -> {"cmd": "move", "dx": 12, "dy": -4}          # relativo, com remote_move_gain
   -> {"cmd": "move_to", "x": 0.5, "y": 0.3}       # absoluto normalizado [0..1]
   -> {"cmd": "click", "button": "left", "count": 2}
   -> {"cmd": "press", "button": "left"}           # arrastar: press + move + release
@@ -19,7 +19,16 @@ Protocolo (JSON por mensagem):
   -> {"cmd": "combo", "mods": ["ctrl"], "key": "c"}
   -> {"cmd": "text", "text": "ola mundo"}
   -> {"cmd": "media", "action": "volume_up"}
-  -> {"cmd": "gesture", "event": "tap", "x": 0.5, "y": 0.5}   # gestos da câmara
+  -> {"cmd": "gesture", "event": "tap", "x": .5, "y": .5}  # salto absoluto + clique
+
+O touchpad do app é HÍBRIDO, e é o cliente que decide: o arrasto de um dedo é
+relativo (``move``, com o ganho em ``remote_move_gain``) e o toque é ABSOLUTO
+(``gesture tap`` com ``x``/``y``, que faz ``move_to`` e clica no mesmo comando).
+O toque tem de ser absoluto porque é a única forma de o clique não depender de
+uma mira: com o toque relativo, acertar o ponto passa a depender de acertar o
+ganho, e qualquer erro ai aparece ao utilizador como "o clique salta".
+``x``/``y`` num ``gesture`` são opcionais; sem eles o gesto clica onde o cursor
+está, que é o que os clientes que enviam só o evento preferem.
 
 Toda a execução corre numa thread própria com o seu event loop asyncio, de
 forma a funcionar com a janela PySide6 (modo GUI) e com o preview OpenCV.
@@ -29,6 +38,7 @@ import json
 import secrets
 import socket
 import threading
+import time
 
 try:
     from pynput.mouse import Button
@@ -36,7 +46,7 @@ except Exception:
     Button = None
 
 from config import Config
-from core.log import get_logger
+from core.log import get_logger, trace
 from core.mouse_ctl import MouseCtl
 
 log = get_logger("remote")
@@ -115,12 +125,114 @@ def lan_ips():
     return out
 
 
+class RemoteArbiter:
+    """Arbitra entre o controlo remoto e o motor de rastreamento da mão.
+
+    Os dois mexem no mesmo rato. Sem coordenação, o motor da câmara continua a
+    mover o cursor enquanto o telemóvel clica, e o clique parece saltar: o rato
+    vai para o ponto certo, carrega, e é logo arrastado para outro sítio — ou
+    para o lado errado, se a câmara ganhar a corrida.
+
+    Cada comando de um telemóvel autenticado silencia a câmara durante
+    ``hold_s``; passado esse tempo sem comandos, o rato volta para a câmara.
+    Se o utilizador tinha pausado o motor por si (barra de espaço), o árbitro
+    não toca nesse estado.
+    """
+
+    def __init__(self, state: dict, hold_s: float = 1.5):
+        self._state = state
+        self._hold = float(hold_s)
+        self._deadline = 0.0
+        self._holding = False
+        self._in_flight = 0
+
+    def begin_command(self) -> None:
+        """Marca o início da execução de um comando.
+
+        A inferência da câmara segura a GIL, por isso um comando pode ficar
+        bloqueado mais tempo do que ``hold_s`` — em aparelho sobrecarregado
+        chega a passar de um segundo. Sem esta marca, a janela de silêncio
+        expirava a meio da execução, a câmara reabria o rato e o clique
+        aterrava onde ela tivesse deixado o cursor, e não onde o dedo tocou.
+        """
+        self._in_flight += 1
+        if self._in_flight == 1:
+            self.note()
+
+    def end_command(self) -> None:
+        """O comando terminou de executar; volta a contar ``hold_s`` a partir
+        de agora, que é quando o clique já aconteceu."""
+        if self._in_flight > 0:
+            self._in_flight -= 1
+        self.note()
+
+    def note(self) -> None:
+        """Um comando chegou do telemóvel: cede o rato à câmara por ``hold_s``."""
+        now = time.monotonic()
+        if self._holding:
+            self._deadline = now + self._hold
+            trace("ARBITER prolonga por mais %.2fs", self._hold)
+            return
+        if self._state.get("paused"):
+            trace("ARBITER ignora: ja pausado pelo utilizador")
+            # Pausado pelo utilizador — não tomar conta do estado.
+            return
+        self._state["paused"] = True
+        self._holding = True
+        self._deadline = now + self._hold
+        trace("ARBITER toma o rato por %.2fs (pausa a camara)", self._hold)
+        self._drain_backlog()
+
+    def _drain_backlog(self) -> None:
+        """Esvazia o movimento que a câmara já tinha enfileirado.
+
+        Pausar a câmara só impede que ela decida mais movimentos: o emissor
+        continua a despejar, a ~180 Hz, o que já estava na fila (até
+        ``max_pending_px``). Sem esvaziar, o rato continua a andar durante o
+        silêncio do telemóvel e volta a arrastar o clique.
+        """
+        emitter = self._state.get("emitter")
+        if emitter is None:
+            return
+        try:
+            emitter.clear()
+        except Exception as e:
+            log.debug("Esvaziar a fila do emissor falhou: %s", e)
+
+    def tick(self) -> None:
+        """Devolve o rato à câmara quando o telemóvel fica em silêncio.
+
+        Só repõe se ``paused`` continuar a ser o valor que o árbitro pôs: se o
+        utilizador mexer no estado entretanto, deixa-o em paz.
+        """
+        if self._in_flight > 0:
+            # Comando ainda a executar: a câmara fica calada até ele terminar,
+            # por mais tempo que a GIL segura o comando.
+            return
+        if self._holding and time.monotonic() >= self._deadline:
+            if self._state.get("paused"):
+                self._state["paused"] = False
+            self._holding = False
+            trace("ARBITER devolve o rato a camara")
+
+    @property
+    def holding(self) -> bool:
+        return self._holding
+
+
 class RemoteServer:
     """Servidor WebSocket que traduz comandos do telemóvel em ações de rato/teclado."""
 
-    def __init__(self, cfg: Config, mouse: MouseCtl):
+    def __init__(self, cfg: Config, mouse: MouseCtl, on_activity=None):
         self._cfg = cfg
         self._mouse = mouse
+        # Chamado a cada comando de um telemóvel autenticado, para o motor de
+        # rastreamento da mão ceder o rato enquanto o telemóvel está a ser usado.
+        self.on_activity = on_activity
+        # Par begin/end em volta da execução de cada comando, para a câmara
+        # ficar calada mesmo que o comando fique bloqueado a meio da execução.
+        self.on_command_begin = None
+        self.on_command_end = None
         self._loop: asyncio.AbstractEventLoop | None = None
         self._server = None
         self._thread: threading.Thread | None = None
@@ -128,6 +240,40 @@ class RemoteServer:
         self._key_ctl = None
         self._key_mods = None
         self._drag = False
+        # Resto fraccionário do movimento relativo (ver ``_move_rel``).
+        self._mfx = 0.0
+        self._mfy = 0.0
+
+    def _note_activity(self):
+        cb = self.on_activity
+        if cb is None:
+            return
+        try:
+            cb()
+        except Exception as e:
+            log.debug("Callback de actividade remota falhou: %s", e)
+
+    def _begin_command(self):
+        """Fecha a janela de silêncio enquanto o comando executa."""
+        cb = self.on_command_begin
+        if cb is None:
+            self._note_activity()
+            return
+        try:
+            cb()
+        except Exception as e:
+            log.debug("Callback de início de comando remoto falhou: %s", e)
+
+    def _end_command(self):
+        """O comando acabou de executar; a câmara fica calada mais ``hold_s``."""
+        cb = self.on_command_end
+        if cb is None:
+            self._note_activity()
+            return
+        try:
+            cb()
+        except Exception as e:
+            log.debug("Callback de fim de comando remoto falhou: %s", e)
 
     # ── Ciclo de vida ────────────────────────────────────────────────
     def start(self):
@@ -256,6 +402,7 @@ class RemoteServer:
                              "h": getattr(self._mouse, "screen_h", 1080)},
                         )
                         log.info("Telemóvel autenticado (%s).", connection.remote_address)
+                        self._note_activity()
                     else:
                         await self._send(
                             connection, {"cmd": "auth", "ok": False, "error": "auth_required"}
@@ -271,12 +418,27 @@ class RemoteServer:
                 if cmd is None:
                     await self._send(connection, {"ok": False, "error": "bad_command"})
                     continue
+                recv_at = time.monotonic()
+                began = False
                 try:
+                    trace("REMOTE recv %s", json.dumps(data, ensure_ascii=False))
+                    # Fechar a janela de silêncio durante a execução, não só na
+                    # recepção: a câmara segura a GIL e o comando pode ficar
+                    # bloqueado mais tempo que a janela, caso em que o rato
+                    # voltava a ser da câmara a meio do `move_to` + `left_click`
+                    # e o clique aterrava noutro sítio.
+                    self._begin_command()
+                    began = True
                     note = self._handle(cmd, data)
                 except Exception as e:
                     log.debug("Comando %s falhou: %s", cmd, e)
                     await self._send(connection, {"ok": False, "error": str(e)})
                     continue
+                finally:
+                    if began:
+                        self._end_command()
+                espera = (time.monotonic() - recv_at) * 1000.0
+                trace("REMOTE done  %s -> %s (espera %.0f ms)", cmd, note, espera)
                 await self._send(connection, {"ok": True, "note": note})
         except Exception as e:
             log.debug("Ligação remota terminada: %s", e)
@@ -304,9 +466,8 @@ class RemoteServer:
 
     # ── Despacho de comandos ─────────────────────────────────────────
     def _handle(self, cmd, data):
-        mouse = self._mouse
         if cmd == "move":
-            mouse.move_by(self._int(data, "dx"), self._int(data, "dy"))
+            self._move_rel(self._int(data, "dx"), self._int(data, "dy"))
             return "MOVE"
         if cmd == "move_to":
             self._move_to(data)
@@ -352,11 +513,42 @@ class RemoteServer:
             return default
 
     def _move_to(self, data):
+        # O resto fraccionário é relativo à posição anterior: depois de um salto
+        # absoluto não significa nada, e ficaria a arrancar um deslocamento
+        # fantasma no primeiro `move` seguinte.
+        self._mfx = 0.0
+        self._mfy = 0.0
         x = min(max(self._float(data, "x", 0.0), 0.0), 1.0)
         y = min(max(self._float(data, "y", 0.0), 0.0), 1.0)
         w = max(getattr(self._mouse, "screen_w", 1920) - 1, 1)
         h = max(getattr(self._mouse, "screen_h", 1080) - 1, 1)
-        self._mouse.mouse.position = (int(x * w), int(y * h))
+        px, py = int(x * w), int(y * h)
+        self._mouse.mouse.position = (px, py)
+        trace("REMOTE move_to (%.4f,%.4f) -> (%d,%d)", x, y, px, py)
+
+    def _move_rel(self, dx, dy):
+        """Aplica o ganho ao movimento RELATIVO do touchpad.
+
+        O telefone manda o deslocamento do dedo em píxeis de ecrã, 1:1. Num
+        touchpad de ~330 px isso só cobre 330 dos 1366 px do ecrã: o cursor
+        ficava a meio caminho e o toque seguinte — que é absoluto — levava-o
+        300–400 px de repente. Era o "salto ao clicar".
+
+        O acumulador fraccionário é indispensable: com ``remote_move_gain=3.0``
+        um delta de 1 px dá 3 px inteiros, mas com ganhos como 2.5 dá 2,5 —
+        arredondar para inteiro a cada evento fazia o cursor tremer e perdia
+        meio píxel de cada vez, o que com centenas de eventos por segundo
+        acabava num desvio visível.
+        """
+        gain = min(max(float(getattr(self._cfg, "remote_move_gain", 1.0)), 1.0), 8.0)
+        self._mfx += dx * gain
+        self._mfy += dy * gain
+        ix, iy = int(self._mfx), int(self._mfy)
+        if not ix and not iy:
+            return
+        self._mfx -= ix
+        self._mfy -= iy
+        self._mouse.move_by(ix, iy)
 
     def _click(self, button, count):
         mouse = self._mouse
@@ -514,6 +706,9 @@ class RemoteServer:
     def _gesture(self, data):
         event = str(data.get("event", ""))
         mouse = self._mouse
+        # x/y são OPCIONAIS. Sem eles o gesto carrega onde o cursor já está —
+        # é o que o touchpad do app envia, e é o comportamento de um touchpad.
+        # Com eles, o cursor salta primeiro para o ponto normalizado indicado.
         if data.get("x") is not None and data.get("y") is not None:
             self._move_to(data)
         if event == "tap":

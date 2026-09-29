@@ -244,6 +244,13 @@ def process_frame(cfg, cam, tracker, mouse, gesture_ai, voice, tuner, ctx, state
     if _wd is not None:
         _wd.tick()
 
+    # Arbitro remoto: devolve o rato ao motor da câmara quando o telemóvel
+    # fica em silencio. Sem isto, os dois disputam o mesmo rato e o clique
+    # do telemóvel salta.
+    _arb = state.get("_remote_arbiter")
+    if _arb is not None:
+        _arb.tick()
+
     # Gate de bloqueio total: quando o trial/lease expira, NÃO se move o rato.
     # Lê a flag no state (set no arranque/atualizada pelo watchdog) OU o estado
     # real da licença. Devolve cedo com to_render=False, que as duas UIs

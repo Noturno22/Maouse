@@ -18,6 +18,7 @@ import { HandLandmarks } from './src/types/gesture';
 import { GestureEngine, GestureResult } from './src/engine/gestures';
 import { FilterPair2D, AccelCurve } from './src/engine/filters';
 import { useProEntitlement } from './src/hooks/useProEntitlement';
+import { useAccessibilityStatus } from './src/hooks/useAccessibilityStatus';
 import ProGate from './src/components/ProGate';
 import RemoteScreen from './src/components/RemoteScreen';
 import { useRemoteStore } from './src/store/remote';
@@ -90,6 +91,11 @@ const [landmarks, setLandmarks] = useState<HandLandmarks | null>(null);
 
   const proEntitlement = useProEntitlement();
   const [showPro, setShowPro] = useState(false);
+
+  const {
+    accessibilityEnabled,
+    openAccessibilitySettings,
+  } = useAccessibilityStatus();
 
   const [mode, setMode] = useState<'camera' | 'remote'>('camera');
   const remoteStatus = useRemoteStore((s) => s.status);
@@ -308,16 +314,20 @@ const [landmarks, setLandmarks] = useState<HandLandmarks | null>(null);
           if (dtMs >= MOVE_INTERVAL_MS) {
             const target = filteredPalmRef.current;
             const prev = lastDragPosRef.current;
-            const g =
-              curveRef.current.apply(
-                (target[0] - prev[0]) / (dtMs / 1000),
-                (target[1] - prev[1]) / (dtMs / 1000)
-              ) *
-              (moveGain / 2);
-            const nx = Math.max(0, Math.min(SCREEN_WIDTH, prev[0] + (target[0] - prev[0]) * g));
-            const ny = Math.max(0, Math.min(SCREEN_HEIGHT, prev[1] + (target[1] - prev[1]) * g));
-            TouchController?.dragMove(nx, ny);
-            lastDragPosRef.current = [nx, ny];
+            // Só continua o arrasto quando há movimento real (reduz backlog do
+            // gesto nativo e mantém toques rápidos curtos).
+            if (Math.hypot(target[0] - prev[0], target[1] - prev[1]) >= 6) {
+              const g =
+                curveRef.current.apply(
+                  (target[0] - prev[0]) / (dtMs / 1000),
+                  (target[1] - prev[1]) / (dtMs / 1000)
+                ) *
+                (moveGain / 2);
+              const nx = Math.max(0, Math.min(SCREEN_WIDTH, prev[0] + (target[0] - prev[0]) * g));
+              const ny = Math.max(0, Math.min(SCREEN_HEIGHT, prev[1] + (target[1] - prev[1]) * g));
+              TouchController?.dragMove(nx, ny);
+              lastDragPosRef.current = [nx, ny];
+            }
             lastMoveSentRef.current = now;
           }
         } else {
@@ -622,6 +632,21 @@ const [landmarks, setLandmarks] = useState<HandLandmarks | null>(null);
         </View>
       )}
 
+      {/* Aviso de acessibilidade — sem ela o toque/teclado no telemóvel não funciona */}
+      {accessibilityEnabled === false && (
+        <View style={styles.accBanner}>
+          <Text style={styles.accText}>
+            Controlo do telemóvel inativo: ativa a «Acessibilidade › Mãouse».
+          </Text>
+          <TouchableOpacity
+            style={styles.accButton}
+            onPress={openAccessibilitySettings}
+          >
+            <Text style={styles.accButtonText}>ATIVAR</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* Top bar */}
       <View style={styles.topBar}>
         <View style={styles.statusBadge}>
@@ -644,6 +669,8 @@ const [landmarks, setLandmarks] = useState<HandLandmarks | null>(null);
         <TouchableOpacity
           style={styles.controlButton}
           onPress={togglePaused}
+          accessibilityRole="button"
+          accessibilityLabel={isPaused ? 'Retomar gestos' : 'Pausar gestos'}
         >
           <Text style={styles.controlButtonText}>
             {isPaused ? '▶' : '⏸'}
@@ -653,13 +680,28 @@ const [landmarks, setLandmarks] = useState<HandLandmarks | null>(null);
         <TouchableOpacity
           style={styles.controlButton}
           onPress={() => setShowHelp(!showHelp)}
+          accessibilityRole="button"
+          accessibilityLabel="Ajuda — gestos"
         >
           <Text style={styles.controlButtonText}>?</Text>
         </TouchableOpacity>
 
+        {!!KeyboardController && Platform.OS === 'android' ? (
+          <TouchableOpacity
+            style={styles.controlButton}
+            onPress={() => KeyboardController?.toggleKeyboard()}
+            accessibilityRole="button"
+            accessibilityLabel="Abrir teclado no telefone"
+          >
+            <Text style={[styles.controlButtonText, { fontSize: 16 }]}>⌨</Text>
+          </TouchableOpacity>
+        ) : null}
+
         <TouchableOpacity
           style={styles.controlButton}
           onPress={() => setMode('remote')}
+          accessibilityRole="button"
+          accessibilityLabel="Controlo remoto do PC"
         >
           <Text style={[styles.controlButtonText, { fontSize: 16 }]}>PC</Text>
         </TouchableOpacity>
@@ -679,6 +721,9 @@ const [landmarks, setLandmarks] = useState<HandLandmarks | null>(null);
             <Text style={styles.helpItem}>👍 Polegar = Play/Pausa</Text>
             <Text style={styles.helpItem}>🤙 Shaka = Colar</Text>
             <Text style={styles.helpItem}>✋✋ Duas mãos abertas = Voltar</Text>
+            <Text style={[styles.helpItem, { color: '#FF8A8A' }]}>
+              ⚠ Para tocar/teclear no telefone: Definições › Acessibilidade › Mãouse
+            </Text>
             <TouchableOpacity
               style={styles.helpCloseButton}
               onPress={() => setShowHelp(false)}
@@ -779,6 +824,38 @@ const styles = StyleSheet.create({
     color: '#FFE066',
     fontSize: 13,
   },
+  accBanner: {
+    position: 'absolute',
+    top: 100,
+    left: 20,
+    right: 20,
+    backgroundColor: 'rgba(255,86,86,0.18)',
+    borderWidth: 1,
+    borderColor: '#FF5656',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  accText: {
+    flex: 1,
+    color: '#FFD6D6',
+    fontSize: 13,
+    lineHeight: 17,
+  },
+  accButton: {
+    marginLeft: 12,
+    backgroundColor: '#C62828',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  accButtonText: {
+    color: '#FFF',
+    fontSize: 13,
+    fontWeight: '700',
+  },
   bottomBar: {
     position: 'absolute',
     bottom: 40,
@@ -820,7 +897,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   permissionButtonText: {
-    color: '#FFF',
+    color: '#003049',
     fontSize: 16,
     fontWeight: '600',
   },
@@ -856,7 +933,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   helpCloseText: {
-    color: '#FFF',
+    color: '#003049',
     fontSize: 16,
     fontWeight: '600',
   },

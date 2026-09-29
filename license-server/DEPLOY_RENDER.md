@@ -1,16 +1,11 @@
 # Deploy do License Server no Render
 
-> Guia operacional **v2.1** para pôr o license server online e fazer o *bake* do
+> Guia operacional **v2.0** para pôr o license server online e fazer o *bake* do
 > URL de produção no desktop e no mobile.
 > **Pré-requisito:** o código já está pronto (67 testes a passar, ruff limpo) e o
-> `render.yaml` (na **raiz** do repo) + `Dockerfile` existem. Isto requer **a tua conta Render** (execução manual aqui).
+> `render.yaml` + `Dockerfile` existem. Isto requer **a tua conta Render** (execução manual aqui).
 >
 > **Estado atual:** plano **free** (demo, dados efémeros). Para produção, ver §9.
->
-> **Correção v2.1 (2026-09-15):** o `render.yaml` foi **movido para a raiz do repo**
-> (`render.yaml`, não `license-server/render.yaml`) — o Render só deteta Blueprints
-> com `render.yaml` na raiz por defeito. O `dockerfilePath` aponta para
-> `./license-server/Dockerfile`, que usa paths relativos ao build context da raiz.
 
 ---
 
@@ -20,10 +15,10 @@ Antes de começares, fica registado o que já está confirmado e corrigido:
 
 | Item | Estado | Commit |
 |---|---|---|
-| `render.yaml` (na raiz) + `Dockerfile` existem e estão corretos | ✅ | `5befa60` |
+| `render.yaml` + `Dockerfile` existem e estão corretos | ✅ | `5befa60` |
 | Keypair ES256 do servidor == pública embutida no cliente | ✅ (via `tools/check_keypair.py`) | `abb0c60` |
-| `MAOUSE_LS_PRIVATE_KEY` aceita **conteúdo PEM** direto no env (Render) | ✅ fix + teste | `41c66a7` |
-| `MAOUSE_LS_PUBLIC_KEY` aceita **conteúdo PEM** direto no env | ✅ já suportava | — |
+| `AIRMOUSE_LS_PRIVATE_KEY` aceita **conteúdo PEM** direto no env (Render) | ✅ fix + teste | `41c66a7` |
+| `AIRMOUSE_LS_PUBLIC_KEY` aceita **conteúdo PEM** direto no env | ✅ já suportava | — |
 | Mobile honra `EXPO_PUBLIC_LICENSE_SERVER_URL` (era ignorada) | ✅ fix | `41c66a7` |
 | Testes license-server | ✅ 41 passed | — |
 | Ruff license-server / tsc mobile | ✅ limpo | — |
@@ -38,66 +33,28 @@ Antes de começares, fica registado o que já está confirmado e corrigido:
 
 | Via | Quando | Comando/UI |
 |---|---|---|
-| **Blueprint (recomendado)** | Primeira vez: liga o repo e aplica `render.yaml` (na raiz) | Dashboard Render → *New +* → *Blueprint* → escolhe o repo |
+| **Blueprint (recomendado)** | Primeira vez: liga o repo e aplica `render.yaml` | Dashboard Render → *New +* → *Blueprint* → escolhe o repo |
 | Manual | Já tens um serviço e só queres ligar o Dockerfile | *New +* → *Web Service* → runtime Docker |
 
-> Nota: o repo é **`Noturno22/Maouse`** (renomeado de Maouse). Qualquer das vias vai
+> Nota: o repo é **`Noturno22/Maouse`** (renomeado de AirMouse). Qualquer das vias vai
 > aceder a esse repo. Se o repo for privado, liga a conta GitHub ao Render e usa **GitHub deploy**.
 
 ---
 
 ## 2. Variáveis a definir no painel
 
-> ### 🔴 Renomeadas em 2026-09-29 — renomear no painel **antes** do próximo deploy
->
-> O prefixo passou de `AIRMOUSE_` para `MAOUSE_`. O `render.yaml` versionado já
-> está no prefixo novo, mas as variáveis que estão **realmente definidas no
-> painel do Render** não se renomeiam sozinhas — o Render nunca as mostra nem as
-> tira do git (`sync: false`), e o código novo só lê o prefixo novo.
->
-> Um nome errado não dá erro. `os.environ.get` devolve `""` e o serviço
-> degrada-se: o `mobile/entitle` deixa de validar compras, o painel admin
-> recusa o login, o SMTP cala-se. Nenhum disso aparece num teste.
->
-> **Excepção que muda a prioridade: o par de chaves não é silencioso.**
-> `MAOUSE_LS_PRIVATE_KEY` vazia não degrada — rebenta. Medido, com a variável
-> definida e vazia (o que é exactamente o que o Render entrega se a chave não
-> for renomeada):
->
-> ```
-> sign()            -> FileNotFoundError: [Errno 2] No such file or directory: ''
-> _load_public_key()-> FileNotFoundError: 'public.pem'
-> ```
->
-> `_private_key_path()` só cai no `private.pem` do repositório quando a variável
-> **não existe**; no Render esse ficheiro não está lá (é gitignored). Com a
-> variável presente e vazia o `open("")` é que rebenta — na **primeira
-> activação**, não no arranque. Ou seja: os health checks passam, a landing
-> serve, o admin entra, e nenhum cliente consegue activar o Pro. Um 500 que só
-> aparece quando há dinheiro em jogo. Renomear estas duas primeiro.
->
-> **No painel do Render, para cada chave, apaga a antiga e cria a nova:**
-> `AIRMOUSE_*` → `MAOUSE_*`, com o mesmo valor. São 16 chaves. A lista exacta
-> está no `render.yaml`; `tests/test_naming.py::TestVariaveisDeAmbienteDoRender`
-> garante que o conjunto do `render.yaml` e o que o código lê são o mesmo, mas
-> o painel é teu e o git não o vê.
->
-> Feito enquanto não há compras nem utilizadores, por isso não há back-compat
-> com o prefixo antigo. Depois de haver clientes em produção, um rename destes
-> passa a exigir as duas famílias a viver em paralelo durante a transição.
-
-O `render.yaml` já define `MAOUSE_MOBILE_PRODUCT_ID=maouse_mobile_pro`,
-`MAOUSE_MOBILE_DEV_ALLOW=0`, SMTP desligado, DB em `/data/license.db`.
+O `render.yaml` já define `AIRMOUSE_MOBILE_PRODUCT_ID=maouse_mobile_pro`,
+`AIRMOUSE_MOBILE_DEV_ALLOW=0`, SMTP desligado, DB em `/data/license.db`.
 
 **Tens de preencher manualmente as `sync: false`** (Render nunca as mostra/tira do git):
 
 ### Obrigatórias
 | Var | Valor |
 |---|---|
-| `MAOUSE_LS_ADMIN_TOKEN` | Token forte aleatório (ex.: `openssl rand -hex 24`). Usado como **senha de login** do painel admin e nos endpoints `/admin/*`. |
-| `MAOUSE_LS_ADMIN_SESSION_SECRET` | Chave forte aleatória (ex.: `openssl rand -hex 24`). Usada para assinar os cookies de sessão do painel admin. |
-| `MAOUSE_LS_PRIVATE_KEY` | Conteúdo **integral** de `license-server/private.pem` |
-| `MAOUSE_LS_PUBLIC_KEY` | Conteúdo **integral** de `license-server/public.pem` |
+| `AIRMOUSE_LS_ADMIN_TOKEN` | Token forte aleatório (ex.: `openssl rand -hex 24`). Usado como **senha de login** do painel admin e nos endpoints `/admin/*`. |
+| `AIRMOUSE_LS_ADMIN_SESSION_SECRET` | Chave forte aleatória (ex.: `openssl rand -hex 24`). Usada para assinar os cookies de sessão do painel admin. |
+| `AIRMOUSE_LS_PRIVATE_KEY` | Conteúdo **integral** de `license-server/private.pem` |
+| `AIRMOUSE_LS_PUBLIC_KEY` | Conteúdo **integral** de `license-server/public.pem` |
 
 > ⚠️ **Cola o PEM completo, multi-linha**, tal como está no ficheiro (começa em
 > `-----BEGIN PRIVATE KEY-----`, acaba em `-----END PRIVATE KEY-----`). O Render
@@ -107,20 +64,20 @@ O `render.yaml` já define `MAOUSE_MOBILE_PRODUCT_ID=maouse_mobile_pro`,
 ### IAP mobile (endpoint `mobile/entitle`)
 | Var | Valor |
 |---|---|
-| `MAOUSE_GOOGLE_PLAY_CREDENTIALS_JSON` | JSON completo da conta de serviço Google (permissão **Android Publisher API**). Sem isto o mobile/entitle só corre em modo dev. |
+| `AIRMOUSE_GOOGLE_PLAY_CREDENTIALS_JSON` | JSON completo da conta de serviço Google (permissão **Android Publisher API**). Sem isto o mobile/entitle só corre em modo dev. |
 
 > **Cuidado:** é um JSON grande (várias linhas). Cola-o intacto. Se o Render
 > trunca ou foge aspas, usa Render's *Secret Files* ou monta um ficheiro `.json`
 
 ### Opcionais (papel/postal de chaves MAO-)
-- `MAOUSE_PADDLE_WEBHOOK_SECRET`, `MAOUSE_PADDLE_VENDOR_ID`, `MAOUSE_PADDLE_API_KEY`
-- `MAOUSE_SMTP_HOST/PORT/USER/PASSWORD/FROM` — e `MAOUSE_SMTP_ENABLED=1`
+- `AIRMOUSE_PADDLE_WEBHOOK_SECRET`, `AIRMOUSE_PADDLE_VENDOR_ID`, `AIRMOUSE_PADDLE_API_KEY`
+- `AIRMOUSE_SMTP_HOST/PORT/USER/PASSWORD/FROM` — e `AIRMOUSE_SMTP_ENABLED=1`
 
 ---
 
 ## 3. Disco persistente
 
-- O `render.yaml` aponta `MAOUSE_LS_DB=/data/license.db`.
+- O `render.yaml` aponta `AIRMOUSE_LS_DB=/data/license.db`.
 - **Plano free:** o Render **não suporta disco persistente** — `/data` é efémero e a base
   reseta a cada redeploy. Adequado para demo/testes. O serviço também adormece após
   ~15 min sem tráfego (a 1ª chamada demora ~30–60 s a acordar).
@@ -142,21 +99,21 @@ curl https://<service>.onrender.com/health
 
 O painel admin fica em `https://<service>.onrender.com/admin/login`.
 
-- **Senha de login:** valor de `MAOUSE_LS_ADMIN_TOKEN` (o mesmo token usado em `/admin/*`).
+- **Senha de login:** valor de `AIRMOUSE_LS_ADMIN_TOKEN` (o mesmo token usado em `/admin/*`).
 - **Áreas disponíveis:** dashboard, clientes/chaves (CRUD), chat, emails, estatísticas.
 - **Dados:** no plano free, os dados do painel (clientes, chaves, chats) são efémeros e
   perdem-se a cada redeploy. No plano starter com disco, são persistentes.
 
-Teste rápido do endpoint mobile em **modo dev** (só se `MAOUSE_MOBILE_DEV_ALLOW=1`):
+Teste rápido do endpoint mobile em **modo dev** (só se `AIRMOUSE_MOBILE_DEV_ALLOW=1`):
 
 ```bash
 curl -s -X POST https://<service>.onrender.com/api/v1/mobile/entitle \
   -H "Content-Type: application/json" \
-  -d '{"purchase_token":"test_abc","product_id":"maouse_mobile_pro","package_name":"com.maouse.mobile","device_id":"dev-1"}'
+  -d '{"purchase_token":"test_abc","product_id":"maouse_mobile_pro","package_name":"com.airmouse.mobile","device_id":"dev-1"}'
 ```
 
 > Na devo a resposta `403 play_nao_configurado` se a conta de serviço ainda não existir — só
-> fecha quando `MAOUSE_GOOGLE_PLAY_CREDENTIALS_JSON` estiver preenchido e a conta válida.
+> fecha quando `AIRMOUSE_GOOGLE_PLAY_CREDENTIALS_JSON` estiver preenchido e a conta válida.
 
 Smoke desktop (trial server-authoritative) contra o servidor já em produção:
 
@@ -172,12 +129,12 @@ curl -s -X POST https://<service>.onrender.com/api/v1/trial/start \
 
 Depois de o serviço estar online (URL real conhecido):
 
-- `mobile/maouse-mobile/.env` (modelo versionável: `mobile/maouse-mobile/.env.example`):
+- `mobile/airmouse-mobile/.env`:
   ```bash
   EXPO_PUBLIC_LICENSE_SERVER_URL=https://<service>.onrender.com
   ```
 - A resolução é: `EXPO_PUBLIC_LICENSE_SERVER_URL` → `extra.licenseServerUrl` (`app.json`) → fallback `https://license.maouse.app`.
-- Sem produto Play real, deixa `MAOUSE_MOBILE_DEV_ALLOW=1` **só** no ambiente de teste, e
+- Sem produto Play real, deixa `AIRMOUSE_MOBILE_DEV_ALLOW=1` **só** no ambiente de teste, e
   desliga (`=0`) antes de subir produção.
 - **Atenção:** `EXPO_PUBLIC_*` é inlined em **build-time** — mudar o `.env` depois exige novo build (EAS/exp).
 
@@ -187,14 +144,26 @@ Depois de o serviço estar online (URL real conhecido):
 
 Depois de o serviço estar online:
 
-1. Edita o ponto único em `core/licensing.py`:
-   ```python
-   PROD_LICENSE_SERVER_URL = "https://licenses.maouse.example.com"  # → substituir pelo URL real
+1. **Gerar o módulo com o URL** (não editar source à mão):
+   ```bat
+   set AIRMOUSE_LICENSE_SERVER_URL=https://<service>.onrender.com
+   .venv\Scripts\python.exe tools\gen_license_endpoint.py
    ```
-2. Rebuild do `.exe` (ver `docs/DESKTOP_LICENSE_URL.md` para o comando PyInstaller).
+   Escreve `core/_license_endpoint.py` (gitignored, gerado). O `build.bat` faz
+   isto sozinho no passo **4/7**, logo para o build normal basta ter a env var
+   definida antes de o correr.
+
+2. Rebuild do `.exe` (`build.bat`). O `airmouse.spec` lista
+   `core._license_endpoint` em `hiddenimports` — sem isso o módulo não entra
+   no binário, porque `core/licensing.py` o importa dentro de uma função.
+
 3. Redistribui o novo instalador — o binário antigo continua a apontar para o placeholder e fica offline.
 
-> O desktop já suporta override por env `MAOUSE_LICENSE_URLS` (vírgulas) para testes/QA.
+4. **Smoke test:** o log de arranque do `.exe` não deve conter
+   `Servidor de licencas NAO configurado`. Se contiver, o passo 1 falhou.
+
+> O desktop já suporta override por env `AIRMOUSE_LICENSE_URLS` (vírgulas) para
+> testes/QA, tanto por env var como por linha no `.env` do utilizador.
 
 ---
 
@@ -211,7 +180,7 @@ Depois de o serviço estar online:
 O plano **free é só demo** (dados efémeros + cold-start). Antes de haver uma venda real,
 ativa o plano **starter** (US$7/mês) para ter dados persistentes e respostas imediatas:
 
-1. **Editar `render.yaml` (raiz do repo):**
+1. **Editar `license-server/render.yaml`:**
    - Mudar `plan: free` → `plan: starter`.
    - Descomentar o bloco `disk:` (descomentado, não o bloco `# disk:`).
 2. **Push para `main`** → o Render deteta a mudança e pergunta se queres fazer deploy.

@@ -1,0 +1,67 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: "EAS build profile"
+        required: false
+        default: "preview"
+        type: choice
+        options:
+          - preview
+          - development
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile/airmouse-mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: mobile/airmouse-mobile/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install EAS CLI
+        run: npm install -g eas-cli
+
+      - name: Build APK (EAS)
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          eas build \
+            --platform android \
+            --profile ${{ github.event.inputs.profile || 'preview' }} \
+            --non-interactive \
+            --json
+
+      - name: Download APK from EAS
+        id: download
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          BUILD_ID=$(eas build:list \
+            --platform android \
+            --limit 1 \
+            --json \
+            --status=finished | jq -r '.[0].id')
+          echo "build_id=$BUILD_ID" >> "$GITHUB_OUTPUT"
+          eas build:download --id "$BUILD_ID" --platform android
+          APK_PATH=$(find . -name "*.apk" -maxdepth 2 | head -1)
+          echo "apk_path=$APK_PATH" >> "$GITHUB_OUTPUT"
+          echo "APK found at: $APK_PATH"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: maouse-android-${{ github.event.inputs.profile || 'preview' }}
+          path: mobile/airmouse-mobile/${{ steps.download.outputs.apk_path }}
+          retention-days: 14

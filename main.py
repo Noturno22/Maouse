@@ -42,7 +42,7 @@ from core.licensing import (
 from core.llm import ChatClient
 from core.log import get_logger, setup_logging
 from core.mouse_ctl import MouseCtl
-from core.remote import RemoteServer, lan_ips
+from core.remote import RemoteArbiter, RemoteServer, lan_ips
 from core.snap import SnapEngine
 from core.tracker import HandTracker, ensure_model
 from core.tray import TrayAppAdapter, TrayIcon
@@ -214,6 +214,7 @@ def run_gui(cfg, cam, tracker, mouse, smooth_idx, gesture_ai, voice, tuner, spea
         tuner=tuner, speaker=speaker, snap=snap,
         assistant=assistant, magnifier=magnifier,
         license_mgr=license_mgr, remote=remote,
+        state=state,
     )
     window.setWindowTitle("Mãouse")
     window.resize(900, 640)
@@ -468,6 +469,15 @@ def main():
         "_license_warned": False,
     }
     state["_usage_watchdog"] = UsageWatchdog(lic_, state)
+    # O motor da câmara e o telemóvel disputam o mesmo rato. O árbitro dá o
+    # rato ao telemóvel enquanto este envia comandos e devolve-o à câmara
+    # assim que fica em silêncio.
+    arbiter = RemoteArbiter(state, hold_s=1.5)
+    state["_remote_arbiter"] = arbiter
+    if remote is not None:
+        remote.on_activity = arbiter.note
+        remote.on_command_begin = arbiter.begin_command
+        remote.on_command_end = arbiter.end_command
     tray_icon = None
     tray_adapter = None
 

@@ -69,6 +69,21 @@ def trial_report(conn, machine_id: str, used_seconds: int) -> int:
     return trial_remaining(conn, machine_id)
 
 
+class LeaseConflict(ValueError):
+    """Conflito de estado do lease que o cliente pode resolver sozinho.
+
+    Distingue "o cliente está atrás do servidor" de "replay malicioso": nos dois
+    casos o lease não pode ser renovado, mas só o primeiro se resolve voltando a
+    ativar a chave. Sem esta distinção o cliente recebia um 403 genérico e
+    ficava bloqueado para sempre, sem caminho de recuperação.
+    """
+
+    def __init__(self, reason: str, recovery: str):
+        super().__init__(reason)
+        self.reason = reason
+        self.recovery = recovery
+
+
 def revalidate(conn, machine_id: str, old_lease: str) -> str:
     """Valida o lease antigo (assinatura ES256) e emite um novo (7 dias).
     Não renova leases com nonce obsoleto nem seq repetido. Actualiza last_seen."""
@@ -81,9 +96,17 @@ def revalidate(conn, machine_id: str, old_lease: str) -> str:
     if claims["revocation_nonce"] < get_current_nonce_helper(conn):
         raise ValueError("nonce_obsoleto")
     last_seq = get_last_use_seq(conn, machine_id)
+    if last_seq is not None and int(claims["use_seq"]) < last_seq:
+        # O cliente tem um lease ANTIGO do que o servidor já emitiu. Não é
+        # replay (o servidor nunca emitiu este seq) — é o cliente que reverteu o
+        # estado (dois processos, restore de backup, store copiado). Diz-lhe
+        # para reativar a chave em vez de o deixar preso num 403 sem saída.
+        raise LeaseConflict("seq_repetido", recovery="reativar")
+    # `use_seq == last_seq` é a renovação normal (é o lease que o servidor acabou
+    # de emitir). `use_seq > last_seq` significa que a base de dados do servidor
+    # foi reposta para trás de um lease que já emitiu: aceitamos e reaparelhamos
+    # o contador, que é o espelho do caso acima e também se resolve sozinho.
     new_seq = int(claims["use_seq"]) + 1
-    if last_seq is not None and new_seq <= last_seq:
-        raise ValueError("seq_repetido")
     set_last_use_seq(conn, machine_id, new_seq)
     touch_last_seen(conn, machine_id)
     key_hash = claims["key_hash"]
