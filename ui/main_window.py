@@ -45,7 +45,8 @@ class MainWindow(QMainWindow):
 
     def __init__(self, cfg, cam, tracker, mouse, gesture_ai=None,
                  voice=None, tuner=None, speaker=None, snap=None,
-                 assistant=None, magnifier=None, license_mgr=None, remote=None):
+                 assistant=None, magnifier=None, license_mgr=None, remote=None,
+                 state=None):
         super().__init__()
         init_gesture_colors()
 
@@ -94,7 +95,7 @@ class MainWindow(QMainWindow):
 
         self._E = None
         self._ctx = None
-        self._state = {}
+        self._state = state if state is not None else {}
 
         self._build_ui()
         self._build_shortcuts()

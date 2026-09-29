@@ -16,6 +16,59 @@ Formato de uma entrada:
 
 ---
 
+## [2026-09-27 00:46] Desktop: a câmara disputava o rato ao telemóvel (o clique saltava)
+
+- **Objetivo:** com o `locationX` e a dead zone já corrigidos, o toque chegava ao
+  PC com as coordenadas certas mas o clique continuava a saltar — "os comandos
+  funcionam, menos o clique".
+- **Diagnóstico (medição, não leitura):** amostrei a posição do rato durante
+  12 s **sem nenhum comando do telemóvel**. Mexeu sozinho, e muito:
+  `(-431, +26)`, `(+169, -12)`, `(-420, +37)`. Não era o telemóvel: era o motor
+  de rastreamento da mão, que também mexe no rato (`mao aberta/1 dedo=mover`),
+  ativo com a câmara ligada.
+- **Causa raiz:** os dois mexem no mesmo rato e não havia coordenação nenhuma.
+  `state["paused"]` (barra de espaço) era o único gate e nunca era ligado pelo
+  telemóvel. Cada `gesture tap` fazia `move_to` + `left_click` no sítio certo e
+  a câmara arrastava o cursor de imediato a seguir.
+- **Alterações:**
+  - `core/remote.py`: `RemoteArbiter`. Cada comando de um telemóvel
+    autenticado silencia a câmara durante `hold_s` (1,5 s); passado esse tempo
+    sem comandos, o rato volta para a câmara. Se o utilizador tinha pausado por
+    si, o árbitro não toca nesse estado. `RemoteServer` ganhou `on_activity`,
+    chamado no auth e em cada comando.
+  - esvaziar a fila do `SmoothEmitter`: pausar a câmara só impede que ela
+    decida mais movimentos, mas o emissor continua a despejar a ~180 Hz o que já
+    estava enfileirado (até `max_pending_px` = 600 px). Sem esvaziar, o rato
+    continuava a andar durante o silêncio do telemóvel.
+  - `core/engine.py`: `tick()` do árbitro em `process_frame`, a par do
+    `UsageWatchdog`, para devolver o rato à câmara assim que o telemóvel cala.
+  - `ui/main_window.py` + `main.py`: a `MainWindow` era construída **sem**
+    `state` e criava o seu próprio dicionário, pelo que `state["paused"]` e
+    `state["emitter"]` que o `main.py` escrevia nunca chegavam à janela. Passa
+    a partilhar o mesmo `state`.
+- **Verificação:**
+  - `289` testes desktop e `72` server verdes; `ruff` limpo; 8 testes novos para
+    o árbitro (pausa no comando, janela estendida por comandos sucessivos,
+    devolução ao silêncio, não toca na pausa do utilizador, `on_activity`).
+  - **End-to-end, cliente WebSocket simulado:** 200 comandos `move` em ~4 s com
+    soma de deltas `(600, 120)` → posição obtida `(599, 121)`, desvio de 1 px
+    (o acumulador fracionário do `move_by`). **Antes do fix o mesmo teste dava
+    `(359, 171)`.**
+  - Cliques absolutos verificados nos 4 cantos, no centro e em pontos
+    intermédios: todos exactamente no sítio.
+  - **Por confirmar no aparelho:** com a câmara a ver uma mão, o rato tem de
+    calar-se durante o uso do telemóvel e voltar depois de 1,5 s de silêncio.
+- **Nota de ambiente:** durante esta sessão o ponteiro do X11 ficou congelado no
+  centro do ecrã (`(682, 383)`) para **todos** os clientes — `pynput`,
+  `XWarpPointer`, `XTestFakeMotionEvent` e `XAllowEvents` — com a aplicação
+  parada, sem grab de servidor, e sem ecrã táctil/tablet em modo absoluto. Não é
+  do código (reproduz-se com o `main.py` parado) e bloqueia a verificação do
+  clique ponta a ponta até o input do X11 ser reposto.
+- **Estado:** Parcial — o código está testado e o conflito está medido e
+  corrigido; falta confirmar no aparelho com a câmara ativa.
+
+---
+
 ## [2026-09-27 00:05] Mobile: o cursor saltava com a tremedeira do dedo no toque
 
 - **Objetivo:** o `locationX` já estava corrigido e as coordenadas do toque

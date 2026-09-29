@@ -5,7 +5,7 @@ import json
 import pytest
 
 from config import Config
-from core.remote import RemoteServer, generate_token, lan_ips
+from core.remote import RemoteArbiter, RemoteServer, generate_token, lan_ips
 
 
 class FakePointer:
@@ -190,3 +190,96 @@ def test_auth_and_commands_over_websocket():
         assert mouse.moves == [(5, 6)]
     finally:
         srv.stop()
+
+
+# ── Arbitro remoto vs. motor da câmara ──────────────────────────────────
+
+class TestRemoteArbiter:
+    """O motor da câmara e o telemóvel disputam o mesmo rato.
+
+    Sem arbitragem, a câmara mexe no cursor enquanto o telemóvel clica, e o
+    clique parece saltar.
+    """
+
+    def test_comando_do_telemovel_pausa_a_camara(self):
+        state = {"paused": False}
+        arb = RemoteArbiter(state, hold_s=1.5)
+        arb.note()
+        assert state["paused"] is True
+        assert arb.holding is True
+
+    def test_rato_volta_a_camara_quando_o_telemovel_cala(self, monkeypatch):
+        state = {"paused": False}
+        arb = RemoteArbiter(state, hold_s=1.5)
+        clock = {"t": 100.0}
+        monkeypatch.setattr("core.remote.time.monotonic", lambda: clock["t"])
+
+        arb.note()
+        clock["t"] += 1.0
+        arb.tick()
+        assert state["paused"] is True, "ainda dentro da janela, não pode devolver"
+
+        clock["t"] += 1.0  # 2.0 s no total, acima de hold_s
+        arb.tick()
+        assert state["paused"] is False
+        assert arb.holding is False
+
+    def test_comandos_successivos_estendem_a_janela(self, monkeypatch):
+        state = {"paused": False}
+        arb = RemoteArbiter(state, hold_s=1.5)
+        clock = {"t": 100.0}
+        monkeypatch.setattr("core.remote.time.monotonic", lambda: clock["t"])
+
+        arb.note()
+        for _ in range(5):  # um comando por segundo durante 5 s
+            clock["t"] += 1.0
+            arb.note()
+            arb.tick()
+        assert state["paused"] is True, "uso contínuo tem de manter a câmara calada"
+
+        clock["t"] += 2.0
+        arb.tick()
+        assert state["paused"] is False
+
+    def test_nao_toca_na_pausa_do_utilizador(self):
+        state = {"paused": True}
+        arb = RemoteArbiter(state, hold_s=1.5)
+        arb.note()
+        assert state["paused"] is True
+        assert arb.holding is False, "a pausa é do utilizador, não do árbitro"
+
+    def test_nao_reverte_um_despauso_feito_durante_a_janela(self, monkeypatch):
+        state = {"paused": False}
+        arb = RemoteArbiter(state, hold_s=1.5)
+        clock = {"t": 100.0}
+        monkeypatch.setattr("core.remote.time.monotonic", lambda: clock["t"])
+
+        arb.note()
+        state["paused"] = False  # utilizador primiu espaço durante a janela
+        clock["t"] += 5.0
+        arb.tick()
+        assert state["paused"] is False
+        assert arb.holding is False
+
+    def test_on_activity_chama_o_arbitro(self):
+        state = {"paused": False}
+        arb = RemoteArbiter(state, hold_s=1.5)
+        srv = RemoteServer(Config(), FakeMouse())
+        srv.on_activity = arb.note
+        srv._note_activity()
+        assert arb.holding is True
+        assert state["paused"] is True, "o comando tem de calar a câmara"
+
+    def test_on_activity_ausente_nao_parte_nada(self):
+        srv = RemoteServer(Config(), FakeMouse())
+        assert srv.on_activity is None
+        srv._note_activity()  # não pode rebentar
+
+    def test_callback_que_falha_nao_derruba_o_comando(self):
+        srv = RemoteServer(Config(), FakeMouse())
+
+        def boom():
+            raise RuntimeError("falhou")
+
+        srv.on_activity = boom
+        srv._note_activity()  # a excepção é engolida e registada em debug

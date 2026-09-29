@@ -29,6 +29,7 @@ import json
 import secrets
 import socket
 import threading
+import time
 
 try:
     from pynput.mouse import Button
@@ -115,12 +116,81 @@ def lan_ips():
     return out
 
 
+class RemoteArbiter:
+    """Arbitra entre o controlo remoto e o motor de rastreamento da mão.
+
+    Os dois mexem no mesmo rato. Sem coordenação, o motor da câmara continua a
+    mover o cursor enquanto o telemóvel clica, e o clique parece saltar: o rato
+    vai para o ponto certo, carrega, e é logo arrastado para outro sítio — ou
+    para o lado errado, se a câmara ganhar a corrida.
+
+    Cada comando de um telemóvel autenticado silencia a câmara durante
+    ``hold_s``; passado esse tempo sem comandos, o rato volta para a câmara.
+    Se o utilizador tinha pausado o motor por si (barra de espaço), o árbitro
+    não toca nesse estado.
+    """
+
+    def __init__(self, state: dict, hold_s: float = 1.5):
+        self._state = state
+        self._hold = float(hold_s)
+        self._deadline = 0.0
+        self._holding = False
+
+    def note(self) -> None:
+        """Um comando chegou do telemóvel: cede o rato à câmara por ``hold_s``."""
+        now = time.monotonic()
+        if self._holding:
+            self._deadline = now + self._hold
+            return
+        if self._state.get("paused"):
+            # Pausado pelo utilizador — não tomar conta do estado.
+            return
+        self._state["paused"] = True
+        self._holding = True
+        self._deadline = now + self._hold
+        self._drain_backlog()
+
+    def _drain_backlog(self) -> None:
+        """Esvazia o movimento que a câmara já tinha enfileirado.
+
+        Pausar a câmara só impede que ela decida mais movimentos: o emissor
+        continua a despejar, a ~180 Hz, o que já estava na fila (até
+        ``max_pending_px``). Sem esvaziar, o rato continua a andar durante o
+        silêncio do telemóvel e volta a arrastar o clique.
+        """
+        emitter = self._state.get("emitter")
+        if emitter is None:
+            return
+        try:
+            emitter.clear()
+        except Exception as e:
+            log.debug("Esvaziar a fila do emissor falhou: %s", e)
+
+    def tick(self) -> None:
+        """Devolve o rato à câmara quando o telemóvel fica em silêncio.
+
+        Só repõe se ``paused`` continuar a ser o valor que o árbitro pôs: se o
+        utilizador mexer no estado entretanto, deixa-o em paz.
+        """
+        if self._holding and time.monotonic() >= self._deadline:
+            if self._state.get("paused"):
+                self._state["paused"] = False
+            self._holding = False
+
+    @property
+    def holding(self) -> bool:
+        return self._holding
+
+
 class RemoteServer:
     """Servidor WebSocket que traduz comandos do telemóvel em ações de rato/teclado."""
 
-    def __init__(self, cfg: Config, mouse: MouseCtl):
+    def __init__(self, cfg: Config, mouse: MouseCtl, on_activity=None):
         self._cfg = cfg
         self._mouse = mouse
+        # Chamado a cada comando de um telemóvel autenticado, para o motor de
+        # rastreamento da mão ceder o rato enquanto o telemóvel está a ser usado.
+        self.on_activity = on_activity
         self._loop: asyncio.AbstractEventLoop | None = None
         self._server = None
         self._thread: threading.Thread | None = None
@@ -128,6 +198,15 @@ class RemoteServer:
         self._key_ctl = None
         self._key_mods = None
         self._drag = False
+
+    def _note_activity(self):
+        cb = self.on_activity
+        if cb is None:
+            return
+        try:
+            cb()
+        except Exception as e:
+            log.debug("Callback de actividade remota falhou: %s", e)
 
     # ── Ciclo de vida ────────────────────────────────────────────────
     def start(self):
@@ -256,6 +335,7 @@ class RemoteServer:
                              "h": getattr(self._mouse, "screen_h", 1080)},
                         )
                         log.info("Telemóvel autenticado (%s).", connection.remote_address)
+                        self._note_activity()
                     else:
                         await self._send(
                             connection, {"cmd": "auth", "ok": False, "error": "auth_required"}
@@ -271,6 +351,7 @@ class RemoteServer:
                 if cmd is None:
                     await self._send(connection, {"ok": False, "error": "bad_command"})
                     continue
+                self._note_activity()
                 try:
                     note = self._handle(cmd, data)
                 except Exception as e:
