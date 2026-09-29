@@ -30,6 +30,7 @@ from core.assistant import Assistant3D
 from core.autotune import AutoTuner
 from core.camera import CameraStream
 from core.commands import AppCtl, apply_command
+from core.discovery import MaouseAdvertiser
 from core.engine import run_loop
 from core.gesture_ai import GestureAI, ensure_ai_model
 from core.licensing import (
@@ -441,11 +442,19 @@ def main():
     )
     mouse = MuteMouse() if mute_output else MouseCtl()
     remote = None
+    discovery = None
     if cfg.remote_enabled:
         remote = RemoteServer(cfg, mouse)
         if remote.start():
             log.info("Controlo remoto por telemovel ativo (IPs: %s, porta: %d).",
                      ", ".join(lan_ips()) or "-", cfg.remote_port)
+            # Só anuncia quem tem algo para anunciar: um `_maouse._tcp` a
+            # apontar para uma porta fechada é pior do que não anunciar, porque
+            # o telefone escolhe-o e perde tempo a sondar.
+            if cfg.remote_discovery:
+                discovery = MaouseAdvertiser(cfg)
+                if not discovery.start():
+                    discovery = None
     else:
         log.info("Controlo remoto por telemovel desativado.")
     tuner = AutoTuner(cfg)
@@ -624,6 +633,11 @@ def main():
         if remote is not None:
             try:
                 remote.stop()
+            except Exception:
+                pass
+        if discovery is not None:
+            try:
+                discovery.stop()
             except Exception:
                 pass
         tracker.close()

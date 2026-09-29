@@ -17,3 +17,7 @@ PySide6>=6.6
 # Substitui `comtypes>=1.4`, que foi removido: e dependencia transitiva do
 # `uiautomation` e nao e importado por lado nenhum.
 cryptography>=42
+# Descoberta mDNS (core/discovery.py): o telefone encontra o PC sem ninguem
+# escrever um IP a mao. Entra aqui no commit que traz o modulo, porque e o
+# `tests/test_manifests.py` que compara os manifestos com os imports reais.
+zeroconf>=0.131
