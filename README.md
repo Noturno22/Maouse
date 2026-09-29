@@ -22,10 +22,18 @@ a assinatura será adicionada quando o certificado EV for ativado no eSigner.
 
 > **Vens de uma instalação anterior a 2026-09-29?** O produto chamava-se
 > `AirMouse` e foi renomeado. Corre **`uninstall_startup.bat`** antes de instalar
-> a versão nova: a tarefa agendada de arranque automático e a pasta de
-> configuração/user-data `%LOCALAPPDATA%\AirMouse\` não se apagam sozinhas, e a
-> nova instalação não as conhece. A app continua a funcionar se as ignorares, mas
-> o arranque automático fica duplicado e a licença não é encontrada.
+> a versão nova: ele apaga a tarefa agendada com o nome antigo. Sem isso, ficam
+> duas tarefas em ONLOGON e não sabes qual tirar. (A app não arranca duas
+> vezes — o bloqueio de instância trata disso — mas a tarefa antiga continua lá
+> a cada sessão, e se apontar para uma pasta que já não existe falha em
+> silêncio.) O `install_startup.bat` também limpa a tarefa antiga, por isso
+> podes saltar este passo se preferires.
+>
+> As pastas de dados também mudaram de nome, em dois sítios diferentes:
+> `%LOCALAPPDATA%\AirMouse\` (settings, logs, modelos) e `%APPDATA%\AirMouse\`
+> (`license.json`). **Não as apagues** — é lá que está a tua licença. Copia o
+> `license.json` para `%APPDATA%\Maouse\` se quiseres, mas enquanto não houver
+> nenhuma licença vendida não há nada a preservar.
 
 ### Desenvolvimento
 Modelo `hand_landmarker.task` (~8 MB) descarrega automaticamente na primeira

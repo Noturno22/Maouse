@@ -11,6 +11,16 @@ if not exist "%PYW%" (
     exit /b 1
 )
 
+rem Instalacoes anteriores (antes de 2026-09-29) criaram "AirMouse JARVIS".
+rem Criar a nova sem tirar a antiga deixa o utilizador com DUAS tarefas em
+rem ONLOGON -> a aplicacao arranca duas vezes. O uninstall_startup.bat apaga
+rem as duas, mas ninguem e obrigado a correr o uninstall antes do install.
+schtasks /Query /TN "AirMouse JARVIS" >nul 2>&1
+if not errorlevel 1 (
+    echo Tarefa da instalacao anterior encontrada a remover.
+    schtasks /Delete /TN "AirMouse JARVIS" /F >nul
+)
+
 schtasks /Create /F /TN "Maouse JARVIS" /SC ONLOGON /RL LIMITED /TR "\"%PYW%\" \"%MAIN%\" --tray"
 if errorlevel 1 (
     echo Falhou a criacao da tarefa.

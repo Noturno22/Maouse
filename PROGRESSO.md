@@ -107,14 +107,63 @@
     Não repetem a constante, que é o que fazia `test_mobile_entitle.py` passar
     sempre. A segunda lista de dependências que escondeu o `cryptography` foi
     exactamente um valor que divergia em silêncio — a mesma classe de bug.
-    *Verificado*: ruff limpo, 442 testes do cliente, 67 do license-server,
-    `--replay-gate` F1 macro 1.0000, `npm run typecheck` e `expo config` no
-    mobile com `com.maouse.mobile` em todas as chaves.
+    *Verificado*: ruff limpo, **442** testes do cliente, **70** do license-server,
+    `--replay-gate` com F1 macro 1.0000, `expo config` a resolver com
+    `com.maouse.mobile` nas três chaves. O 1.0000 é o gate sobre o corpus
+    **sintético** e não diz nada sobre mãos reais — ver o limite honesto acima,
+    item 12; aqui está porque o gate passou, não porque a qualidade esteja
+    demonstrada.
     *Duas coisas que o rename **não** toca, de propósito*: a URL do modelo em
     `core/gesture_ai.py` (`airmouse-ai` é um org GitHub de terceiros) e as
     entradas antigas em `IDENTIDADE_VISUAL.md`, que listam o que não se escreve.
     *Sem alias de compatibilidade* — seguro porque ainda não há utilizadores
     para perder (instalador por assinar, listing por criar).
+
+17. **Três coisas que o rename destapou, nenhuma delas óbvia.**
+    *O job `mobile` do CI era cego para a config da app.* Corria só
+    `npm run typecheck`, que só olha para TypeScript. Medido: com o directório
+    do config plugin movido e o `app.json` desatualizado, o `typecheck` dá
+    **exit 0** — o prebuild é que rebentaria, no EAS, com a loja à espera.
+    Entrou `npx expo config --type public` como passo próprio; com o plugin
+    quebrado dá exit 1. É o mesmo buraco do `cryptography`: uma configuração que
+    ninguém valida parece viva porque ninguém a exercise.
+    *Uma variável definida e vazia não é uma variável ausente.* `os.getenv(nome,
+    default)` só usa o `default` quando a variável **não existe**; se existe e
+    está vazia devolve `""`. `security.py` abria `""` e rebentava com
+    `FileNotFoundError: No such file or directory: ''` — na **primeira
+    activação**, porque `/health` é um `return {"status": "ok"}` estático: os
+    health checks passavam, a landing servia, e ninguém activava o Pro. É
+    exactamente o que o Render entrega se as chaves não forem renomeadas. Agora
+    o erro diz qual variável falta; 3 testes, mutation-tested.
+    *O nome da tarefa de arranque automático também envelheceu.* "AirMouse
+    JARVIS" passou a "Maouse JARVIS", e esse nome não vive no código: vive em
+    dois `.bat` que o git trata como texto e que ninguém abre depois de os
+    escrever. O `uninstall` apagava só o nome novo — que não existe para quem
+    instalou antes — e imprimia *"Arranque automatico removido."* na mesma, e o
+    `install` não limpava o legado nenhum. Ficava a tarefa antiga em ONLOGON, e
+    o `echo` era a razão de ninguém reparar: já tinha dito que estava resolvido.
+    *A consequência que escrevi primeiro era falsa, e corrigi-a antes de a
+    deixar:* "a aplicação arranca duas vezes" era conta emocional, não
+    medição. Não arranca: `acquire_single_instance()` (`main.py:151`) faz o
+    segundo processo sair com código 1 e `log.info("Mãouse ja esta em
+    execucao.")`, desde que as duas tarefas apontem para o mesmo `main.py` — que
+    é o caso normal. Só haveria dois arranques a sério se a tarefa antiga
+    apontasse para outra pasta, e isso exige a versão antiga numa pasta e a nova
+    noutra, num produto que ainda não foi entregue a ninguém (item 16: sem alias
+    de compatibilidade porque ainda não há utilizadores para perder).
+    *O que fica de pé é mais pequeno e mais feio:* duas entradas no Agendador
+    de Tarefas, das quais o utilizador não sabe qual tirar, e — se a tarefa
+    órfã apontar para uma pasta que já não existe — um arranque que falha em
+    silêncio a cada sessão, com `pythonw` e sem janela. É o `echo` de sucesso a
+    impedir a reparação.
+    Agora os dois scripts conhecem os dois nomes, o `install` limpa antes de
+    criar, e o `uninstall` só diz *"removido"* se removeu mesmo alguma coisa.
+    *Verificado* nesta máquina, que não tinha tarefa nenhuma: o
+    `uninstall_startup.bat` real imprime agora *"Nao havia tarefa de arranque
+    automatico com estes nomes."* — a frase antiga diria o contrário.
+    `tests/test_startup_task.py`, 5 testes, **mutation-tested** (cada um dos
+    dois lados do bug foi reintroduzido à mão e os testes falharam). Total:
+    **447** testes do cliente.
 
 ### 🔴 Bloqueadores em aberto (Sprint 2 → 1.ª venda paga)
 
