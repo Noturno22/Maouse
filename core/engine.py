@@ -288,7 +288,7 @@ def process_frame(cfg, cam, tracker, mouse, gesture_ai, voice, tuner, ctx, state
     ts_ms = time.monotonic_ns() // 1_000_000
     rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     t_infer = time.perf_counter()
-    hands, sides = tracker.process(rgb, ts_ms)
+    hands, sides, confs = tracker.process(rgb, ts_ms)
     E.infer_total += (time.perf_counter() - t_infer) * 1000.0
 
     results = E.pool.update(hands, sides, w, h)

@@ -186,7 +186,9 @@ def run(args):
             frame = cv2.flip(frame, 1) if cfg.mirror else frame
             h, w = frame.shape[:2]
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            hands = tracker.process(rgb, time.monotonic_ns() // 1_000_000)
+            hands, _sides, _confs = tracker.process(
+                rgb, time.monotonic_ns() // 1_000_000
+            )
 
             points = None
             quality_ok = False

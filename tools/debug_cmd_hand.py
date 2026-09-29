@@ -65,7 +65,9 @@ with open(outpath, "w", encoding="utf-8") as fh:
                 frame = cv2.flip(frame, 1)
             h, w = frame.shape[:2]
             rgb = frame[:, :, ::-1]  # BGR->RGB
-            hands, sides = tracker.process(rgb, time.monotonic_ns() // 1_000_000)
+            hands, sides, _confs = tracker.process(
+                rgb, time.monotonic_ns() // 1_000_000
+            )
             results = pool.update(hands, sides, w, h)
             now = time.time()
             if now - last_print >= 0.4 and results:

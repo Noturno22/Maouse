@@ -58,10 +58,16 @@ class _NoopCam:
 
 
 class _NoopTracker:
-    """Tracker falso: nenhuma mão detetada -> sem movimento (sem crash)."""
+    """Tracker falso: nenhuma mão detetada -> sem movimento (sem crash).
+
+    Devolve os três valores que o `HandTracker.process` devolve: `hands`,
+    `sides` e `confs` (a confiança da classificação). Um duplo que fica para
+    trás em relação ao contrato real passa a falhar — que é o que aconteceu
+    quando o terceiro valor entrou.
+    """
 
     def process(self, rgb, ts_ms):
-        return [], []
+        return [], [], []
 
 
 class _NoopTuner:
