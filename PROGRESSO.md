@@ -536,6 +536,50 @@
     continua em **F1 macro 1.0000** e `--replay-gate` continua a sair 0 — o
     painel só existe com `ui["record"]`, que só existe com `--record`.
 
+27. **O portão de regressão não via a IA — e foi medido, não suposto.** O
+    `--replay-gate` tem saído verde em todos os commits desta série, e a
+    razão pela qual isso não significava nada foi descoberta agora: com
+    `--no-ai` a saída é **idêntica linha a linha**. Num corpus sintético as
+    regras geométricas resolvem os 193 frames antes de o modelo ser
+    consultado, portanto o portão que íamos usar para validar o retreino
+    para 13 classes **aceitaria pesos inúteis com o mesmo conforto de
+    antes**. A red de segurança de que a decisão 2 dependia não existia.
+    *O que mede o modelo, sozinho:*
+
+    | | N | taxa |
+    |---|---|---|
+    | as 9 classes que o modelo tem | 92 | **1.00** |
+    | as 3 que não tem (`PINKY`, `ONE`, `THUMB_DOWN`) | 24 | **0.00** |
+    | total | 116 | 0.7931 |
+
+    E o défice não é ruído, é coerente: `PINKY → SHAKA` 12/12, `ONE → ROCK`
+    6/8, `THUMB_DOWN → FIST` 4/4. Cada gesto cai na classe mais próxima
+    **que existe**. Isto converte a frase "a `PINKY` é metade da confusão
+    PINKY/SHAKA", que era uma estimativa, em 12/12 medidos — e diz que o
+    estrangulamento é a **lista de classes**, não os pesos. Alargar para 13
+    deixa de ser especulação.
+    *O que este número não diz:* mede a lista, não a qualidade. Dizer que o
+    modelo está "bom" a partir de esqueletos canónicos seria ler uma
+    distribuição sintética como se fossem mãos reais. `tests/test_ai_standalone.py`
+    fixa essa distinção na docstring **e** em código: se algum dia a fixture
+    deixar de ser sintética, o teste falha a dizer que a afirmação tem de ser
+    reescrita, e não a deixar passar em silêncio.
+    `tests/test_ai_standalone.py`, 3 testes. A regra fixada é só esta: cada
+    gesto **que o modelo consegue representar** tem de ser classificado
+    certo, e os que não consegue são contados em vez de falhados. Quando o
+    retreino trouxer `PINKY`/`ONE`/`THUMB_DOWN` para dentro de `CLASSES`, o
+    teste começa a exigir também esses sem ninguém lhe tocar — **fica mais
+    forte sozinho**, que é o único sítio onde isso acontece.
+    *Prova de que o teste parte* (mutações em cópia temporária, modelo do repo
+    intocado): permutar as 9 classes → **parte**; `PINCH ↔ FIST` → **parte**;
+    `THUMB_UP ↔ THREE ↔ PEACE` → **parte**; `w3` a zero → **parte**. É
+    exactamente o estrago que um retreino introduz em silêncio — o modelo
+    carrega, o `shape` bate certo, o `GestureAI` inicializa, o portão dá
+    1.0000, e cada gesto real recebe o nome do vizinho. Duas mutações **não**
+    partiram, e não deviam: `pesos 100x` não muda o `argmax` por construção,
+    e 5% de ruído em esqueletos canónicos também não. Nenhuma das duas é
+    defeito de modelo; registo-as para que ninguém as conte como falha.
+
 ### 🔴 Bloqueadores em aberto (Sprint 2 → 1.ª venda paga)
 
 | # | Bloqueador | Estado |
@@ -544,8 +588,8 @@
 | 1 | **Assinatura digital do `.exe`** — pipeline pronto; certificado SSL.com **VALIDADO**; falta **enroll/ativação do eSigner** | 🟡 eSigner por ativar |
 | 2 | **Store listing mobile (Play Console)** — IAP code ✅; falta prebuild/upload/listing. O package agora é `com.maouse.mobile` e o app **ainda não foi submetido**, portanto o rename não custou nada aqui — mas também não há volta: depois do primeiro upload o package é imutável | 🔴 |
 | 3 | **LAB de compatibilidade** — matriz ≥5 dispositivos por categoria    | 🟡 1 🟡 (HP i3-5005U 14.6 fps) |
-| 4 | **Corpus de mãos reais** — a instrumentação está pronta (item 19), mas `--record` e `collect_gestures.py` nunca produziram um ficheiro: o tool estava partido. Recolher é ~3 min por sessão (uma volta dos 13 gestos é ~60 s); a partir de agora cada recolha grava a confiança e a proveniência | 🔴 precisa de mãos reais — **caminho corrigido (itens 21–22 e 25), falta gravar** |
-| 5 | **`machine_id` degenerado é partilhado entre máquinas** — se nenhuma componente de hardware for lida, o `machine_id` é o sha256 de uma string constante (`751f034653eeaa33…`), o mesmo em todas as máquinas assim, e `core/licensing.py:163` valida a licença por ele: a licença de uma máquina passa a funcionar noutra. **Margem medida (item 24):** no Windows 11 24H2+ o `wmic` foi removido de vez, por isso **1 das 3 componentes** enche; o buraco só abre se o acesso ao registo ao `MachineGuid` falhar também. A defesa do servidor existe (`license-server/service.py:78` recusa quando `claims["sub"] != f"machine:{machine_id}"`) e é exactamente esse valor partilhado que a anula. **Aberto de propósito:** fechar exige que `machine_id()` recuse e que `licensing.py` decida o que fazer sem identidade estável — decisão do dono do produto (item 22) | 🔴 decisão do dono do produto |
+| 4 | **Corpus de mãos reais** — a instrumentação está pronta (item 19), mas `--record` e `collect_gestures.py` nunca produziram um ficheiro: o tool estava partido. Recolher é ~3 min por sessão (uma volta dos 13 gestos é ~60 s); a partir de agora cada recolha grava a confiança e a proveniência. **O modelo foi medido sozinho (item 27): 92/92 nas 9 classes que tem, 0/24 nas 3 que não tem** — o estrangulamento é a lista de classes, e o portão de regressão é cego à IA | 🔴 precisa de mãos reais — **caminho corrigido (itens 21–22 e 25), falta gravar** |
+| 5 | **`machine_id` degenerado é partilhado entre máquinas** — se nenhuma componente de hardware for lida, o `machine_id` é o sha256 de uma string constante (`751f034653eeaa33…`), o mesmo em todas as máquinas assim, e `core/licensing.py:163` valida a licença por ele: a licença de uma máquina passa a funcionar noutra. **Margem medida (item 24):** no Windows 11 24H2+ o `wmic` foi removido de vez, por isso **1 das 3 componentes** enche; o buraco só abre se o acesso ao registo ao `MachineGuid` falhar também. A defesa do servidor existe (`license-server/service.py:78` recusa quando `claims["sub"] != f"machine:{machine_id}"`) e é exactamente esse valor partilhado que a anula. **Decisão do dono do produto (item 22): avisar forte, mas funcionar.** `machine_identity()` devolve agora o par `(id, degradado)`; o id sai de um sal local por máquina, o servidor regista a identidade fraca e mostra-a, e o cliente **avisa uma vez por sessão** (`toast.weak_identity`, 7 línguas). Não recusa a activação — trocar receita por uma garantia que ninguém pediu. Detalhe em `72ee9eb`, incluindo o bug em que o sal nascia na raiz do repositório | 🟢 **fechado** |
 
     > **As duas ferramentas não são o mesmo trabalho**, e o bloqueador tratava-as
     > como se fossem. `tools/eval_recognition.py` — e portanto o `--replay` e o
