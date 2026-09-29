@@ -88,8 +88,9 @@ Formato de uma entrada:
       (`makedirs("")`), e o `except OSError` engolia-o — o store nunca era
       gravado, em silêncio (agora `or "."`).
 - **Estado:** OK (código, testes e verificação manual). A app `main.py` que
-  estava a correr não foi reiniciada — carrega o código antigo em memória até
-  ser fechada e aberta outra vez.
+  estava a correr foi reiniciada no fim (`kill` + `setsid nohup`, o mesmo
+  padrão de sempre) para passar a correr o código novo: arranque limpo com
+  `License: PRO`, sem `seq_repetido` no log, controlo remoto de volta em 8765.
 
 ---
 
