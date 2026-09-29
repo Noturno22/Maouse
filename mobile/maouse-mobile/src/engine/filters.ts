@@ -1,4 +1,4 @@
-// One Euro Filter - Port from Python AirMouse
+// One Euro Filter - Port from Python Maouse
 // Reference: https://hal.inria.fr/hal-00670496/document
 
 class LowPass {

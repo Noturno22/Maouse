@@ -60,7 +60,7 @@
 
 | Item | Critério de entrega | Evidência |
 |---|---|---|
-| Cert (US$129) | `Get-AuthenticodeSignature` → `Status: Valid`, Publisher "Luar Studio Angola", em `dist\AirMouse\AirMouse.exe` + instalador | Cmd output salvo no commit/build |
+| Cert (US$129) | `Get-AuthenticodeSignature` → `Status: Valid`, Publisher "Luar Studio Angola", em `dist\Maouse\Maouse.exe` + instalador | Cmd output salvo no commit/build |
 | Domínio (US$14.342) | ✅ **`maouse.app` a resolver + HTTPS ativo** (2026-09-22: CNAME → Vercel via Cloudflare, cert emitido, landing a servir em `https://maouse.app`); falta: Paddle App URL no domínio | `nslookup` / `curl https://maouse.app` → `200` + cert válido |
 | Render free (US$0) | Blueprint deployado; `curl https://<service>.onrender.com/health` → `200 ok` | Log do health check |
 | Email (US$0) | Uma compra real Paddle → email com chave `MAO-` chega ao comprador | Screenshot do email + licença ativada |

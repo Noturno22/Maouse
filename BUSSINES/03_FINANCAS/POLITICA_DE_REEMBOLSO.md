@@ -1,4 +1,4 @@
-# Política de Reembolso — Mãouse (AirMouse) [pronto para checkout/landing]
+# Política de Reembolso — Mãouse (Maouse) [pronto para checkout/landing]
 
 > Texto oficial, **receita-first**, contra o "entusiasta só a experimentar". Deve ser colado
 > (traduzido) no checkout **Paddle (D2)**, na **landing page**, nos **termos** e no **mobile

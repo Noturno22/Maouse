@@ -8,7 +8,7 @@ import admin_auth
 
 
 def test_verify_password_ok(monkeypatch):
-    monkeypatch.setenv("AIRMOUSE_LS_ADMIN_TOKEN", "segredo")
+    monkeypatch.setenv("MAOUSE_LS_ADMIN_TOKEN", "segredo")
     assert admin_auth.verify_password("segredo") is True
     assert admin_auth.verify_password("errado") is False
 

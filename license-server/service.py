@@ -24,7 +24,7 @@ from storage import (
     touch_last_seen,
 )
 
-_ADMIN_TOKEN = os.getenv("AIRMOUSE_LS_ADMIN_TOKEN", "dev-admin-token")
+_ADMIN_TOKEN = os.getenv("MAOUSE_LS_ADMIN_TOKEN", "dev-admin-token")
 _PREFIX = "MAO-"
 _ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
 

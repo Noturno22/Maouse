@@ -1,4 +1,4 @@
-# AirMouse License Server + Prova-de-Fogo Implementation Plan (rev. 2)
+# Maouse License Server + Prova-de-Fogo Implementation Plan (rev. 2)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpawers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 >
@@ -7,7 +7,7 @@
 > 2. **Verificação de assinatura do lease no cliente (ES256)** — o cliente valida a assinatura assimétrica localmente; um `license.json` forjado (ex. `alg:none`) NÃO concede PRO offline (spec §4.4/V3).
 > 3. **Superfície de API preservada** — `open_checkout`, `deactivate`, `checkout_urls`, `issue_pro_key`, `validate_key`, `LicenseAgency` mantêm-se para não quebrar `ui/license_dlg.py`, `main.py` e `tools/issue_pro_key.py`.
 
-**Goal:** Tornar o AirMouse à prova de fogo: trial Free de 30 min com bloqueio total (pop-up apelativo), ativação online única (1 chave = 1 utilizador = 1 máquina), uso offline com lease de 7 dias revalidado 1x por semana, e eliminar o bypass `--dev-pro`.
+**Goal:** Tornar o Maouse à prova de fogo: trial Free de 30 min com bloqueio total (pop-up apelativo), ativação online única (1 chave = 1 utilizador = 1 máquina), uso offline com lease de 7 dias revalidado 1x por semana, e eliminar o bypass `--dev-pro`.
 
 **Architecture:** Novo servidor de licenças **FastAPI + SQLite** em `license-server/` que emite chaves ligadas a `machine_id`, controla o trial (fonte de verdade) e emite leases **JWT ES256** (7 dias, `server_time`, `revocation_nonce`, `session_id`/`use_seq`). O cliente (`core/licensing.py` reescrito + `core/fingerprint.py` + `core/license_client.py`) ativa online, guarda o lease, **verifica a assinatura ES256 localmente** com a chave pública embutida, usa offline, e bloqueia no runtime quando o trial/lease expira. O gate de bloqueio entra no `process_frame` (partilhado pelas duas UIs).
 
@@ -26,12 +26,12 @@
 - **`i18n.py`** — `tr(key)`, mapa `_STRINGS` {key:{pt,en}}; sem strings de trial/bloqueio.
 - **`ui/main_window.py`** — `_sync_license_ui` (395), `_tick` (438; chama `process_frame` em 469).
 - **`ui/license_dlg.py`** — `LicenseDialog`, `PADDLE_VENDOR_ID=0`, `_open_checkout`/`_activate_key`/`_deactivate` (chamam `open_checkout`/`activate`/`deactivate` do manager), `MAIN_STYLESHEET` de `ui.theme`.
-- **`tools/issue_pro_key.py`** — chama `LicenseManager().issue_pro_key(email)` com `AIRMOUSE_LICENSE_SECRET` (offline). **Task 8b substitui** por chamada ao servidor `/admin/keys`.
+- **`tools/issue_pro_key.py`** — chama `LicenseManager().issue_pro_key(email)` com `MAOUSE_LICENSE_SECRET` (offline). **Task 8b substitui** por chamada ao servidor `/admin/keys`.
 - **`pyproject.toml`** — pytest `testpaths=["tests"]`, `pythonpath=["."]`, `dependencies=[]` no `[project]` (runtime sem deps declaradas). Não há `app.py`/`storage.py` na raiz → o `sys.path.insert(0, licenseserver)` dos testes do servidor resolve `from app import ...` sem conflito; e `testpaths=["tests"]` significa que `pytest` do projeto NÃO descobre `license-server/tests` por defeito (só quando invocados explicitamente).
 
 **Padrão HTTP do projeto:** `urllib.request` (nunca `requests`). Seguir no cliente.
 
-**Token/crypto:** ES256 assimétrico. Servidor assina com **chave privada EC** (PEM, env `AIRMOUSE_LS_PRIVATE_KEY`). Cliente verifica com **chave pública EC embutida** (constante PEM em `core/licensing.py`). A secret HS256 NUNCA vai para o cliente (spec V3).
+**Token/crypto:** ES256 assimétrico. Servidor assina com **chave privada EC** (PEM, env `MAOUSE_LS_PRIVATE_KEY`). Cliente verifica com **chave pública EC embutida** (constante PEM em `core/licensing.py`). A secret HS256 NUNCA vai para o cliente (spec V3).
 
 ---
 
@@ -94,9 +94,9 @@ import pytest
 
 @pytest.fixture(autouse=True)
 def _test_env(tmp_path, monkeypatch):
-    monkeypatch.setenv("AIRMOUSE_LS_DB", str(tmp_path / "ls.db"))
-    monkeypatch.setenv("AIRMOUSE_LS_SECRET", "test-jwt-secret")
-    monkeypatch.setenv("AIRMOUSE_LS_ADMIN_TOKEN", "dev-admin-token")
+    monkeypatch.setenv("MAOUSE_LS_DB", str(tmp_path / "ls.db"))
+    monkeypatch.setenv("MAOUSE_LS_SECRET", "test-jwt-secret")
+    monkeypatch.setenv("MAOUSE_LS_ADMIN_TOKEN", "dev-admin-token")
     from keys import ensure_test_keypair
     ensure_test_keypair(tmp_path)
 ```
@@ -147,7 +147,7 @@ import time
 
 
 def _db_path() -> str:
-    return os.getenv("AIRMOUSE_LS_DB", "license_server.db")
+    return os.getenv("MAOUSE_LS_DB", "license_server.db")
 
 
 def connect() -> sqlite3.Connection:
@@ -299,7 +299,7 @@ CLOCK_SKEW_TOLERANCE = 600
 
 
 def _private_key_path() -> str:
-    return os.getenv("AIRMOUSE_LS_PRIVATE_KEY",
+    return os.getenv("MAOUSE_LS_PRIVATE_KEY",
                      os.path.join(os.path.dirname(__file__), "private.pem"))
 
 
@@ -338,13 +338,13 @@ def decode_jwt(token: str) -> dict:
     (não confia em 'alg:none')."""
     from cryptography.hazmat.primitives import serialization as _ser
 
-    pub_pem = os.getenv("AIRMOUSE_LS_PUBLIC_KEY", "")
+    pub_pem = os.getenv("MAOUSE_LS_PUBLIC_KEY", "")
     key = _ser.load_pem_public_key(pub_pem.encode()) if pub_pem \
         else _load_public_key_embedded()
     return jwt.decode(token, key, algorithms=["ES256"])
 ```
 
-(Nota: para o servidor os testes usam `AIRMOUSE_LS_PUBLIC_KEY`; `_load_public_key_embedded` lê o mesmo ficheiro `public.pem` da chave emparelhada. Ver Task 1 Step 5.)
+(Nota: para o servidor os testes usam `MAOUSE_LS_PUBLIC_KEY`; `_load_public_key_embedded` lê o mesmo ficheiro `public.pem` da chave emparelhada. Ver Task 1 Step 5.)
 
 - [ ] **Step 5: Implementar keys.py (gerador de keypair EC para dev/teste)**
 
@@ -378,12 +378,12 @@ def ensure_test_keypair(tmp) -> tuple[str, str]:
         fh.write(priv_pem)
     with open(pub_f, "wb") as fh:
         fh.write(pub_pem)
-    os.environ["AIRMOUSE_LS_PRIVATE_KEY"] = priv_f
-    os.environ["AIRMOUSE_LS_PUBLIC_KEY"] = pub_f
+    os.environ["MAOUSE_LS_PRIVATE_KEY"] = priv_f
+    os.environ["MAOUSE_LS_PUBLIC_KEY"] = pub_f
     return priv_f, pub_f
 ```
 
-E em `security.py`, `_load_public_key_embedded` (usada quando `AIRMOUSE_LS_PUBLIC_KEY` não está set) deve ler `public.pem` ao lado de `private.pem`:
+E em `security.py`, `_load_public_key_embedded` (usada quando `MAOUSE_LS_PUBLIC_KEY` não está set) deve ler `public.pem` ao lado de `private.pem`:
 
 ```python
 def _load_public_key_embedded():
@@ -393,14 +393,14 @@ def _load_public_key_embedded():
         return _ser.load_pem_public_key(fh.read())
 ```
 
-(Nota do executor: o objetivo é o servidor ter a par chave {privada, pública}; a pública será a mesma embutida no cliente em `core/licensing_public_key.pem`. Em dev/teste usa-se o keypair gerado; em produção o `AIRMOUSE_LS_PRIVATE_KEY` aponta para a privada real e a pública correspondente é gravada em `core/licensing_public_key.pem`.)
+(Nota do executor: o objetivo é o servidor ter a par chave {privada, pública}; a pública será a mesma embutida no cliente em `core/licensing_public_key.pem`. Em dev/teste usa-se o keypair gerado; em produção o `MAOUSE_LS_PRIVATE_KEY` aponta para a privada real e a pública correspondente é gravada em `core/licensing_public_key.pem`.)
 
 - [ ] **Step 6: Implementar app.py (boot + health)**
 
 Create `license-server/app.py`:
 
 ```python
-"""FastAPI app for the AirMouse License Server."""
+"""FastAPI app for the Maouse License Server."""
 from fastapi import Depends, FastAPI
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -417,7 +417,7 @@ def get_db():
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="AirMouse License Server")
+    app = FastAPI(title="Maouse License Server")
 
     @app.on_event("startup")
     def _startup():
@@ -525,7 +525,7 @@ import time
 
 from storage import insert_key
 
-_ADMIN_TOKEN = os.getenv("AIRMOUSE_LS_ADMIN_TOKEN", "dev-admin-token")
+_ADMIN_TOKEN = os.getenv("MAOUSE_LS_ADMIN_TOKEN", "dev-admin-token")
 _PREFIX = "MAO-"
 _ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
 
@@ -1486,7 +1486,7 @@ Gerar o keypair e gravar a pública em `core/licensing_public_key.pem`:
 Substituir o conteúdo (mantendo todos os símbolos públicos; a estrutura resumida abaixo é a implementação a seguir):
 
 ```python
-"""Licenciamento AirMouse — trial 30min server-auth + ativacao online + lease ES256 + gate."""
+"""Licenciamento Maouse — trial 30min server-auth + ativacao online + lease ES256 + gate."""
 import base64
 import json
 import os
@@ -1838,7 +1838,7 @@ def _b64d(s: str) -> bytes:
 
 def _default_store_path() -> str:
     base = os.getenv("APPDATA") or os.path.expanduser("~")
-    return os.path.join(base, "AirMouse", "license.json")
+    return os.path.join(base, "Maouse", "license.json")
 
 
 def _store_exists(store_path: str) -> bool:
@@ -1846,7 +1846,7 @@ def _store_exists(store_path: str) -> bool:
 
 
 def _default_endpoints():
-    raw = os.getenv("AIRMOUSE_LICENSE_URLS", "")
+    raw = os.getenv("MAOUSE_LICENSE_URLS", "")
     return [u.strip() for u in raw.split(",") if u.strip()] or [
         "https://licenses.maouse.example.com"
     ]
@@ -1965,7 +1965,7 @@ git commit -m "feat(licensing): trial 30min server-auth + lease ES256 verificado
 - Modify: `tools/issue_pro_key.py`
 - Test: (opcional) manual / smoke
 
-**Contexto:** antes emitia offline via `LicenseManager.issue_pro_key` + `AIRMOUSE_LICENSE_SECRET`. Agora a emissão é no servidor (`/admin/keys`). A ferramenta passa a ser um cliente admin que chama o servidor com `admin_token`.
+**Contexto:** antes emitia offline via `LicenseManager.issue_pro_key` + `MAOUSE_LICENSE_SECRET`. Agora a emissão é no servidor (`/admin/keys`). A ferramenta passa a ser um cliente admin que chama o servidor com `admin_token`.
 
 - [ ] **Step 1: Reescrever `tools/issue_pro_key.py`**
 
@@ -1974,7 +1974,7 @@ git commit -m "feat(licensing): trial 30min server-auth + lease ES256 verificado
 
 Uso:
   python tools/issue_pro_key.py comprador@exemplo.pt
-  (com AIRMOUSE_LS_URL e AIRMOUSE_LS_ADMIN_TOKEN no ambiente)
+  (com MAOUSE_LS_URL e MAOUSE_LS_ADMIN_TOKEN no ambiente)
 """
 import json
 import os
@@ -1988,10 +1988,10 @@ def main():
         print("Uso: python tools/issue_pro_key.py <email-do-comprador>")
         return 1
     email = sys.argv[1]
-    url = (os.getenv("AIRMOUSE_LS_URL", "") or "https://licenses.maouse.example.com").rstrip("/")
-    token = os.getenv("AIRMOUSE_LS_ADMIN_TOKEN", "")
+    url = (os.getenv("MAOUSE_LS_URL", "") or "https://licenses.maouse.example.com").rstrip("/")
+    token = os.getenv("MAOUSE_LS_ADMIN_TOKEN", "")
     if not token:
-        print("ERRO: defina AIRMOUSE_LS_ADMIN_TOKEN.")
+        print("ERRO: defina MAOUSE_LS_ADMIN_TOKEN.")
         return 1
     req = urllib.request.Request(
         url + "/admin/keys",
@@ -2140,7 +2140,7 @@ git commit -m "feat(engine): gate de bloqueio total no process_frame (trial/leas
 
 ---
 
-## Task 10: Remover `--dev-pro` / `AIRMOUSE_DEV_PRO` e ligar trial+revalidação no arranque
+## Task 10: Remover `--dev-pro` / `MAOUSE_DEV_PRO` e ligar trial+revalidação no arranque
 
 **Files:**
 - Modify: `main.py`
@@ -2159,7 +2159,7 @@ import main
 
 def test_no_dev_pro_in_parse_args(monkeypatch):
     # controla argv para o argparse não ler os args reais do pytest
-    monkeypatch.setattr(sys, "argv", ["airmouse", "--no-gui"])
+    monkeypatch.setattr(sys, "argv", ["maouse", "--no-gui"])
     parser = main.parse_args()
     opts = set()
     for action in parser._actions:
@@ -2188,7 +2188,7 @@ Remover o bloco (linhas 90-95):
 E remover o bloco do `main()` (linhas 198-205):
 
 ```python
-    dev_pro = args.dev_pro or os.getenv("AIRMOUSE_DEV_PRO") == "1"
+    dev_pro = args.dev_pro or os.getenv("MAOUSE_DEV_PRO") == "1"
     if dev_pro:
         lic_.tier = Tier.PRO
         cfg.license_tier = Tier.PRO.value
@@ -2439,7 +2439,7 @@ Expected: PASS (15 tests).
 
 Checklist (executar no ambiente):
 - [ ] `--dev-pro` não existe: `python main.py --help` → sem `--dev-pro`.
-- [ ] `AIRMOUSE_DEV_PRO=1` não tem efeito (removido).
+- [ ] `MAOUSE_DEV_PRO=1` não tem efeito (removido).
 - [ ] Trial esgota os 30 min → `is_blocked()` True → `process_frame` não move o rato.
 - [ ] Apagar `license.json` e voltar a ligar com rede → `reconcile_trial()` puxa o `used_seconds` do servidor → NÃO volta a 30 min.
 - [ ] Apagar `license.json` e estar SEM rede → `reconcile_trial()` bloqueia com `trial_requer_ligacao` (não concede trial novo).

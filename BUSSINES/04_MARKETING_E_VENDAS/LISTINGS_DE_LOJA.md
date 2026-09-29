@@ -30,7 +30,7 @@
 4. **EN no dia 1** — ambas as línguas sempre publicadas.
 5. **Privacy policy URL obrigatória** — política de privacidade (D6: câmara/voz nunca saem do
    dispositivo; telemetria opt-in OFF).
-6. **Nome é Mãouse** — nunca "AirMouse" no material público.
+6. **Nome é Mãouse** — nunca "Maouse" no material público.
 
 ---
 

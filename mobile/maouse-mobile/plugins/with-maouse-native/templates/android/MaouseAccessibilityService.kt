@@ -1,4 +1,4 @@
-package com.airmouse.mobile
+package com.maouse.mobile
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
@@ -7,21 +7,21 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 
 /**
- * AirMouseAccessibilityService: serviço de acessibilidade que permite ao Mãouse
+ * MaouseAccessibilityService: serviço de acessibilidade que permite ao Mãouse
  * injetar gestos (tap, longPress, swipe, drag) e ações globais (back, home,
  * recents, notificações) em qualquer app — sem root.
  *
  * Utilizadores têm de ativar o serviço em:
- *   Definições > Acessibilidade > AirMouse (AirMouse Accessibility)
+ *   Definições > Acessibilidade > Maouse (Maouse Accessibility)
  *
  * O serviço é referenciado estaticamente pelos módulos nativos
  * (TouchControllerModule / SystemControllerModule) para despachar gestos.
  */
-class AirMouseAccessibilityService : AccessibilityService() {
+class MaouseAccessibilityService : AccessibilityService() {
 
     companion object {
         @Volatile
-        var instance: AirMouseAccessibilityService? = null
+        var instance: MaouseAccessibilityService? = null
     }
 
     private var isDragging = false

@@ -1,4 +1,4 @@
-# Relatório de Estado — AirMouse (GUI PySide6)
+# Relatório de Estado — Maouse (GUI PySide6)
 
 Data: 2026-08-28
 
@@ -38,7 +38,7 @@ frame-a-frame (ONE↔OPEN, PEACE↔THREE, FIST↔THUMB_UP). Casos claros comport
 ## 📝 Sessões anteriores
 
 ## 🎯 Objetivo
-Transformar o AirMouse em produto "pro para venda" com **janela nativa (PySide6)** que abre ao correr `start.bat`, mantendo **intacto** o cérebro de reconhecimento/gestos (`process_frame` partilhado com o preview OpenCV).
+Transformar o Maouse em produto "pro para venda" com **janela nativa (PySide6)** que abre ao correr `start.bat`, mantendo **intacto** o cérebro de reconhecimento/gestos (`process_frame` partilhado com o preview OpenCV).
 
 ---
 

@@ -2,7 +2,7 @@
 
 Uso:
   python tools/issue_pro_key.py comprador@exemplo.pt
-  (com AIRMOUSE_LS_URL e AIRMOUSE_LS_ADMIN_TOKEN no ambiente)
+  (com MAOUSE_LS_URL e MAOUSE_LS_ADMIN_TOKEN no ambiente)
 """
 import json
 import os
@@ -19,10 +19,10 @@ def main():
         print("Uso: python tools/issue_pro_key.py <email-do-comprador>")
         return 1
     email = sys.argv[1]
-    url = (os.getenv("AIRMOUSE_LS_URL", "") or PROD_LICENSE_SERVER_URL).rstrip("/")
-    token = os.getenv("AIRMOUSE_LS_ADMIN_TOKEN", "")
+    url = (os.getenv("MAOUSE_LS_URL", "") or PROD_LICENSE_SERVER_URL).rstrip("/")
+    token = os.getenv("MAOUSE_LS_ADMIN_TOKEN", "")
     if not token:
-        print("ERRO: defina AIRMOUSE_LS_ADMIN_TOKEN.")
+        print("ERRO: defina MAOUSE_LS_ADMIN_TOKEN.")
         return 1
     req = urllib.request.Request(
         url + "/admin/keys",

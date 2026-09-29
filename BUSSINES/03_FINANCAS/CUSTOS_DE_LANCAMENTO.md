@@ -1,4 +1,4 @@
-# Custos de Lançamento — Mãouse (AirMouse)
+# Custos de Lançamento — Mãouse (Maouse)
 
 > Todos os valores aproximados e em USD/EUR, 2026. Verificar sempre o preço final no
 > site oficial/vendedor no momento da compra. Este documento cobre os custos de
@@ -102,7 +102,7 @@ Necessita de credenciais de um serviço de email transacional.
 
 > **Recomendação:** arranca com um **serviço transacional free tier** (ex. Resend) ligado ao teu
 > domínio `maouse.app` — custo $0 até teres vendas em volume. Configuração no servidor via
-> `AIRMOUSE_SMTP_*` (`.env.example`).
+> `MAOUSE_SMTP_*` (`.env.example`).
 
 ---
 

@@ -16,7 +16,7 @@ espelhar/controlar o que hoje está em `BUSSINES/07_ADMINISTRACAO/` (ESTRUTURA +
 ## 2. Âmbito
 
 IN:
-- Login único por senha de administração (`AIRMOUSE_LS_ADMIN_TOKEN` — já existe).
+- Login único por senha de administração (`MAOUSE_LS_ADMIN_TOKEN` — já existe).
 - CRUD simples (consultar/criar/editar/estado) para: sócios, investidores, funcionários, fases,
   marcos, metas, movimentos de caixa.
 - Chat privado (só o fundador; histórico persistido; auto-refresh por polling ~3 s).
@@ -36,7 +36,7 @@ OUT:
 ### 3.1 Stack
 - FastAPI (existente) + Jinja2 (novo) + SQLite (tabelas novas em `license.db`).
 - Templates em `license-server/templates/`, estáticos (CSS/JS) em `license-server/admin_static/`.
-- Sessão: cookie assinado com `secrets` HMAC (`AIRMOUSE_LS_ADMIN_SESSION_SECRET`; fallback dev).
+- Sessão: cookie assinado com `secrets` HMAC (`MAOUSE_LS_ADMIN_SESSION_SECRET`; fallback dev).
 
 ### 3.2 Componentes
 
@@ -78,11 +78,11 @@ Notas:
 
 ## 4. Autenticação
 
-- `POST /admin/login` (form) → compara senha com `^AIRMOUSE_LS_ADMIN_TOKEN` (constante tempo) →
+- `POST /admin/login` (form) → compara senha com `^MAOUSE_LS_ADMIN_TOKEN` (constante tempo) →
   set cookie `maouse_admin` = `payload.b64 + "." + HMAC(payload, session_secret)`.
 - Middleware/rota wrapper: sem cookie válido → 307 para `/admin/login` (páginas) e 401 (API).
 - `POST /admin/logout` limpa o cookie.
-- `AIRMOUSE_LS_ADMIN_SESSION_SECRET` em `render.yaml` (sync:false); fallback dev = valor fixo apenas
+- `MAOUSE_LS_ADMIN_SESSION_SECRET` em `render.yaml` (sync:false); fallback dev = valor fixo apenas
   se não definido (warning no arranque).
 
 ## 5. Páginas
@@ -133,14 +133,14 @@ Recursos: `socios`, `investidores`, `funcionarios`, `fases`, `marcos`, `metas`, 
 - `license-server/tests/test_admin_crud.py` — CRUD por recurso (criar/listar/patch/delete) com auth.
 - `license-server/tests/test_admin_dashboard.py` — KPIs agregados (incl. contagens de `purchases`/`machines`).
 - `license-server/tests/test_admin_chat.py` — POST/GET com `after_id` e ordenação.
-- `license-server/tests/test_admin_emails.py` — send com `AIRMOUSE_SMTP_ENABLED=0` (não fire) e registo.
+- `license-server/tests/test_admin_emails.py` — send com `MAOUSE_SMTP_ENABLED=0` (não fire) e registo.
 - `license-server/tests/test_admin_pages.py` — 200 das páginas autenticadas; 307 sem sessão.
 
 Runner: `.venv\Scripts\python -m pytest license-server/tests -q` (mesma suíte; sem quebrar os 40 existentes).
 
 ## 10. Deploy
 
-- Render blueprint: `render.yaml` ganha `AIRMOUSE_LS_ADMIN_SESSION_SECRET` (sync:false).
+- Render blueprint: `render.yaml` ganha `MAOUSE_LS_ADMIN_SESSION_SECRET` (sync:false).
 - Dockerfile inalterado (templates/estáticos copiados por `COPY license-server/* /app/*` já cobre
   pastas? → ajustar para `COPY license-server /app` simples).
 - Health check `/health` inalterado.

@@ -1,2 +1,2 @@
-"""AirMouse Qt UI package."""
+"""Maouse Qt UI package."""
 __version__ = "1.0.0"

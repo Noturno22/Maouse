@@ -1,4 +1,4 @@
-# LAB de Compatibilidade de Hardware — Mãouse (AirMouse)
+# LAB de Compatibilidade de Hardware — Mãouse (Maouse)
 
 > **Área dedicada ao gargalo de compatibilidade.** O Mãouse depende de hardware alheio
 > (webcams, CPUs, GPUs/NPUs, câmaras de telemóvel) que varia muito. Este `HARDWARE/` é o

@@ -14,12 +14,12 @@ CLOCK_SKEW_TOLERANCE = 600
 
 
 def _private_key_path() -> str:
-    return os.getenv("AIRMOUSE_LS_PRIVATE_KEY",
+    return os.getenv("MAOUSE_LS_PRIVATE_KEY",
                      os.path.join(os.path.dirname(__file__), "private.pem"))
 
 
 def _load_private_key():
-    """Aceita AIRMOUSE_LS_PRIVATE_KEY como caminho OU conteúdo PEM (Render)."""
+    """Aceita MAOUSE_LS_PRIVATE_KEY como caminho OU conteúdo PEM (Render)."""
     p = _private_key_path()
     if p.lstrip().startswith("-----BEGIN"):
         return serialization.load_pem_private_key(p.encode(), password=None)
@@ -37,9 +37,9 @@ def _load_public_key_embedded():
 
 
 def _load_public_key():
-    """Prefere env AIRMOUSE_LS_PUBLIC_KEY (caminho para public.pem ou PEM);
+    """Prefere env MAOUSE_LS_PUBLIC_KEY (caminho para public.pem ou PEM);
     senão lê public.pem emparelhado ao lado de private.pem."""
-    pub_pem = os.getenv("AIRMOUSE_LS_PUBLIC_KEY", "")
+    pub_pem = os.getenv("MAOUSE_LS_PUBLIC_KEY", "")
     if pub_pem:
         if os.path.isfile(pub_pem):
             with open(pub_pem, "rb") as fh:

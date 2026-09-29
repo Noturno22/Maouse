@@ -1,4 +1,4 @@
-# Kit de Imprensa — Mãouse (AirMouse)
+# Kit de Imprensa — Mãouse (Maouse)
 
 > Tudo o que um jornalista, criador ou parceiro precisa para falar do Mãouse com facto.
 > Inclui: **1-pager (PT-BR + EN)**, fact sheet, ângulos de PR e perguntas frequentes.
@@ -25,7 +25,7 @@
 | Campo | Valor |
 |---|---|
 | **Produto** | Mãouse — rato aéreo por software (gestos da mão via webcam + voz offline) |
-| **Nome técnico** | AirMouse (repositório) |
+| **Nome técnico** | Maouse (repositório) |
 | **Autor** | Luar Studio Angola (Angola + Portugal) · 2026 |
 | **Plataformas** | Windows 10/11 (desktop) · Android/iOS (mobile, controlo total em Android; iOS = modo remoto) |
 | **Preço** | Free (com watermark) · Pro €39,90 vitalício ou €4,99/mês · Business €9,90/user/mês |
@@ -185,7 +185,7 @@ answers with software, not peripherals.
 | Proibido | Porquê |
 |---|---|
 | **Prometer "funciona em qualquer PC/telemóvel"** | Matriz ou silêncio — antípodo nº1 do `ANTIPADROES_E_RISCOS.md` |
-| **Usar "AirMouse", "Air Mouse" no material público** | Nome é Mãouse, com til (IDENTIDADE_VISUAL §12) |
+| **Usar "Maouse", "Air Mouse" no material público** | Nome é Mãouse, com til (IDENTIDADE_VISUAL §12) |
 | **Vender "compliance garantido"/auditoria que não existe** | Roadmap de conformidade, nunca relatório auditado (ESTRATEGIA §2.2) |
 | **Prometer independência/benefício terapêutico** | Palavra "acesso"; disclaimer clínico incluído nos materiais institucionais |
 | **Números não datados** | Toda a métrica tem data de medição |

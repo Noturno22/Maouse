@@ -1,8 +1,8 @@
-# AirMouse Mobile - Plano Completo
+# Maouse Mobile - Plano Completo
 
 ## Visão Geral
 
-**AirMouse Mobile** é um aplicativo React Native/Expo que permite controlar total do telemóvel usando gestos de mão detetados pela câmara frontal do dispositivo. Funcionalidades incluem: navegação, digitação, atalhos, controlo de voz, e muito mais - tudo hands-free.
+**Maouse Mobile** é um aplicativo React Native/Expo que permite controlar total do telemóvel usando gestos de mão detetados pela câmara frontal do dispositivo. Funcionalidades incluem: navegação, digitação, atalhos, controlo de voz, e muito mais - tudo hands-free.
 
 ---
 
@@ -10,7 +10,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    AirMouse Mobile                          │
+│                    Maouse Mobile                          │
 ├─────────────────────────────────────────────────────────────┤
 │  ┌─────────────┐  ┌──────────────┐  ┌──────────────────┐  │
 │  │   Camera    │  │  MediaPipe   │  │  Gesture Engine  │  │
@@ -69,7 +69,7 @@
 ### 4. Controlo de Voz
 | Comando | Ação |
 |---------|------|
-| "Hey AirMouse" | Wake word |
+| "Hey Maouse" | Wake word |
 | "Clica" | Toque no cursor |
 | "Sobe/Desce" | Scroll |
 | "Volta" | Botão voltar |
@@ -89,7 +89,7 @@
 ## Estrutura do Projeto
 
 ```
-airmouse-mobile/
+maouse-mobile/
 ├── app/                          # Expo Router
 │   ├── _layout.tsx              # Root layout
 │   ├── (tabs)/
@@ -151,12 +151,12 @@ airmouse-mobile/
 │   └── app/
 │       └── src/main/
 │           └── java/.../
-│               ├── AirMouseAccessibilityService.java
+│               ├── MaouseAccessibilityService.java
 │               ├── TouchControllerModule.java
 │               ├── KeyboardControllerModule.java
 │               └── SystemControllerModule.java
 ├── ios/
-│   └── AirMouse/
+│   └── Maouse/
 │       ├── TouchController.m
 │       ├── KeyboardController.m
 │       └── AccessibilityService.swift
@@ -247,10 +247,10 @@ public class SystemControllerModule extends ReactContextBaseJavaModule {
 }
 ```
 
-### 4. AirMouseAccessibilityService
+### 4. MaouseAccessibilityService
 ```java
 // Serviço de acessibilidade para navegação
-public class AirMouseAccessibilityService extends AccessibilityService {
+public class MaouseAccessibilityService extends AccessibilityService {
     // Permite:
     // - Obter lista de elementos visíveis
     // - Clicar em elementos específicos
@@ -379,7 +379,7 @@ O app inclui calibração automática que:
 
 ---
 
-## Comparação com AirMouse Desktop
+## Comparação com Maouse Desktop
 
 | Feature | Desktop (Python) | Mobile (React Native) |
 |---------|------------------|----------------------|
@@ -396,7 +396,7 @@ O app inclui calibração automática que:
 
 ## Conclusão
 
-O AirMouse Mobile será significativamente mais poderoso que a versão desktop porque:
+O Maouse Mobile será significativamente mais poderoso que a versão desktop porque:
 1. **Acessibilidade nativa** - controlo total do SO
 2. **Portátil** - funciona em qualquer lugar
 3. **Feedback háptico** - confirmação tátil das ações

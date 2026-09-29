@@ -2,12 +2,12 @@
 # manifesto de dependencias.
 #
 # ate 2026-09-28 tinha aqui [build-system], [project] e [tool.setuptools], com
-# name = "airmouse" e uma lista de dependencias. Estavam mortos:
+# name = "maouse" e uma lista de dependencias. Estavam mortos:
 #
-#   * o produto e entregue por PyInstaller (build.bat + airmouse.spec), nao por
+#   * o produto e entregue por PyInstaller (build.bat + maouse.spec), nao por
 #     pip — `git grep "pip install \."` nao devolve nada no repositorio;
 #   * as dependencias sao instaladas pelo setup.bat, a partir de requirements.txt;
-#   * o nome mentia: o projecto e Maouse. A string "airmouse" estava no ficheiro
+#   * o nome mentia: o projecto e Maouse. A string "maouse" estava no ficheiro
 #     desde o commit que o criou e nunca foi revista.
 #
 # Manter uma segunda lista de dependencias ao lado do requirements.txt e

@@ -1,5 +1,5 @@
-; Inno Setup script for AirMouse (Mãouse)
-; Build input: dist\AirMouse\  (PyInstaller onedir)
+; Inno Setup script for Maouse (Mãouse)
+; Build input: dist\Maouse\  (PyInstaller onedir)
 ; Compile:
 ;   "C:\Users\Luar Studio Angola\AppData\Local\Programs\Inno Setup 6\ISCC.exe" installer.iss
 ;
@@ -12,7 +12,7 @@
 #endif
 
 #define MyAppName "Mãouse"
-#define MyAppExeName "AirMouse.exe"
+#define MyAppExeName "Maouse.exe"
 #define MyAppPublisher "Luar Studio Angola"
 #define MyAppURL "https://example.com"
 
@@ -56,7 +56,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "dist\AirMouse\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "dist\Maouse\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

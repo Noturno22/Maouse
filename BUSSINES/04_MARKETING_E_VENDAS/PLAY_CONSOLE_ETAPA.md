@@ -9,7 +9,7 @@
 ## ⚠️ Estado real do mobile (importante ler primeiro)
 
 O código do **paywall Pro / IAP** (Play Billing) **já está implementado** e validado:
-- Client: `mobile/airmouse-mobile/` — `expo-iap`, `ProGate`, `useProEntitlement`, `licenseApi`
+- Client: `mobile/maouse-mobile/` — `expo-iap`, `ProGate`, `useProEntitlement`, `licenseApi`
 - Server: `license-server/` — endpoint `/api/v1/mobile/entitle`, validação na Play Developer API (`playstore.py`)
 - ✅ TypeScript typecheck passa · ✅ testes server + client passam
 
@@ -87,7 +87,7 @@ re-testar. Isto NÃO é um custo ($0), é o bloqueio atual. Até lá, não criar
 3. Criar **conta de serviço** + chave JSON
 4. Ligar a conta de serviço ao projeto no Play Console
    (Users & permissions → dar permissão "Ver dados financeiros" / "Ver compras")
-5. Colocar o conteúdo do JSON em `AIRMOUSE_GOOGLE_PLAY_CREDENTIALS_JSON` no license server
+5. Colocar o conteúdo do JSON em `MAOUSE_GOOGLE_PLAY_CREDENTIALS_JSON` no license server
 
 ### 2.4 Submeter a app
 - Seguir o `LISTINGS_DE_LOJA.md` (listings PT-BR + EN, screenshots, ícones)

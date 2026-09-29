@@ -1,4 +1,4 @@
-﻿# Prontidão Técnica para Venda — Mãouse (AirMouse)
+﻿# Prontidão Técnica para Venda — Mãouse (Maouse)
 
 > Estado real do produto face à primeira venda paga. Resultado de uma auditoria técnica
 > profissional com agentes (revisão read-only, sem modificações de código).
@@ -37,11 +37,11 @@ venda paga:
 
 | Item | Estado | Detalhe verificado |
 |---|---|---|
-| Build `.exe` (PyInstaller) | ✅ | `dist\AirMouse\AirMouse.exe` (18 MB) existe; build smokes sem erros |
+| Build `.exe` (PyInstaller) | ✅ | `dist\Maouse\Maouse.exe` (18 MB) existe; build smokes sem erros |
 | **Code-signing** | 🟡 | `Get-AuthenticodeSignature` → **NotSigned** no último build; **pipeline de assinatura pronto** — `build.bat` + `upload_installer.ps1` assinam `.exe`/instalador via **eSigner/thumbprint** (2026-09-22); certificado **SSL.com IV pago (US$129) e VALIDADO** (ref `co-3c1laihs7ca`, 2026-09-23); falta **ativar o eSigner** (enroll + CodeSignTool + `ESIGNER_*`) para o `build.bat` produzir build assinado |
 | Metadados do `.exe` (versão/empresa/ícone) | ✅ | `console=False`, `icon=maouse.ico`, VersionInfo via `version_info.txt` → `FileVersion 1.0.0`; `ProductName Mãouse`; `CompanyName Luar Studio Angola` (verificado no exe real) |
 | Instalador (1-clique) | ✅ | Inno Setup `installer.iss` existe; `dist/Maouse-Setup-1.0.0.exe` (159 MB) gerado com sucesso; `VersionInfo*` + `SetupIconFile` + code-signing condicional via `/DPfxPath` |
-| **Licenciamento/chave/ativação** | ✅ (⚠️ 1 gap prod) | `core/licensing.py` + `core/license_client.py` + `core/fingerprint.py` + `license-server/` completo (FastAPI+SQLite+ES256) — trial 30min server-authoritative, chaves MAO-, ativação por fingerprint, leases JWT. **Fluxo e2e verificado contra servidor real (2026-09-04): PASS.** ⚠️ **Gap de produção:** o `.exe` NÃO embute o URL do license-server — sem env `AIRMOUSE_LICENSE_URLS` cai no placeholder `https://licenses.maouse.example.com` (cliente não tem env vars); tem de ser **gravado um default real no build** assim que o servidor for deployado (ver `license-server/DEPLOY_RENDER.md`) |
+| **Licenciamento/chave/ativação** | ✅ (⚠️ 1 gap prod) | `core/licensing.py` + `core/license_client.py` + `core/fingerprint.py` + `license-server/` completo (FastAPI+SQLite+ES256) — trial 30min server-authoritative, chaves MAO-, ativação por fingerprint, leases JWT. **Fluxo e2e verificado contra servidor real (2026-09-04): PASS.** ⚠️ **Gap de produção:** o `.exe` NÃO embute o URL do license-server — sem env `MAOUSE_LICENSE_URLS` cai no placeholder `https://licenses.maouse.example.com` (cliente não tem env vars); tem de ser **gravado um default real no build** assim que o servidor for deployado (ver `license-server/DEPLOY_RENDER.md`) |
 | **Gate Free vs Pro** | ✅ | `core/engine.py:process_frame` bloqueia quando trial/lease expira; `ui/license_dlg.py` para upgrade/desativação |
 | Paddle checkout (pagamento automático) | ✅ | Webhook `transaction.completed` verifica HMAC, dedup por `event_id`, emite chave `MAO-` e envia por email (`license-server/paddle.py` + `POST /webhooks/paddle`) |
 | Testes | ✅ | 61 testes client (tests/) + **32 testes server** (license-server/tests/) — todos passam |
@@ -53,14 +53,14 @@ venda paga:
 
 | Item | Estado | Detalhe verificado |
 |---|---|---|
-| App Expo SDK 57 + engine | ✅ | `mobile/airmouse-mobile/src` real: gestures, filters (One Euro), hooks, store, App.tsx com frame-processor MediaPipe |
+| App Expo SDK 57 + engine | ✅ | `mobile/maouse-mobile/src` real: gestures, filters (One Euro), hooks, store, App.tsx com frame-processor MediaPipe |
 | EAS Build config | ✅ | `eas.json` (dev/preview/production) + `submit.production`; projectId configurado |
-| **Ações nativas Android (Touch/Keyboard/System)** | ✅ | `AirMouseAccessibilityService` (tap/longPress/swipe/drag + back/home/recents/notif) declarado no Manifest; `TouchControllerModule`/`KeyboardControllerModule`/`SystemControllerModule` registados no `MainApplication` e ligados no JS (`App.tsx` → `handleAction`). Sem root. **2026-09-03** |
+| **Ações nativas Android (Touch/Keyboard/System)** | ✅ | `MaouseAccessibilityService` (tap/longPress/swipe/drag + back/home/recents/notif) declarado no Manifest; `TouchControllerModule`/`KeyboardControllerModule`/`SystemControllerModule` registados no `MainApplication` e ligados no JS (`App.tsx` → `handleAction`). Sem root. **2026-09-03** |
 | iOS (modo remoto) | ⚠️ | `TouchController.swift`/`SystemController.swift` são **stubs de API privada** ("may cause App Store rejection"); não funcionais |
 | **IAP / Play Billing** | ✅ | `expo-iap` integrado (OpenIAP): compra única `maouse_mobile_pro` desbloqueia gestos Pro; validação server-side no license-server (`POST /api/v1/mobile/entitle` → Google Play Billing API → lease JWT `tier=mobile_pro`); `ProGate.tsx` paywall + restore/refresh. **2026-09-03** |
 | Store listing / posicionamento acessibilidade | 🔴 | Falta copy, privacy policy URL e vídeo de conformidade (work fica de execução comercial/Play Console; o code-side IAP já está feito) |
 | Permissões sensíveis | ✅ | Removidas as permissões mortas `WRITE_SETTINGS` e `SYSTEM_ALERT_WINDOW` (e o `setBrightness` que dependia de `WRITE_SETTINGS`) de `app.json` + templates do plugin — sem risco de rejeição Play por permissões sem uso. **2026-09-03** |
-| Marca/icons | ⚠️ | Icons "AirMouse"/template; `IDENTIDADE_VISUAL.md` marca como "precisa redesign p/ Mãouse"; LICENSE é o template MIT do Expo (não o do estúdio) |
+| Marca/icons | ⚠️ | Icons "Maouse"/template; `IDENTIDADE_VISUAL.md` marca como "precisa redesign p/ Mãouse"; LICENSE é o template MIT do Expo (não o do estúdio) |
 
 ---
 

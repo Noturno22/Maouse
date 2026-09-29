@@ -9,11 +9,11 @@
 ## O problema
 
 O `LicenseManager` do desktop obtém o(s) URL(s) do license-server a partir da variável de
-ambiente `AIRMOUSE_LICENSE_URLS`:
+ambiente `MAOUSE_LICENSE_URLS`:
 
 ```
 core/licensing.py → _default_endpoints()
-    raw = os.getenv("AIRMOUSE_LICENSE_URLS", "")
+    raw = os.getenv("MAOUSE_LICENSE_URLS", "")
     return [...] or ["https://licenses.maouse.example.com"]
 ```
 
@@ -21,7 +21,7 @@ Sem a env var definida, cai num **placeholder** (`licenses.maouse.example.com`, 
 **Clientes não têm nem vão ter env vars** — portanto, num `.exe` distribuído tal como está hoje,
 a ativação/validação de licença **falharia sempre** (mas o trial local continua a funcionar).
 
-O `tools/issue_pro_key.py` (lado operacional) tem o mesmo padrão mas usa `AIRMOUSE_LS_URL`.
+O `tools/issue_pro_key.py` (lado operacional) tem o mesmo padrão mas usa `MAOUSE_LS_URL`.
 
 ## O que foi verificado (2026-09-04)
 
@@ -38,17 +38,17 @@ Seguir `license-server/DEPLOY_RENDER.md` (conta Render + env vars + disco). Fica
 
 ### 2. Gravar o URL real como default de produção no build
 Em `core/licensing.py`, `_default_endpoints()`: substituir o placeholder pelo URL real (ou
-configurar num ponto único). O env `AIRMOUSE_LICENSE_URLS` continua a ser o override para testes.
+configurar num ponto único). O env `MAOUSE_LICENSE_URLS` continua a ser o override para testes.
 
 ```python
 def _default_endpoints():
-    raw = os.getenv("AIRMOUSE_LICENSE_URLS", "")
+    raw = os.getenv("MAOUSE_LICENSE_URLS", "")
     return [u.strip() for u in raw.split(",") if u.strip()] or [
         "https://<service>.onrender.com"   # ← URL REAL de produção
     ]
 ```
 
-> Igualar também `tools/issue_pro_key.py` (`AIRMOUSE_LS_URL` default) se o desktop a usar.
+> Igualar também `tools/issue_pro_key.py` (`MAOUSE_LS_URL` default) se o desktop a usar.
 
 ### 2b. Guard de build integrado (não distribuir o placeholder)
 
@@ -58,7 +58,7 @@ distribuir um `.exe` que nunca ativaria licenças. Testes: `tests/test_check_pro
 
 - Build de release **sem o URL real gravado** → erro claro de aborto.
 - Dev/QA (queres mesmo build com placeholder): define
-  `AIRMOUSE_ALLOW_PLACEHOLDER_URL=1` no ambiente antes do `build.bat`.
+  `MAOUSE_ALLOW_PLACEHOLDER_URL=1` no ambiente antes do `build.bat`.
 
 ### 3. Rebuildar e assinar o `.exe`
 Depois do bake, correr `build.bat` (que já assina com `cert\maouse.pfx`, ver
@@ -74,7 +74,7 @@ Abrir o `.exe` distribuído e ativar com uma chave real → confirmar que fica P
 
 - **Não partilhar o URL**: apesar de público, evitar documentá-lo no README do utilizador;
   deve ficar só no build e nas docs operacionais.
-- **Ambiente de teste:** para apontar a um servidor local/QA, definir `AIRMOUSE_LICENSE_URLS`
+- **Ambiente de teste:** para apontar a um servidor local/QA, definir `MAOUSE_LICENSE_URLS`
   (ex.: `http://127.0.0.1:8099`) antes de correr `main.py`.
 - **Não reverter o URL a meio:** um `.exe` antigo com o placeholder deve ser substituído, não
   "reparado" server-side.

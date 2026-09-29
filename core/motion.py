@@ -35,7 +35,7 @@ class SmoothEmitter:
             return
         self._running = True
         self._thread = threading.Thread(
-            target=self._loop, name="airmouse-emitter", daemon=True
+            target=self._loop, name="maouse-emitter", daemon=True
         )
         self._thread.start()
 

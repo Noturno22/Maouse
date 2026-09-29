@@ -165,7 +165,7 @@ def run(args):
     fps = 0.0
     last_seq = -1
     warmup = max(cfg.warmup_frames, 0)
-    window = "AirMouse-Coleta"
+    window = "Maouse-Coleta"
 
     try:
         if not args.no_preview:

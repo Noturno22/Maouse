@@ -1,4 +1,4 @@
-"""SVG icon kit for AirMouse menu buttons."""
+"""SVG icon kit for Maouse menu buttons."""
 import os
 
 from PySide6.QtCore import Qt

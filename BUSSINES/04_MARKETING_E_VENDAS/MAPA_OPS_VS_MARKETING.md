@@ -1,4 +1,4 @@
-# Mapa OPS vs Marketing — Mãouse (AirMouse)
+# Mapa OPS vs Marketing — Mãouse (Maouse)
 
 > As duas pistas que transformam o produto em receita. **Pista A** = capacidade operacional
 > de cobrar (bloqueada por pagamentos). **Pista B** = execução de marketing/atração

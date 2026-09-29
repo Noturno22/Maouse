@@ -1,7 +1,7 @@
-"""Structured logging for AirMouse.
+"""Structured logging for Maouse.
 
-Single logger tree (``airmouse``) with console + rotating file output.
-The file lands in ``%LOCALAPPDATA%\\AirMouse\\logs\\airmouse.log`` on Windows
+Single logger tree (``maouse``) with console + rotating file output.
+The file lands in ``%LOCALAPPDATA%\\Maouse\\logs\\maouse.log`` on Windows
 (or ``./logs`` when LOCALAPPDATA is unavailable), which survives across
 runs and keeps the console clean.
 """
@@ -9,7 +9,7 @@ import logging
 import os
 from logging.handlers import RotatingFileHandler
 
-LOGGER_NAME = "airmouse"
+LOGGER_NAME = "maouse"
 DEFAULT_LEVEL = logging.INFO
 
 log = logging.getLogger(LOGGER_NAME)
@@ -20,7 +20,7 @@ _FMT = "%(asctime)s %(levelname)-5s %(name)s: %(message)s"
 def _log_dir():
     base = os.environ.get("LOCALAPPDATA")
     if base:
-        path = os.path.join(base, "AirMouse", "logs")
+        path = os.path.join(base, "Maouse", "logs")
     else:
         path = os.path.join(".", "logs")
     try:
@@ -31,7 +31,7 @@ def _log_dir():
 
 
 def setup_logging(level=DEFAULT_LEVEL, console=True, log_file=None):
-    """Configura handlers do logger raiz ``airmouse``. Idempotente."""
+    """Configura handlers do logger raiz ``maouse``. Idempotente."""
     log.setLevel(level)
     for h in list(log.handlers):
         log.removeHandler(h)
@@ -44,7 +44,7 @@ def setup_logging(level=DEFAULT_LEVEL, console=True, log_file=None):
         ch.setFormatter(fmt)
         log.addHandler(ch)
     if log_file is None:
-        log_file = os.path.join(_log_dir(), "airmouse.log")
+        log_file = os.path.join(_log_dir(), "maouse.log")
     fh = RotatingFileHandler(
         log_file, maxBytes=1_000_000, backupCount=3, encoding="utf-8",
     )

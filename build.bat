@@ -71,13 +71,13 @@ if defined PFX_PATH (
 
 rem ── Inspeção pré-build: URL real do license-server gravado? ────────────
 rem Impede distribuir um .exe que aponta para o placeholder (não ativa licenças).
-rem Para forçar um build de dev/QA: define AIRMOUSE_ALLOW_PLACEHOLDER_URL=1 no ambiente.
+rem Para forçar um build de dev/QA: define MAOUSE_ALLOW_PLACEHOLDER_URL=1 no ambiente.
 .venv\Scripts\python.exe tools\check_prod_license_url.py
 if errorlevel 1 (
     echo.
     echo ABORTO: grava o URL real do Render em core\licensing.py antes de fazer
     echo release. Ver docs\DESKTOP_LICENSE_URL.md. Para dev/QA define
-    echo AIRMOUSE_ALLOW_PLACEHOLDER_URL=1 no ambiente antes de correr build.bat.
+    echo MAOUSE_ALLOW_PLACEHOLDER_URL=1 no ambiente antes de correr build.bat.
     exit /b 1
 )
 
@@ -94,44 +94,44 @@ echo [3/6] A gerar metadados de versao (version_info.txt) ...
 if errorlevel 1 exit /b 1
 
 echo [4/6] A construir executavel (pode demorar varios minutos) ...
-.venv\Scripts\python.exe -m PyInstaller airmouse.spec --noconfirm
+.venv\Scripts\python.exe -m PyInstaller maouse.spec --noconfirm
 if errorlevel 1 exit /b 1
 rem Modelos críticos (hand_landmarker.task, gesture_mlp.npz) entram pelo
-rem airmouse.spec. Vosk/Piper são descarregados em %LOCALAPPDATA%\AirMouse.
-xcopy /E /I /Y assets\fonts "dist\AirMouse\assets\fonts" >nul
-xcopy /E /I /Y assets\brand "dist\AirMouse\assets\brand" >nul
+rem maouse.spec. Vosk/Piper são descarregados em %LOCALAPPDATA%\Maouse.
+xcopy /E /I /Y assets\fonts "dist\Maouse\assets\fonts" >nul
+xcopy /E /I /Y assets\brand "dist\Maouse\assets\brand" >nul
 
-rem ── Assinar o AirMouse.exe (antes de o empacotar no instalador) ───────
+rem ── Assinar o Maouse.exe (antes de o empacotar no instalador) ───────
 if "%USE_ESIGNER%"=="1" (
-    echo [5/6] A assinar AirMouse.exe - eSigner cloud (CodeSignTool) ...
-    set "ESIGNER_TARGET=%CD%\dist\AirMouse\AirMouse.exe"
+    echo [5/6] A assinar Maouse.exe - eSigner cloud (CodeSignTool) ...
+    set "ESIGNER_TARGET=%CD%\dist\Maouse\Maouse.exe"
     call :esign
     if errorlevel 1 echo AVISO: falhou a assinatura via eSigner - a continuar sem ela.
 ) else if "%USE_THUMBPRINT%"=="1" (
     if defined SIGNTOOL (
-        echo [5/6] A assinar AirMouse.exe - thumbprint %CERT_THUMBPRINT% ...
-        "%SIGNTOOL%" sign /fd SHA256 /tr http://ts.ssl.com /td SHA256 /sha1 "%CERT_THUMBPRINT%" "dist\AirMouse\AirMouse.exe"
-        if errorlevel 1 echo AVISO: falhou a assinatura do AirMouse.exe - a continuar sem ela.
+        echo [5/6] A assinar Maouse.exe - thumbprint %CERT_THUMBPRINT% ...
+        "%SIGNTOOL%" sign /fd SHA256 /tr http://ts.ssl.com /td SHA256 /sha1 "%CERT_THUMBPRINT%" "dist\Maouse\Maouse.exe"
+        if errorlevel 1 echo AVISO: falhou a assinatura do Maouse.exe - a continuar sem ela.
     ) else (
-        echo [5/6] Assinatura do AirMouse.exe ignorada.
+        echo [5/6] Assinatura do Maouse.exe ignorada.
     )
 ) else if defined PFX_PATH (
     if defined SIGNTOOL (
-        echo [5/6] A assinar AirMouse.exe - SHA256 + timestamp ...
-        "%SIGNTOOL%" sign /f "%PFX_PATH%" /p "%PFX_PASS%" /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /d "Maouse" "dist\AirMouse\AirMouse.exe"
-        if errorlevel 1 echo AVISO: falhou a assinatura do AirMouse.exe - a continuar sem ela.
+        echo [5/6] A assinar Maouse.exe - SHA256 + timestamp ...
+        "%SIGNTOOL%" sign /f "%PFX_PATH%" /p "%PFX_PASS%" /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /d "Maouse" "dist\Maouse\Maouse.exe"
+        if errorlevel 1 echo AVISO: falhou a assinatura do Maouse.exe - a continuar sem ela.
     ) else (
-        echo [5/6] Assinatura do AirMouse.exe ignorada.
+        echo [5/6] Assinatura do Maouse.exe ignorada.
     )
 ) else (
-    echo [5/6] Assinatura do AirMouse.exe ignorada.
+    echo [5/6] Assinatura do Maouse.exe ignorada.
 )
 
 echo [6/6] A gerar instalador 1-clique (Inno Setup) ...
 set "ISCC=C:\Users\Luar Studio Angola\AppData\Local\Programs\Inno Setup 6\ISCC.exe"
 if not exist "%ISCC%" (
     echo ATENCAO: Inno Setup nao encontrado em "%ISCC%"
-    echo O instalador nao foi gerado, mas o AirMouse.exe esta em dist\AirMouse\
+    echo O instalador nao foi gerado, mas o Maouse.exe esta em dist\Maouse\
 ) else (
     if "%USE_ESIGNER%"=="1" (
         "%ISCC%" installer.iss
@@ -159,7 +159,7 @@ if not exist "%ISCC%" (
 
 echo.
 echo Build concluido:
-echo   Executavel: dist\AirMouse\AirMouse.exe
+echo   Executavel: dist\Maouse\Maouse.exe
 echo   Instalador: dist\Maouse-Setup-1.0.0.exe
 if "%USE_ESIGNER%"=="1" (
     echo   Assinado: SIM ^(eSigner ^- confirmar no portal SSL.com^)

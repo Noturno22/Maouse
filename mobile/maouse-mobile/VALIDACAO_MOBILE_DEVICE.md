@@ -9,7 +9,7 @@
 
 ## 0. Pré-requisitos
 
-- [ ] Correr `npx expo prebuild --clean` (na pasta `mobile/airmouse-mobile`).
+- [ ] Correr `npx expo prebuild --clean` (na pasta `mobile/maouse-mobile`).
 - [ ] Correr `npm install` (reconciliar dependências).
 - [ ] Build/install num **telemóvel Android real** (não emulador): `npx expo run:android` ou
       EAS dev build.
@@ -17,7 +17,7 @@
       nativo `handLandmarker` não foi registado — ver §3).
 
 > O `android/` e `ios/` são regenerados pelo prebuild e gitignored — nenhuma alteração nativa
-> atual se perde (tudo é re-injetado por plugins: `with-airmouse-native` + `expo-vision-camera-v4-mediapipe`).
+> atual se perde (tudo é re-injetado por plugins: `with-maouse-native` + `expo-vision-camera-v4-mediapipe`).
 
 ## 1. Verificar no overlay debug (primeiro sinal)
 
@@ -95,7 +95,7 @@ recompilar, altera os defaults e grava (Metro HMR recarrega):
 - [ ] Fechar o ProGate e confirmar que a pré-visualização de gestos continua (badge muda).
 - [ ] (Quando o produto `maouse_mobile_pro` existir no Play Console) comprar/restaurar →
       validar em `{licenseServerUrl}/api/v1/mobile/entitle` e desbloquear gestos nativos.
-      Sem produto no Play Console, usar `AIRMOUSE_MOBILE_DEV_ALLOW=1` no license-server para
+      Sem produto no Play Console, usar `MAOUSE_MOBILE_DEV_ALLOW=1` no license-server para
       tokens `test_` (nunca em produção).
 
 > **Go/No-go:** só se marca o bloqueio "gestos" como fechado quando a §2 passar na totalidade

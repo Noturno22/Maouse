@@ -4,11 +4,11 @@ Usa o purchaseToken do cliente para validar na Google Play Developer API.
 A conta de serviço é fornecida por env (JSON) e usada para emitir um token
 OAuth 2.0. A validação real só acontece se as credenciais estiverem
 configuradas; caso contrário comporta-se em modo dev (aceita tokens de teste)
-apenas se AIRMOUSE_MOBILE_DEV_ALLOW=1.
+apenas se MAOUSE_MOBILE_DEV_ALLOW=1.
 
 Ambiente:
-  AIRMOUSE_GOOGLE_PLAY_CREDENTIALS_JSON  -> conteúdo JSON da conta de serviço
-  AIRMOUSE_MOBILE_DEV_ALLOW              -> "1" para aceitar tokens de teste
+  MAOUSE_GOOGLE_PLAY_CREDENTIALS_JSON  -> conteúdo JSON da conta de serviço
+  MAOUSE_MOBILE_DEV_ALLOW              -> "1" para aceitar tokens de teste
 """
 import json
 import os
@@ -26,15 +26,15 @@ class PlayValidationError(Exception):
 
 
 def _credentials_configured() -> bool:
-    return bool(os.getenv("AIRMOUSE_GOOGLE_PLAY_CREDENTIALS_JSON", ""))
+    return bool(os.getenv("MAOUSE_GOOGLE_PLAY_CREDENTIALS_JSON", ""))
 
 
 def _dev_allowed() -> bool:
-    return os.getenv("AIRMOUSE_MOBILE_DEV_ALLOW", "") == "1"
+    return os.getenv("MAOUSE_MOBILE_DEV_ALLOW", "") == "1"
 
 
 def _service_credentials() -> dict:
-    raw = os.getenv("AIRMOUSE_GOOGLE_PLAY_CREDENTIALS_JSON", "")
+    raw = os.getenv("MAOUSE_GOOGLE_PLAY_CREDENTIALS_JSON", "")
     try:
         return json.loads(raw)
     except ValueError:

@@ -1,4 +1,4 @@
-# Problemas Conhecidos de Hardware — Mãouse (AirMouse)
+# Problemas Conhecidos de Hardware — Mãouse (Maouse)
 
 > **Registo de conhecimento acumulado** do `HARDWARE/` LAB. Cada linha é uma falha,
 > limitação ou comportamento observado em dispositivo real — para **não re-testar** e para

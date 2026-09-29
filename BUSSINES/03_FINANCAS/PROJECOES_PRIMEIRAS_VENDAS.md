@@ -1,4 +1,4 @@
-# Projeções das Primeiras Vendas — Mãouse (AirMouse)
+# Projeções das Primeiras Vendas — Mãouse (Maouse)
 
 > Estimativas de planeamento para o arranque comercial: alcance global realista
 > (clientes pagos) e faturamento esperado nas primeiras vendas.

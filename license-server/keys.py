@@ -25,6 +25,6 @@ def ensure_test_keypair(tmp) -> tuple[str, str]:
         fh.write(priv_pem)
     with open(pub_f, "wb") as fh:
         fh.write(pub_pem)
-    os.environ["AIRMOUSE_LS_PRIVATE_KEY"] = priv_f
-    os.environ["AIRMOUSE_LS_PUBLIC_KEY"] = pub_f
+    os.environ["MAOUSE_LS_PRIVATE_KEY"] = priv_f
+    os.environ["MAOUSE_LS_PUBLIC_KEY"] = pub_f
     return priv_f, pub_f

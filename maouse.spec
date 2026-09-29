@@ -17,7 +17,7 @@ for src, dst in (
         datas.append((src, dst))
 # Modelos críticos de arranque vêm DENTRO do instalador (offline, sem download
 # na primeira execução). Vosk e Piper mantêm-se como download por-utilizador
-# (escrevível em %LOCALAPPDATA%\AirMouse\models) para não inflar o instalador.
+# (escrevível em %LOCALAPPDATA%\Maouse\models) para não inflar o instalador.
 for src, dst in (
     ("models/hand_landmarker.task", "models"),
     ("models/gesture_mlp.npz", "models"),
@@ -49,7 +49,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name="AirMouse",
+    name="Maouse",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -65,5 +65,5 @@ coll = COLLECT(
     a.datas,
     strip=False,
     upx=False,
-    name="AirMouse",
+    name="Maouse",
 )

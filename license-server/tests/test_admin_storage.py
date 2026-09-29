@@ -14,7 +14,7 @@ ROW = {"nome": "Luar Studio", "papel": "fundador", "participacao": "100",
 
 
 def _db(tmp_path):
-    os.environ["AIRMOUSE_LS_DB"] = str(tmp_path / "ad.db")
+    os.environ["MAOUSE_LS_DB"] = str(tmp_path / "ad.db")
     conn = connect()
     init_db(conn)
     return conn

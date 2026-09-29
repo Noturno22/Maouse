@@ -38,7 +38,7 @@
 ## Estrutura do Projeto
 
 ```
-mobile/airmouse-mobile/
+mobile/maouse-mobile/
 ├── App.tsx                          # Componente principal
 ├── src/
 │   ├── engine/
@@ -54,11 +54,11 @@ mobile/airmouse-mobile/
 │   └── constants/
 │       └── index.ts                 # Cores, labels, presets
 ├── android/                         # Módulos nativos Android (Kotlin)
-│   ├── AirMouseAccessibilityService.kt   # Injeção de gestos/teclado (sem root)
+│   ├── MaouseAccessibilityService.kt   # Injeção de gestos/teclado (sem root)
 │   ├── TouchControllerModule.kt     # tap, longPress, swipe, drag, moveCursor
 │   ├── KeyboardControllerModule.kt  # typeText, pressKey, pressCombo, toggleKeyboard
 │   ├── SystemControllerModule.kt    # back/home/recents/notif, volume, brilho
-│   └── AirMousePackage.kt           # Regista os 3 módulos no RN
+│   └── MaousePackage.kt           # Regista os 3 módulos no RN
 ├── ios/                             # Módulos nativos iOS (Swift)
 │   ├── TouchController.swift
 │   ├── SystemController.swift
@@ -84,7 +84,7 @@ mobile/airmouse-mobile/
 
 ### 1. Navegar até à pasta
 ```bash
-cd mobile/airmouse-mobile
+cd mobile/maouse-mobile
 ```
 
 ### 2. Instalar dependências
@@ -173,9 +173,9 @@ npx expo run:ios
 > **Nota iOS:** tap/gestos em outras apps exigem APIs privadas — a implementação atual
 > é um esboço funcional (clipboard + Accessibility), não garantida em todas as versões.
 
-### Android (Kotlin — via AirMouseAccessibilityService)
+### Android (Kotlin — via MaouseAccessibilityService)
 
-`AirMousePackage` regista `TouchController`, `KeyboardController` e `SystemController`
+`MaousePackage` regista `TouchController`, `KeyboardController` e `SystemController`
 no `MainApplication.kt` (lista de packages).
 
 #### TouchController

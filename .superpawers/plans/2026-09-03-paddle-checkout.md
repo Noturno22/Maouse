@@ -1,4 +1,4 @@
-# AirMouse — Paddle Checkout Automático (webhook → chave → email) Implementation Plan
+# Maouse — Paddle Checkout Automático (webhook → chave → email) Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpawers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 >
@@ -18,9 +18,9 @@
 - **`license-server/service.py`** — `issue_key(conn, email) -> "MAO-..."` (chama `insert_key(conn, hash_key(key), email)`).
 - **`license-server/storage.py`** — SQLite; tabelas `keys`, `machines`, `trial`, `config`. Padrão: funções que recebem `conn`, `INSERT OR IGNORE`, `conn.commit()`. `hash_key(key)`.
 - **`license-server/security.py`** — ES256. Não usada no webhook.
-- **`license-server/tests/`** — `conftest.py` (env de teste autouse: `AIRMOUSE_LS_DB`, `AIRMOUSE_LS_ADMIN_TOKEN`, keypair), `test_app.py`, `test_keys.py`, `test_activate.py`, `test_trial.py`, `test_revalidate.py`. Padrão: `sys.path.insert(0, dirname(dirname(__file__)))`, import `from app import create_app`, `TestClient(create_app())`.
+- **`license-server/tests/`** — `conftest.py` (env de teste autouse: `MAOUSE_LS_DB`, `MAOUSE_LS_ADMIN_TOKEN`, keypair), `test_app.py`, `test_keys.py`, `test_activate.py`, `test_trial.py`, `test_revalidate.py`. Padrão: `sys.path.insert(0, dirname(dirname(__file__)))`, import `from app import create_app`, `TestClient(create_app())`.
 - **`.env.example`** — lista vars de produção do license server.
-- **`core/licensing.py`** — `PADDLE_PRODUCT_URLS` lidos de `AIRMOUSE_PADDLE_LIFETIME_URL` etc. (checkout client-side; sem webhook). `PADDLE_VENDOR_ID` TODO em `ui/license_dlg.py`.
+- **`core/licensing.py`** — `PADDLE_PRODUCT_URLS` lidos de `MAOUSE_PADDLE_LIFETIME_URL` etc. (checkout client-side; sem webhook). `PADDLE_VENDOR_ID` TODO em `ui/license_dlg.py`.
 
 **Formato do webhook Paddle Billing (verificado em docs oficiais):**
 - Topo: `{ "event_id": "evt_...", "event_type": "transaction.completed", "occurred_at": "...", "notification_id": "ntf_...", "data": {...} }`.
@@ -299,17 +299,17 @@ def test_build_message_contains_key(monkeypatch):
 
 
 def test_send_disabled_when_no_smtp(monkeypatch):
-    monkeypatch.setenv("AIRMOUSE_SMTP_ENABLED", "0")
+    monkeypatch.setenv("MAOUSE_SMTP_ENABLED", "0")
     assert emailer.send_key_email("a@b.c", "MAO-X") == emailer.Result(fired=False, error="")
 
 
 def test_send_uses_smtp(monkeypatch):
-    monkeypatch.setenv("AIRMOUSE_SMTP_ENABLED", "1")
-    monkeypatch.setenv("AIRMOUSE_SMTP_HOST", "smtp.example.com")
-    monkeypatch.setenv("AIRMOUSE_SMTP_PORT", "587")
-    monkeypatch.setenv("AIRMOUSE_SMTP_USER", "u")
-    monkeypatch.setenv("AIRMOUSE_SMTP_PASSWORD", "p")
-    monkeypatch.setenv("AIRMOUSE_SMTP_FROM", "sales@maouse.app")
+    monkeypatch.setenv("MAOUSE_SMTP_ENABLED", "1")
+    monkeypatch.setenv("MAOUSE_SMTP_HOST", "smtp.example.com")
+    monkeypatch.setenv("MAOUSE_SMTP_PORT", "587")
+    monkeypatch.setenv("MAOUSE_SMTP_USER", "u")
+    monkeypatch.setenv("MAOUSE_SMTP_PASSWORD", "p")
+    monkeypatch.setenv("MAOUSE_SMTP_FROM", "sales@maouse.app")
     sent = []
     class _S:
         def __enter__(self): return self
@@ -343,12 +343,12 @@ class Result(NamedTuple):
 
 def _cfg():
     return {
-        "enabled": os.getenv("AIRMOUSE_SMTP_ENABLED", "0") == "1",
-        "host": os.getenv("AIRMOUSE_SMTP_HOST", ""),
-        "port": int(os.getenv("AIRMOUSE_SMTP_PORT", "587")),
-        "user": os.getenv("AIRMOUSE_SMTP_USER", ""),
-        "password": os.getenv("AIRMOUSE_SMTP_PASSWORD", ""),
-        "from": os.getenv("AIRMOUSE_SMTP_FROM", "sales@maouse.app"),
+        "enabled": os.getenv("MAOUSE_SMTP_ENABLED", "0") == "1",
+        "host": os.getenv("MAOUSE_SMTP_HOST", ""),
+        "port": int(os.getenv("MAOUSE_SMTP_PORT", "587")),
+        "user": os.getenv("MAOUSE_SMTP_USER", ""),
+        "password": os.getenv("MAOUSE_SMTP_PASSWORD", ""),
+        "from": os.getenv("MAOUSE_SMTP_FROM", "sales@maouse.app"),
     }
 
 
@@ -400,7 +400,7 @@ def send_key_email(to_email: str, key: str) -> Result:
 - [ ] **Step 1: Adicionar env de teste ao `conftest.py`**
 
 ```python
-monkeypatch.setenv("AIRMOUSE_PADDLE_WEBHOOK_SECRET", "pdl_test_secret")
+monkeypatch.setenv("MAOUSE_PADDLE_WEBHOOK_SECRET", "pdl_test_secret")
 ```
 
 - [ ] **Step 2: Escrever o teste do endpoint** (`tests/test_paddle_webhook.py`)
@@ -502,7 +502,7 @@ import paddle as paddle_mod
 from emailer import send_key_email
 
 # dentro de create_app():
-WEBHOOK_SECRET = os.getenv("AIRMOUSE_PADDLE_WEBHOOK_SECRET", "")
+WEBHOOK_SECRET = os.getenv("MAOUSE_PADDLE_WEBHOOK_SECRET", "")
 
 @app.post("/webhooks/paddle")
 async def paddle_webhook(request: Request, db=Depends(get_db)):
@@ -530,7 +530,7 @@ async def paddle_webhook(request: Request, db=Depends(get_db)):
     return {"ok": True, "handled": True, "key": key, "email": info["email"]}
 ```
 
-(Nota: em dev/teste `AIRMOUSE_PADDLE_WEBHOOK_SECRET` vazio → o erro 401 acontece para tudo, o que é claramente um estado de não-configurado. Para permitir testes e sanidade em dev, se a secret não estiver set, o servidor responde 503 "paddle_nao_configurado". Opcional — por defeito, se vazio, recusa com 503 para nunca aceitar webhooks não autenticados.)
+(Nota: em dev/teste `MAOUSE_PADDLE_WEBHOOK_SECRET` vazio → o erro 401 acontece para tudo, o que é claramente um estado de não-configurado. Para permitir testes e sanidade em dev, se a secret não estiver set, o servidor responde 503 "paddle_nao_configurado". Opcional — por defeito, se vazio, recusa com 503 para nunca aceitar webhooks não autenticados.)
 
 - [ ] **Step 5: Correr os dois testes e ver que passam** (test_paddle.py + test_paddle_webhook.py).
 - [ ] **Step 6: Commit** — `feat(license-server/webhook): /webhooks/paddle - emite chave + email + idempotente`.
@@ -547,21 +547,21 @@ async def paddle_webhook(request: Request, db=Depends(get_db)):
 # ─── Paddle (D2) — webhook + produtos ───
 # Secret do "notification destination" do Paddle (dashboard > Developer tools > Notifications).
 # Usado para verificar o header Paddle-Signature no /webhooks/paddle.
-AIRMOUSE_PADDLE_WEBHOOK_SECRET=pdl_ntfset_...
+MAOUSE_PADDLE_WEBHOOK_SECRET=pdl_ntfset_...
 
 # URLs de checkout (produtos). Já lidas pelo cliente em core/licensing.py.
-AIRMOUSE_PADDLE_LIFETIME_URL=https://checkout.paddle.com/.../product=...
-AIRMOUSE_PADDLE_SUBSCRIPTION_URL=https://checkout.paddle.com/...
-AIRMOUSE_PADDLE_FAMILY_URL=https://checkout.paddle.com/...
-AIRMOUSE_PADDLE_ACCESS_URL=https://checkout.paddle.com/...
+MAOUSE_PADDLE_LIFETIME_URL=https://checkout.paddle.com/.../product=...
+MAOUSE_PADDLE_SUBSCRIPTION_URL=https://checkout.paddle.com/...
+MAOUSE_PADDLE_FAMILY_URL=https://checkout.paddle.com/...
+MAOUSE_PADDLE_ACCESS_URL=https://checkout.paddle.com/...
 
 # Email da chave (SMTP) — desligado por omissão (dev). Ligar em produção.
-AIRMOUSE_SMTP_ENABLED=0
-AIRMOUSE_SMTP_HOST=smtp.example.com
-AIRMOUSE_SMTP_PORT=587
-AIRMOUSE_SMTP_USER=your-user
-AIRMOUSE_SMTP_PASSWORD=your-password
-AIRMOUSE_SMTP_FROM=sales@maouse.app
+MAOUSE_SMTP_ENABLED=0
+MAOUSE_SMTP_HOST=smtp.example.com
+MAOUSE_SMTP_PORT=587
+MAOUSE_SMTP_USER=your-user
+MAOUSE_SMTP_PASSWORD=your-password
+MAOUSE_SMTP_FROM=sales@maouse.app
 ```
 
 - [ ] **Step 2: Correr toda a suite do servidor**

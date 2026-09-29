@@ -299,7 +299,7 @@ O fundo escuro e essencial para:
 | Toast | Fundo rgba(10,10,18,0.9), borda neon, texto branco, fade in/out |
 | Ayuda | Painel centralizado, fundo rgba(10,10,18,0.95), scrollavel |
 | System tray | Icone 64x64, circulo + silhueta humana, glow verde/cinza |
-| Titulo janela | "Mãouse" (nao "AirMouse") |
+| Titulo janela | "Mãouse" (nao "Maouse") |
 
 ### Mobile (React Native + Expo)
 

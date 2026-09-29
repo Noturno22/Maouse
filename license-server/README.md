@@ -8,14 +8,14 @@ ativação por fingerprint, leases JWT ES256) e o **mobile** (validação de com
 
 | Var | Obrigatório | Descrição |
 |-----|-------------|-----------|
-| `AIRMOUSE_DB_PATH` | não | Caminho do SQLite (default `license.db`) |
-| `AIRMOUSE_PADDLE_WEBHOOK_SECRET` | se usar Paddle | HMAC dos webhooks Paddle |
-| `AIRMOUSE_PADDLE_VENDOR_ID` / `AIRMOUSE_PADDLE_API_KEY` | se usar Paddle | API Paddle (produtos/checkout) |
-| `AIRMOUSE_SMTP_*` | se email | Transmissão de chave MAO- por email |
-| `AIRMOUSE_GOOGLE_PLAY_CREDENTIALS_JSON` | IAP real | JSON da conta de serviço com permissão **Android Publisher API**. Sem isto, `mobile/entitle` só funciona em modo dev |
-| `AIRMOUSE_MOBILE_DEV_ALLOW=1` | **nunca em produção** | Aceita tokens de teste prefixados `test_` |
-| `AIRMOUSE_MOBILE_PRODUCT_ID` | não | Product ID do Pro (default `maouse_mobile_pro`) |
-| `AIRMOUSE_MOBILE_PACKAGE_NAME` | não | Package Android esperado (default `com.airmouse.mobile`) — rejeita `pacote_errado` se o cliente enviar outro |
+| `MAOUSE_DB_PATH` | não | Caminho do SQLite (default `license.db`) |
+| `MAOUSE_PADDLE_WEBHOOK_SECRET` | se usar Paddle | HMAC dos webhooks Paddle |
+| `MAOUSE_PADDLE_VENDOR_ID` / `MAOUSE_PADDLE_API_KEY` | se usar Paddle | API Paddle (produtos/checkout) |
+| `MAOUSE_SMTP_*` | se email | Transmissão de chave MAO- por email |
+| `MAOUSE_GOOGLE_PLAY_CREDENTIALS_JSON` | IAP real | JSON da conta de serviço com permissão **Android Publisher API**. Sem isto, `mobile/entitle` só funciona em modo dev |
+| `MAOUSE_MOBILE_DEV_ALLOW=1` | **nunca em produção** | Aceita tokens de teste prefixados `test_` |
+| `MAOUSE_MOBILE_PRODUCT_ID` | não | Product ID do Pro (default `maouse_mobile_pro`) |
+| `MAOUSE_MOBILE_PACKAGE_NAME` | não | Package Android esperado (default `com.maouse.mobile`) — rejeita `pacote_errado` se o cliente enviar outro |
 
 ## Endpoints
 
@@ -39,7 +39,7 @@ Corpo:
 {
   "purchase_token": "<Google Play purchaseToken>",
   "product_id": "maouse_mobile_pro",
-  "package_name": "com.airmouse.mobile",
+  "package_name": "com.maouse.mobile",
   "device_id": "<uuid persistente do dispositivo>"
 }
 ```
@@ -59,7 +59,7 @@ Erros:
 Comportamento:
 - **Dedup por `purchase_token`** antes de chamar a API Google → sem chamadas duplicadas, reutiliza o lease.
 - `key_hash = "MOB:" + hash(purchase_token)` → bucket próprio, imune ao bucket das chaves desktop.
-- Em modo dev (`AIRMOUSE_MOBILE_DEV_ALLOW=1`) aceita tokens `test_<qualquer coisa>`.
+- Em modo dev (`MAOUSE_MOBILE_DEV_ALLOW=1`) aceita tokens `test_<qualquer coisa>`.
 
 ## Segurança
 

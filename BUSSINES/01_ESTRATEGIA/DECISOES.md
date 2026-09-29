@@ -1,4 +1,4 @@
-# Decisões de Negócio — Mãouse (AirMouse)
+# Decisões de Negócio — Mãouse (Maouse)
 
 > Registo oficial das decisões tomadas para fechar as 6 decisões em aberto (D1–D6)
 > sinalizadas em `REVISAO_E_VALIDACAO.md`. **Data:** 2026-09-01.

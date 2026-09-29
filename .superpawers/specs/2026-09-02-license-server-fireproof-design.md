@@ -1,4 +1,4 @@
-# AirMouse — Sistema de Licenciamento à Prova de Fogo (Design)
+# Maouse — Sistema de Licenciamento à Prova de Fogo (Design)
 
 - **Data:** 2026-09-02
 - **Estado:** Aprovado pelo utilizador
@@ -6,7 +6,7 @@
 
 ## 1. Objetivo
 
-Tornar o sistema de pagamento/licenciamento do AirMouse **à prova de fogo** contra
+Tornar o sistema de pagamento/licenciamento do Maouse **à prova de fogo** contra
 burla e uso não pago. Princípios centrais definidos pelo proprietário:
 
 > "Só usufrui da experiência quem paga; quem não paga tem pouco tempo."
@@ -30,7 +30,7 @@ O sistema atual (`core/licensing.py`) tem falhas críticas:
 | # | Vulnerabilidade atual | Correção neste design |
 |---|----------------------|----------------------|
 | V1 | Sem limite de tempo no Free — uso ilimitado grátis | Trial de 30 min + bloqueio total |
-| V2 | Flag CLI `--dev-pro` / `AIRMOUSE_DEV_PRO=1` desbloqueia tudo | Removida do executável final (compilada como off/ausente) |
+| V2 | Flag CLI `--dev-pro` / `MAOUSE_DEV_PRO=1` desbloqueia tudo | Removida do executável final (compilada como off/ausente) |
 | V3 | Secret HMAC em texto plano no source (`_DEFAULT_SECRET`) | Secret só no servidor; cliente assina com fingerprint + JWK pública |
 | V4 | Validação 100% offline — chave copiável | Validação online na ativação + lease assinado por servidor |
 | V5 | Chave não vinculada à máquina — serve em N equipamentos | Hardware fingerprint liga 1 chave a 1 máquina |
@@ -40,7 +40,7 @@ O sistema atual (`core/licensing.py`) tem falhas críticas:
 
 ```
 ┌──────────────────────────┐        HTTPS/JWT         ┌──────────────────────────────┐
-│    AirMouse Desktop      │ ◄──────────────────────► │  License Server (VPS)       │
+│    Maouse Desktop      │ ◄──────────────────────► │  License Server (VPS)       │
 │  (cliente — câmara/voz)  │   activate / lease /     │  Node.js + Postgres/SQLite  │
 │  - fingerprint           │   revalidate / trial     │  - emissão de chaves        │
 │  - trial local (30min)   │                          │  - vínculo key↔machine      │
@@ -123,11 +123,11 @@ Segurança do servidor:
 - Rate-limiting e validação de `machine_id`.
 - Logs de auditoria (ativação, revogações, tentativas de reutilização de chave).
 
-### 4.2 Cliente AirMouse (modificação de `core/licensing.py`)
+### 4.2 Cliente Maouse (modificação de `core/licensing.py`)
 
 O `LicenseManager` é reescrito para:
 
-- **Remover `--dev-pro` / `AIRMOUSE_DEV_PRO`** do fluxo de produção.
+- **Remover `--dev-pro` / `MAOUSE_DEV_PRO`** do fluxo de produção.
 - **Calcular `machine_id`** (hardware fingerprint) e enviá-lo na ativação.
 - **Gerir o trial de 30 min**: conta tempo de uso real (não relógio), sabe que
   fechar e reabrir não repõe o trial (fonte da verdade no servidor quando
@@ -144,7 +144,7 @@ O `LicenseManager` é reescrito para:
 - **Failover de endpoints:** guarda uma lista de endpoints do servidor e tenta o
   seguinte quando o atual falha na hora de ativar/revalidar.
 - **Bloqueio total** quando trial expira ou lease expira sem renovação: mostra o
-  pop-up apelativo de ativação e não permite usar o AirMouse (nem move/click).
+  pop-up apelativo de ativação e não permite usar o Maouse (nem move/click).
 
 Ficheiros novos/alterados no cliente:
 
@@ -270,13 +270,13 @@ cliente pago.
 
 ## 5. Fluxo de utilizador (happy path)
 
-1. User instala AirMouse → Free, trial de 30 min começa (servidor regista
+1. User instala Maouse → Free, trial de 30 min começa (servidor regista
    `machine_id`).
 2. User usa features Free até 30 min.
 3. Trial expira → bloqueio total + pop-up: "A tua experiência Free terminou" com
    botões para os planos (Lifetime €39,90 / Sub €4,99 / Família / Access).
 4. User compra via Paddle → webhook ativa a licença no servidor.
-5. User recebe a chave → cola no AirMouse → `activate` liga `key↔machine_id`
+5. User recebe a chave → cola no Maouse → `activate` liga `key↔machine_id`
    (ativação online, única vez obrigatória).
 6. Cliente guarda o lease e passa a usar Pro **normalmente, offline se quiser**
    (lease válido 7 dias, ver §4.4).

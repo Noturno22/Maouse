@@ -1,4 +1,4 @@
-# Previsão de Caixa — Mãouse (AirMouse)
+# Previsão de Caixa — Mãouse (Maouse)
 
 > **Previsão de tesouraria (cash flow) do arranque: fases, custos, receitas, break-even e
 > necessidade de novo capital.** Responde a: *"depois da Fase B já há lucros? precisamos de mais

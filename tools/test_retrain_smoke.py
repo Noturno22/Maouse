@@ -26,7 +26,7 @@ def check(name, cond):
     passed, failed = passed + int(cond), failed + int(not cond)
 
 
-tmp = tempfile.mkdtemp(prefix="airmouse_retrain_")
+tmp = tempfile.mkdtemp(prefix="maouse_retrain_")
 try:
     rng = np.random.default_rng(42)
 

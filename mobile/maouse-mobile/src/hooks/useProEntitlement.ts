@@ -10,7 +10,7 @@ import { getDeviceId } from '../utils/deviceId';
 export const PRO_PRODUCT_ID =
   (Constants.expoConfig?.extra?.mobileProductId as string) || 'maouse_mobile_pro';
 const PACKAGE_NAME =
-  (Constants.expoConfig?.extra?.androidPackage as string) || 'com.airmouse.mobile';
+  (Constants.expoConfig?.extra?.androidPackage as string) || 'com.maouse.mobile';
 
 export interface ProEntitlement {
   isPro: boolean;

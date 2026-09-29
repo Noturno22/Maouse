@@ -1,4 +1,4 @@
-"""AirMouse real-time engine.
+"""Maouse real-time engine.
 
 Extraído de ``main.py``: contém o cérebro da lógica de reconhecimento,
 movimento, eventos e comandos. ``main.py`` ficou apenas bootstrap (CLI + IO),

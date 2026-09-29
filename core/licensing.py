@@ -1,4 +1,4 @@
-"""Licenciamento AirMouse — trial 5min server-auth + ativacao online + lease ES256 + gate."""
+"""Licenciamento Maouse — trial 5min server-auth + ativacao online + lease ES256 + gate."""
 import base64
 import json
 import os
@@ -20,7 +20,7 @@ LEASE_DEFAULT_DAYS = 7
 
 # URL do license-server de PRODUÇÃO. É o ÚNICO ponto a preencher quando o servidor
 # for deployado (ver docs/DESKTOP_LICENSE_URL.md). Em runtime é sobreposto pela env
-# AIRMOUSE_LICENSE_URLS (usada para apontar a servidores de teste/QA).
+# MAOUSE_LICENSE_URLS (usada para apontar a servidores de teste/QA).
 # TODO(producao): substituir pelo URL real do Render.
 PROD_LICENSE_SERVER_URL = "https://licenses.maouse.example.com"
 
@@ -37,11 +37,11 @@ PRO_LOCKED = ("snap", "voice", "two_hands", "tts", "ai", "autotune", "low_light"
 # Produtos Paddle (Pay Links). Preencher com os IDs reais dos preços quando a
 # entidade UE e o catálogo Paddle existirem. Mantido por compat (checkout).
 PADDLE_PRODUCT_URLS = {
-    "lifetime": os.environ.get("AIRMOUSE_PADDLE_LIFETIME_URL", ""),
-    "subscription": os.environ.get("AIRMOUSE_PADDLE_SUBSCRIPTION_URL", ""),
-    "family": os.environ.get("AIRMOUSE_PADDLE_FAMILY_URL", ""),
-    "access": os.environ.get("AIRMOUSE_PADDLE_ACCESS_URL", ""),
-    "trading_master": os.environ.get("AIRMOUSE_PADDLE_TRADING_MASTER_URL", ""),
+    "lifetime": os.environ.get("MAOUSE_PADDLE_LIFETIME_URL", ""),
+    "subscription": os.environ.get("MAOUSE_PADDLE_SUBSCRIPTION_URL", ""),
+    "family": os.environ.get("MAOUSE_PADDLE_FAMILY_URL", ""),
+    "access": os.environ.get("MAOUSE_PADDLE_ACCESS_URL", ""),
+    "trading_master": os.environ.get("MAOUSE_PADDLE_TRADING_MASTER_URL", ""),
 }
 
 
@@ -360,7 +360,7 @@ def _b64d(s: str) -> bytes:
 
 def _default_store_path() -> str:
     base = os.getenv("APPDATA") or os.path.expanduser("~")
-    return os.path.join(base, "AirMouse", "license.json")
+    return os.path.join(base, "Maouse", "license.json")
 
 
 def _store_exists(store_path: str) -> bool:
@@ -368,7 +368,7 @@ def _store_exists(store_path: str) -> bool:
 
 
 def _default_endpoints():
-    raw = os.getenv("AIRMOUSE_LICENSE_URLS", "")
+    raw = os.getenv("MAOUSE_LICENSE_URLS", "")
     return [u.strip() for u in raw.split(",") if u.strip()] or [PROD_LICENSE_SERVER_URL]
 
 

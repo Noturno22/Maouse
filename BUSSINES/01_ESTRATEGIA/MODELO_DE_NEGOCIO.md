@@ -1,7 +1,7 @@
-# Modelo de Negócio — Mãouse (AirMouse)
+# Modelo de Negócio — Mãouse (Maouse)
 
 > **Nome comercial:** Mãouse (mão + mouse)
-> **Nome técnico/repositório:** AirMouse
+> **Nome técnico/repositório:** Maouse
 > **Autor:** Luar Studio Angola · 2026
 > **Plataformas:** Desktop (Windows) + Mobile (Android/iOS)
 > **Lema:** *"Sem cauda. Sem fios. Sem limites."*

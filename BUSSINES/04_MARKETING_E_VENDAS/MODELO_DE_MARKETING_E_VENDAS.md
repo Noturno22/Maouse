@@ -1,4 +1,4 @@
-# Modelo de Marketing & Vendas — Mãouse (AirMouse)
+# Modelo de Marketing & Vendas — Mãouse (Maouse)
 
 > O motor de aquisição e conversão que liga o produto à receita. Construído sobre
 > `MODELO_DE_NEGOCIO.md`, `DECISOES.md`, `ESTRATEGIA_GLOBAL.md`, `ANTIPADROES_E_RISCOS.md`

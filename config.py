@@ -237,7 +237,7 @@ def user_data_dir():
     base = os.environ.get("LOCALAPPDATA") or os.environ.get("APPDATA")
     if not base:
         base = os.path.expanduser("~")
-    d = os.path.join(base, "AirMouse")
+    d = os.path.join(base, "Maouse")
     try:
         os.makedirs(d, exist_ok=True)
     except OSError:

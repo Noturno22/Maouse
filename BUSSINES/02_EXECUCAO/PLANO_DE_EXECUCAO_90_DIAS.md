@@ -1,4 +1,4 @@
-# Plano de Execução — 90 Dias — Mãouse (AirMouse)
+# Plano de Execução — 90 Dias — Mãouse (Maouse)
 
 > Passa do modelo de negócio para **execução**. Prioriza os **bloqueadores de receita**
 > sinalizados em `REVISAO_E_VALIDACAO.md` (§4: marca, posicionamento acessibilidade,
@@ -217,8 +217,8 @@ institucional ativo, decisão de direção Y2 tomada com dados.
 | 2 | Gate + modal de upgrade | ✅ `ui/license_dlg.py` (upgrade/desativação) | Desktop |
 | 3 | `.exe` polido (assinatura/ícone/versão/console=False) | 🟡 **Pipeline de assinatura pronto** (eSigner/thumbprint no `build.bat`, upload instalador p/ Vercel Blob — 2026-09-22); **certificado SSL.com IV VALIDADO** (2026-09-23, ref `co-3c1laihs7ca`); falta **enroll/ativação do eSigner** → `build.bat` assina | Desktop (S2) |
 | 3b | Instalador 1-clique (Inno Setup) | ✅ Feito — `installer.iss` + `dist/Maouse-Setup-1.0.0.exe` (15,6 MB) | Desktop (S1) |
-| 4 | Ações nativas Android + AccessibilityService | ✅ Feito — `AirMouseAccessibilityService` + Touch/Keyboard/System modules ligados no JS; permissões mortas removidas | `mobile/airmouse-mobile/` (S2) |
-| 5 | **IAP mobile + store listing** | 🟡 **IAP ✅ code feito** (expo-iap + validação Google no license-server + paywall `ProGate`); falta **prebuild/upload/listing Play Console** | `mobile/airmouse-mobile/` (S2) |
+| 4 | Ações nativas Android + AccessibilityService | ✅ Feito — `MaouseAccessibilityService` + Touch/Keyboard/System modules ligados no JS; permissões mortas removidas | `mobile/maouse-mobile/` (S2) |
+| 5 | **IAP mobile + store listing** | 🟡 **IAP ✅ code feito** (expo-iap + validação Google no license-server + paywall `ProGate`); falta **prebuild/upload/listing Play Console** | `mobile/maouse-mobile/` (S2) |
 | 6 | LAB de hardware a correr / preencher matriz | 🟡 | `HARDWARE/` (S1–S2) |
 
 ### 7.3 Testes de hardware já feitos

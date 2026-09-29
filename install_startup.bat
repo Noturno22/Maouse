@@ -11,7 +11,7 @@ if not exist "%PYW%" (
     exit /b 1
 )
 
-schtasks /Create /F /TN "AirMouse JARVIS" /SC ONLOGON /RL LIMITED /TR "\"%PYW%\" \"%MAIN%\" --tray"
+schtasks /Create /F /TN "Maouse JARVIS" /SC ONLOGON /RL LIMITED /TR "\"%PYW%\" \"%MAIN%\" --tray"
 if errorlevel 1 (
     echo Falhou a criacao da tarefa.
     pause

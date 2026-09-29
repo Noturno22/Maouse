@@ -16,7 +16,7 @@
 |---|---|
 | `POST /webhooks/paddle` (verifica HMAC → emite chave `MAO-` → dedup por `event_id` → email) | ✅ `license-server/app.py` |
 | `paddle.py` (assinatura + parsing) · `emailer.py` (SMTP stdlib) · tabela `purchases` | ✅ |
-| Cliente abre checkout (5 produtos) via env `AIRMOUSE_PADDLE_*_URL` | ✅ `core/licensing.py` |
+| Cliente abre checkout (5 produtos) via env `MAOUSE_PADDLE_*_URL` | ✅ `core/licensing.py` |
 | Suite de testes `license-server/` verde + testes de checkout do cliente verdes | ✅ | 
 
 **O que falta é só dados reais da conta Paddle** para preencher o `.env` / Render.
@@ -72,18 +72,18 @@ dentro de cada produto (o Paddle separa *Product* do *Price*).
 3. Repete para os 5 produtos e cola cada URL no `.env` (nunca nos `*.py`):
 
 ```bash
-AIRMOUSE_PADDLE_LIFETIME_URL=https://checkout.paddle.com/xxx
-AIRMOUSE_PADDLE_SUBSCRIPTION_URL=https://checkout.paddle.com/xxx
-AIRMOUSE_PADDLE_FAMILY_URL=https://checkout.paddle.com/xxx
-AIRMOUSE_PADDLE_ACCESS_URL=https://checkout.paddle.com/xxx
-AIRMOUSE_PADDLE_TRADING_MASTER_URL=https://checkout.paddle.com/xxx
+MAOUSE_PADDLE_LIFETIME_URL=https://checkout.paddle.com/xxx
+MAOUSE_PADDLE_SUBSCRIPTION_URL=https://checkout.paddle.com/xxx
+MAOUSE_PADDLE_FAMILY_URL=https://checkout.paddle.com/xxx
+MAOUSE_PADDLE_ACCESS_URL=https://checkout.paddle.com/xxx
+MAOUSE_PADDLE_TRADING_MASTER_URL=https://checkout.paddle.com/xxx
 ```
 
 4. **Vendor ID:** no dashboard (perfil/Developer tools) copia o *Vendor ID* e
    preenche os dois sitios:
    - `ui/license_dlg.py` → `PADDLE_VENDOR_ID = 0` (o TODO do bloqueador #1) — é o
      fallback Classic; fica certo por higiene.
-   - `AIRMOUSE_PADDLE_VENDOR_ID` no `.env` (referido no `DEPLOY_RENDER.md`).
+   - `MAOUSE_PADDLE_VENDOR_ID` no `.env` (referido no `DEPLOY_RENDER.md`).
 
 ---
 
@@ -98,7 +98,7 @@ AIRMOUSE_PADDLE_TRADING_MASTER_URL=https://checkout.paddle.com/xxx
 2. **Eventos a subscrever:**
    - `transaction.completed` → **obrigatório** (é o que o webhook processa)
    - `transaction.refunded` / `transaction.updated` → opcionais (o servidor ignora, mas fica registado para o futuro)
-3. Cola o secret em `AIRMOUSE_PADDLE_WEBHOOK_SECRET` no `.env` (dev) e no painel do Render (prod).
+3. Cola o secret em `MAOUSE_PADDLE_WEBHOOK_SECRET` no `.env` (dev) e no painel do Render (prod).
 
 ---
 
@@ -107,16 +107,16 @@ AIRMOUSE_PADDLE_TRADING_MASTER_URL=https://checkout.paddle.com/xxx
 O webhook envia a chave por email (`emailer.py`, SMTP puro — sem dependências).
 
 ```bash
-AIRMOUSE_SMTP_ENABLED=1
-AIRMOUSE_SMTP_HOST=smtp.seu-provedor.com
-AIRMOUSE_SMTP_PORT=587
-AIRMOUSE_SMTP_USER=seu-usuario
-AIRMOUSE_SMTP_PASSWORD=sua-senha
-AIRMOUSE_SMTP_FROM=sales@maouse.app
+MAOUSE_SMTP_ENABLED=1
+MAOUSE_SMTP_HOST=smtp.seu-provedor.com
+MAOUSE_SMTP_PORT=587
+MAOUSE_SMTP_USER=seu-usuario
+MAOUSE_SMTP_PASSWORD=sua-senha
+MAOUSE_SMTP_FROM=sales@maouse.app
 ```
 
 - **Dev/primeiro teste:** usa SMTP real barato (ex.: Brevo/Resend/SMTP2GO) ou a app-password do Gmail.
-- Em produção **nunca** deixar `AIRMOUSE_SMTP_ENABLED=0` (o comprador ficaria sem chave).
+- Em produção **nunca** deixar `MAOUSE_SMTP_ENABLED=0` (o comprador ficaria sem chave).
 
 ---
 
@@ -125,9 +125,9 @@ AIRMOUSE_SMTP_FROM=sales@maouse.app
 Seguir **`license-server/DEPLOY_RENDER.md`** (v1.1). Pontos-chave:
 
 - **Plano pago Starter (~US$7/mês)** — o Free tem cold-start e sleep que quebram o webhook em horas de silêncio. Este custo está dentro do investimento (~$225).
-- Variáveis obrigatórias do Render: `AIRMOUSE_LS_ADMIN_TOKEN`, `AIRMOUSE_LS_PRIVATE_KEY` (PEM completo), `AIRMOUSE_LS_PUBLIC_KEY` (PEM completo).
-- Juntar: `AIRMOUSE_PADDLE_WEBHOOK_SECRET`, `AIRMOUSE_SMTP_*` (`ENABLED=1`).
-- Disco: `AIRMOUSE_LS_DB=/data/license.db` (já no `render.yaml`).
+- Variáveis obrigatórias do Render: `MAOUSE_LS_ADMIN_TOKEN`, `MAOUSE_LS_PRIVATE_KEY` (PEM completo), `MAOUSE_LS_PUBLIC_KEY` (PEM completo).
+- Juntar: `MAOUSE_PADDLE_WEBHOOK_SECRET`, `MAOUSE_SMTP_*` (`ENABLED=1`).
+- Disco: `MAOUSE_LS_DB=/data/license.db` (já no `render.yaml`).
 - Confirmar: `curl https://<servico>.onrender.com/health` → `{"status":"ok"}`.
 
 > Depois do deploy, gravar o URL real em `core/licensing.py`:

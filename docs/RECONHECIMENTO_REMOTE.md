@@ -13,7 +13,7 @@ Estado do repositório em **2026-09-28**. Documento irmão: `RECONHECIMENTO_MAOS
 | **Domínio** | mobile · remote · Linux · CI |
 | **Sócio responsável pelo domínio** | **Fortuna** (`josefortunafortuna54-byte`) — sócio-função, 4% com vesting |
 | **Produzido por** | pipeline de agentes de IA da Luar Studio Angola (modelo "empresa nativa de IA", cf. `BUSSINES/07_ADMINISTRACAO/ESTRUTURA_DA_EMPRESA.md` §2) sob responsabilidade de domínio do Fortuna |
-| **Âmbito** | `mobile/airmouse-mobile/` (cliente) + `core/remote.py`, `core/mouse_ctl.py` (servidor) |
+| **Âmbito** | `mobile/maouse-mobile/` (cliente) + `core/remote.py`, `core/mouse_ctl.py` (servidor) |
 | **Plataformas** | 🟡 Windows validado · 🔴 macOS inexistente · 🟠 Linux por confirmar |
 
 > **Nota de proveniência.** A análise que originou este documento foi produzida por
@@ -651,7 +651,7 @@ default. O floor declarado está correcto tal como está.
 consumidores no repositório são `.github/workflows/ci.yml:18` e `setup.bat:12`.
 Verificado: `mobile/` não contém nenhuma referência a `requirements.txt`, `pip`,
 `expo-build-hook` ou `buildHook`; o `eas.json` só define perfis de build, sem
-hooks; e o `mobile/airmouse-mobile/package.json` não tem dependências Python
+hooks; e o `mobile/maouse-mobile/package.json` não tem dependências Python
 nenhuma. A EAS compila React Native com npm — o `pip` do Python nunca entra.
 
 **Como o erro entrou.** A linha 605 da tabela de verificação confirmava que a
@@ -718,13 +718,13 @@ a premissa estava errada antes da conclusão.**
 O projecto **não é distribuído por pip**. Verificado:
 
 - `git grep "pip install \."` não devolve nada em lado nenhum do repositório.
-- O produto é entregue por **PyInstaller** (`build.bat` + `airmouse.spec`, onedir).
+- O produto é entregue por **PyInstaller** (`build.bat` + `maouse.spec`, onedir).
 - As dependências são instaladas pelo `setup.bat`, a partir de `requirements.txt`.
 - Não existe `pytest.ini`, `setup.cfg` nem `tox.ini`: o `pyproject.toml`
   vive, mas por outro motivo — é a configuração do **pytest**, do **ruff** e do
   **mypy**. Apagá-lo partia a toolchain toda.
 
-E o `name = "airmouse"` mentia sobre o produto, que se chama Maouse. A string
+E o `name = "maouse"` mentia sobre o produto, que se chama Maouse. A string
 estava no ficheiro desde o commit que o criou e nunca foi revista.
 
 **Porque isto importa mais do que o `cryptography`.** Ao "corrigir" o

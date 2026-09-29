@@ -141,7 +141,7 @@ class RemoteServer:
             self._cfg.remote_token = token
             log.info("Token de controlo remoto gerado (visível nas definições).")
         self._thread = threading.Thread(
-            target=self._thread_main, name="airmouse-remote", daemon=True
+            target=self._thread_main, name="maouse-remote", daemon=True
         )
         self._thread.start()
         # Espera (com limite) pelo arranque do servidor.

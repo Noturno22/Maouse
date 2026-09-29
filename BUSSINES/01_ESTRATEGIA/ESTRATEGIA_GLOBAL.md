@@ -1,4 +1,4 @@
-# Estratégia Global & Maximização de Receita — Mãouse (AirMouse)
+# Estratégia Global & Maximização de Receita — Mãouse (Maouse)
 
 > Aprofundamento estratégico focado nos objetivos do fundador: **lucros desproporcionados
 > nas primeiras vendas**, posicionamento **inovador e revolucionário**, e execução **alinhada

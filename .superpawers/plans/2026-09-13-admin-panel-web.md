@@ -35,7 +35,7 @@
 | `license-server/admin_static/dashboard.js` | Create | KPIs |
 | `license-server/app.py` | Modify | incluir routers + static |
 | `license-server/Dockerfile` | Modify | `COPY license-server /app` |
-| `license-server/render.yaml` | Modify | + `AIRMOUSE_LS_ADMIN_SESSION_SECRET` |
+| `license-server/render.yaml` | Modify | + `MAOUSE_LS_ADMIN_SESSION_SECRET` |
 
 Testes novos em `license-server/tests/`: `test_admin_storage.py`, `test_admin_auth.py`, `test_admin_api.py`, `test_admin_pages.py`.
 
@@ -87,7 +87,7 @@ ROW = {"nome": "Luar Studio", "papel": "fundador", "participacao": "100",
 
 
 def _db(tmp_path):
-    os.environ["AIRMOUSE_LS_DB"] = str(tmp_path / "ad.db")
+    os.environ["MAOUSE_LS_DB"] = str(tmp_path / "ad.db")
     conn = connect()
     init_db(conn)
     return conn
@@ -417,7 +417,7 @@ import admin_auth
 
 
 def test_verify_password_ok(monkeypatch):
-    monkeypatch.setenv("AIRMOUSE_LS_ADMIN_TOKEN", "segredo")
+    monkeypatch.setenv("MAOUSE_LS_ADMIN_TOKEN", "segredo")
     assert admin_auth.verify_password("segredo") is True
     assert admin_auth.verify_password("errado") is False
 
@@ -448,8 +448,8 @@ Expected: FAIL — module not found
 """Sessão de administrador: cookie assinado HMAC (sem lib externa).
 
 O cookie transporta apenas timestamp + nonce, assinado com HMAC-SHA256 usando
-AIRMOUSE_LS_ADMIN_SESSION_SECRET. A senha do login compara com
-AIRMOUSE_LS_ADMIN_TOKEN (todo-poderoso do painel).
+MAOUSE_LS_ADMIN_SESSION_SECRET. A senha do login compara com
+MAOUSE_LS_ADMIN_TOKEN (todo-poderoso do painel).
 """
 import base64
 import hashlib
@@ -465,7 +465,7 @@ _DEV_SECRET = "dev-session-secret"
 
 
 def _secret() -> str:
-    return os.getenv("AIRMOUSE_LS_ADMIN_SESSION_SECRET", _DEV_SECRET)
+    return os.getenv("MAOUSE_LS_ADMIN_SESSION_SECRET", _DEV_SECRET)
 
 
 def _b64(data: bytes) -> str:
@@ -505,7 +505,7 @@ def verify_session(cookie: str) -> bool:
 
 
 def verify_password(password: str) -> bool:
-    expected = os.getenv("AIRMOUSE_LS_ADMIN_TOKEN", "dev-admin-token")
+    expected = os.getenv("MAOUSE_LS_ADMIN_TOKEN", "dev-admin-token")
     return hmac.compare_digest(password, expected)
 
 
@@ -544,7 +544,7 @@ from emailer import send_generic_email
 
 
 def test_generic_email_disabled_returns_noop(monkeypatch):
-    monkeypatch.setenv("AIRMOUSE_SMTP_ENABLED", "0")
+    monkeypatch.setenv("MAOUSE_SMTP_ENABLED", "0")
     result = send_generic_email("a@b.c", "Assunto", "Corpo")
     assert result.fired is False
     assert result.error == ""
@@ -1498,7 +1498,7 @@ git commit -m "feat: templates dashboard/chat/emails/crud + JS"
 - [ ] **Step 1: Adicionar a env da sessão** a `render.yaml` (junto às outras `sync: false`):
 
 ```yaml
-      - key: AIRMOUSE_LS_ADMIN_SESSION_SECRET
+      - key: MAOUSE_LS_ADMIN_SESSION_SECRET
         sync: false # definir no painel do Render
 ```
 

@@ -1,4 +1,4 @@
-package com.airmouse.mobile
+package com.maouse.mobile
 
 import android.accessibilityservice.AccessibilityService
 import android.content.ClipData
@@ -25,8 +25,8 @@ class KeyboardControllerModule(reactContext: ReactApplicationContext) :
 
     override fun getName(): String = "KeyboardController"
 
-    private val service: AirMouseAccessibilityService?
-        get() = AirMouseAccessibilityService.instance
+    private val service: MaouseAccessibilityService?
+        get() = MaouseAccessibilityService.instance
 
     private fun focusedEditable(): AccessibilityNodeInfo? {
         val root = service?.rootInActiveWindow ?: return null
@@ -39,7 +39,7 @@ class KeyboardControllerModule(reactContext: ReactApplicationContext) :
     fun typeText(text: String) {
         try {
             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-            clipboard.setPrimaryClip(ClipData.newPlainText("airmouse", text))
+            clipboard.setPrimaryClip(ClipData.newPlainText("maouse", text))
             focusedEditable()?.performAction(AccessibilityNodeInfo.ACTION_PASTE)
         } catch (_: Exception) {
         }

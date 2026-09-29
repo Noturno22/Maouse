@@ -21,8 +21,8 @@ Descobertas da exploração (2026-09-06):
 | `MenuButton.set_locked`, toast danger, tema `[locked]` | só em WIP (`ui/menu_panel.py`, `ui/toast.py`, `ui/theme.py`) |
 | Testes untracked (fist_hold ×5, move ×10, open_switch ×5, toast) | não estão no git |
 | `assets/brand/logo-look.png` (usado por `_flash_locked`) e `assets/brand/icon.png` | não trackeados → clone sem eles quebra o fundo do flash silenciosamente |
-| `build.bat`/`airmouse.spec` | só empacotam `models` e `assets/fonts`; `assets/brand/*` fica de fora do exe |
-| `tests/test_licensing.py::test_active_license_defaults_to_free` | falha por ambiente (`%APPDATA%\AirMouse\license.json` com lease PRO válida até 2026-09-12) → única falha da suite |
+| `build.bat`/`maouse.spec` | só empacotam `models` e `assets/fonts`; `assets/brand/*` fica de fora do exe |
+| `tests/test_licensing.py::test_active_license_defaults_to_free` | falha por ambiente (`%APPDATA%\Maouse\license.json` com lease PRO válida até 2026-09-12) → única falha da suite |
 | `settings.json` (trackeado) | WIP altera calibrações da máquina dev (suavidade REACTIVO→NORMAL, `*_enabled` false) — **não é decisão de produto**, fica fora dos commits |
 
 ## 2. Objetivo
@@ -35,7 +35,7 @@ Tirar a branch do estado inconsistente com **commits cirúrgicos por onda**, cad
 
 Isolar `tests/test_licensing.py` do ambiente:
 
-- Os testes que constroem `LicenseManager`/`LicenseClient` passam a usar um **`store_path` de teste** (via `tmp_path`/monkeypatch) em vez de ler a `%APPDATA%\AirMouse\license.json`.
+- Os testes que constroem `LicenseManager`/`LicenseClient` passam a usar um **`store_path` de teste** (via `tmp_path`/monkeypatch) em vez de ler a `%APPDATA%\Maouse\license.json`.
 - Objetivo: remover a dependência da máquina dev (lease PRO ativa) e tornar o teste determinístico.
 - Commit dedicado e cirúrgico (ex.: `fix(tests): isola store de licensing do ambiente`) — valida-se primeiro, depois correm-se as ondas.
 
@@ -57,7 +57,7 @@ Regra de conteúdo adicional:
 ## 5. Packaging
 
 - `build.bat`: acrescentar cópia de `assets/brand/*` (inclui `logo.png`, `logo-off.png`, `logo-look.png`, `icon.png`) para o diretório de build, ao lado de `models` e `assets/fonts`.
-- `airmouse.spec`: acrescentar `datas` para `assets/brand`, `assets/fonts` e `assets/models` (o que existir) correspondente ao comportamento do build.bat.
+- `maouse.spec`: acrescentar `datas` para `assets/brand`, `assets/fonts` e `assets/models` (o que existir) correspondente ao comportamento do build.bat.
 - Commit dedicado de build; verificação = spec parseável (`PyInstaller`/YAML parse) + dry-run de `build.bat` (sem executar empacotamento pesado).
 
 ## 6. Verificação final

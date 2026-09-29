@@ -322,7 +322,7 @@ class AccessibilityDialog(QDialog):
     """Pedido de desconto de acessibilidade (50%) — D3.
 
     Formulário + comprovativo. A validação é manual: o pedido fica registado
-    localmente (``%APPDATA%\\AirMouse\\accessibility_requests``), abre-se um
+    localmente (``%APPDATA%\\Maouse\\accessibility_requests``), abre-se um
     email para o suporte com o comprovativo, e a equipa gera o cupão de 50%.
     """
 
@@ -433,7 +433,7 @@ class AccessibilityDialog(QDialog):
 
     def _save_request(self, ref, name, email):
         base = os.getenv("APPDATA") or os.path.expanduser("~")
-        folder = os.path.join(base, "AirMouse", "accessibility_requests")
+        folder = os.path.join(base, "Maouse", "accessibility_requests")
         os.makedirs(folder, exist_ok=True)
         _, ext = os.path.splitext(self._proof_path)
         dest = os.path.join(folder, ref + (ext.lower() or ".bin"))

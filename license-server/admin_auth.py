@@ -1,8 +1,8 @@
 """Sessão de administrador: cookie assinado HMAC (sem lib externa).
 
 O cookie transporta apenas timestamp + nonce, assinado com HMAC-SHA256 usando
-AIRMOUSE_LS_ADMIN_SESSION_SECRET. A senha do login compara com
-AIRMOUSE_LS_ADMIN_TOKEN (todo-poderoso do painel).
+MAOUSE_LS_ADMIN_SESSION_SECRET. A senha do login compara com
+MAOUSE_LS_ADMIN_TOKEN (todo-poderoso do painel).
 """
 import base64
 import hashlib
@@ -33,10 +33,10 @@ def _warn_once(flag: list, message: str) -> None:
 
 
 def _secret() -> str:
-    value = os.getenv("AIRMOUSE_LS_ADMIN_SESSION_SECRET")
+    value = os.getenv("MAOUSE_LS_ADMIN_SESSION_SECRET")
     if value is None:
         _warn_once(_dev_secret_warned,
-                   "AIRMOUSE_LS_ADMIN_SESSION_SECRET nao definido; a usar segredo "
+                   "MAOUSE_LS_ADMIN_SESSION_SECRET nao definido; a usar segredo "
                    "de desenvolvimento (inseguro em producao)")
         return _DEV_SECRET
     return value
@@ -79,10 +79,10 @@ def verify_session(cookie: str) -> bool:
 
 
 def verify_password(password: str) -> bool:
-    expected = os.getenv("AIRMOUSE_LS_ADMIN_TOKEN")
+    expected = os.getenv("MAOUSE_LS_ADMIN_TOKEN")
     if expected is None:
         _warn_once(_dev_token_warned,
-                   "AIRMOUSE_LS_ADMIN_TOKEN nao definido; a usar senha de "
+                   "MAOUSE_LS_ADMIN_TOKEN nao definido; a usar senha de "
                    "desenvolvimento (inseguro em producao)")
         expected = _DEV_TOKEN
     return hmac.compare_digest(password, expected)

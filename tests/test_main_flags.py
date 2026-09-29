@@ -8,7 +8,7 @@ import main
 
 def test_no_dev_pro_in_parse_args(monkeypatch):
     # controla argv para o argparse não ler os args reais do pytest
-    monkeypatch.setattr(sys, "argv", ["airmouse", "--no-gui"])
+    monkeypatch.setattr(sys, "argv", ["maouse", "--no-gui"])
     parser = main.parse_args()
     opts = set()
     for action in parser._actions:
@@ -30,40 +30,40 @@ class TestOnda0Flags:
         assert "--replay" in opts
 
     def test_defaults_are_none(self, monkeypatch):
-        monkeypatch.setattr(sys, "argv", ["airmouse"])
+        monkeypatch.setattr(sys, "argv", ["maouse"])
         args = main.parse_args().parse_args()
         assert args.record is None
         assert args.replay is None
 
     def test_record_takes_a_path(self, monkeypatch):
-        monkeypatch.setattr(sys, "argv", ["airmouse", "--record", "data/s.npz"])
+        monkeypatch.setattr(sys, "argv", ["maouse", "--record", "data/s.npz"])
         assert main.parse_args().parse_args().record == "data/s.npz"
 
     def test_replay_takes_a_path(self, monkeypatch):
-        monkeypatch.setattr(sys, "argv", ["airmouse", "--replay", "data/s.npz"])
+        monkeypatch.setattr(sys, "argv", ["maouse", "--replay", "data/s.npz"])
         assert main.parse_args().parse_args().replay == "data/s.npz"
 
     def test_record_and_replay_are_mutually_exclusive(self, monkeypatch):
         # Gravar e reproduzir ao mesmo tempo nao faz sentido: o replay tem de
         # correr sem camera, e o record sem rato.
         monkeypatch.setattr(
-            sys, "argv", ["airmouse", "--record", "a.npz", "--replay", "b.npz"]
+            sys, "argv", ["maouse", "--record", "a.npz", "--replay", "b.npz"]
         )
         with pytest.raises(SystemExit):
             main.parse_args().parse_args()
 
     def test_record_max_frames_defaults_to_unlimited(self, monkeypatch):
-        monkeypatch.setattr(sys, "argv", ["airmouse"])
+        monkeypatch.setattr(sys, "argv", ["maouse"])
         assert main.parse_args().parse_args().record_max_frames == 0
 
     def test_replay_gate_is_opt_in(self, monkeypatch):
         # Imprimir o relatorio nao reprova. O portao e explicito, para que o
         # passo de CI que mostra os numeros nunca fique vermelho por um alvo que
         # ainda nao e atingido.
-        monkeypatch.setattr(sys, "argv", ["airmouse", "--replay", "c.npz"])
+        monkeypatch.setattr(sys, "argv", ["maouse", "--replay", "c.npz"])
         assert main.parse_args().parse_args().replay_gate is False
         monkeypatch.setattr(
-            sys, "argv", ["airmouse", "--replay", "c.npz", "--replay-gate"]
+            sys, "argv", ["maouse", "--replay", "c.npz", "--replay-gate"]
         )
         assert main.parse_args().parse_args().replay_gate is True
 

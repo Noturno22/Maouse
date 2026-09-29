@@ -1,4 +1,4 @@
-# Estratégia de Conteúdo & Redes Sociais — Mãouse (AirMouse)
+# Estratégia de Conteúdo & Redes Sociais — Mãouse (Maouse)
 
 > O plano editorial que transforma o produto no maior ativo de marketing: **o conteúdo É a
 > demo**. Construído sobre `IDENTIDADE_VISUAL.md` (guia de marca), `MODELO_DE_MARKETING_E_VENDAS.md`
@@ -268,7 +268,7 @@ Download grátis → [link maouse.app]
 
 | Pilar | PT-BR | EN |
 |---|---|---|
-| O Wow / tech | `#Maouse` `#Tecnologia` `#MouseVirtual` `#Gestos` | `#AirMouse` `#GestureControl` `#NoMouse` `#HandTracking` |
+| O Wow / tech | `#Maouse` `#Tecnologia` `#MouseVirtual` `#Gestos` | `#Maouse` `#GestureControl` `#NoMouse` `#HandTracking` |
 | Acessibilidade | `#Acessibilidade` `#TecnologiaAssistiva` `#Inclusao` `#LER` | `#Accessibility` `#AssistiveTech` `#DisabledGamers` `#RSI` |
 | Mão livre | `#Apresentacoes` `#Professor` `#HomeOffice` | `#Presentations` `#RemoteWork` `#CreatorTools` |
 | Origem | `#FeitoEmAngola` `#Angola` `#StartupParSciou` | `#MadeInAngola` `#AfricaTech` `#IndieDev` |
@@ -334,7 +334,7 @@ Download grátis → [link maouse.app]
 | 5 | Conteúdo só PT ou só EN por rotina | Peça-mestra sempre dupla; variações em PT-BR + EN |
 | 6 | Conta parada em plataforma | Cadência mínima 2 posts/semana ou não cria a conta |
 | 7 | Legenda sem legendas texto | Acessibilidade é segmento 1 — legendas obrigatórias |
-| 8 | Usar nome errado "AirMouse" | É **Mãouse** — com til (IDENTIDADE_VISUAL §12) |
+| 8 | Usar nome errado "Maouse" | É **Mãouse** — com til (IDENTIDADE_VISUAL §12) |
 | 9 | Videos sem overlay de marca | Overlay com badges neon + tipografia JetBrains Mono é a identidade |
 | 10 | Responder/ignorar dúvidas de hardware | Comentários = 2.ª demo; responder sempre com factualidade |
 

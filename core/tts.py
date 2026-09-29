@@ -65,7 +65,7 @@ class Speaker:
             return
         self._running = True
         self._thread = threading.Thread(
-            target=self._loop, name="airmouse-tts", daemon=True
+            target=self._loop, name="maouse-tts", daemon=True
         )
         self._thread.start()
 
@@ -138,7 +138,7 @@ class Speaker:
 
         cfg = SynthesisConfig(length_scale=1.0)
         out = os.path.join(
-            tempfile.gettempdir(), f"airmouse_tts_{os.getpid()}.wav"
+            tempfile.gettempdir(), f"maouse_tts_{os.getpid()}.wav"
         )
         try:
             self._pv.synthesize_wav(text, out, syn_config=cfg)

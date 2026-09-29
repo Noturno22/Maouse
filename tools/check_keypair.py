@@ -5,7 +5,7 @@ Uso:
   python tools/check_keypair.py --server license-server/private.pem \\
       --client core/licensing_public_key.pem
 
-Sem --server: usa `AIRMOUSE_LS_PRIVATE_KEY` ou `license-server/private.pem` (default).
+Sem --server: usa `MAOUSE_LS_PRIVATE_KEY` ou `license-server/private.pem` (default).
 Sem --client: usa `core/licensing_public_key.pem` (default).
 
 Saída: 0 se forem o mesmo par (pública derivada == pública embutida), 1 caso contrário.
@@ -26,7 +26,7 @@ def main() -> int:
     args = ap.parse_args()
 
     server_priv = args.server or os.getenv(
-        "AIRMOUSE_LS_PRIVATE_KEY",
+        "MAOUSE_LS_PRIVATE_KEY",
         os.path.join("license-server", "private.pem"))
 
     for path, label in ((server_priv, "privada do servidor"),

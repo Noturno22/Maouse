@@ -1,4 +1,4 @@
-# Anti-padrões, Riscos de Falha e Prontidão de Lançamento — Mãouse (AirMouse)
+# Anti-padrões, Riscos de Falha e Prontidão de Lançamento — Mãouse (Maouse)
 
 > O **complemento de prudência** à estratégia. Enquanto `ESTRATEGIA_GLOBAL.md` diz o que
 > fazer, este documento diz o que **NÃO** fazer e o que **pode fazer o produto falhar** —

@@ -5,7 +5,7 @@
 #    and, if it is present, none of the existing .gitignore files will be
 #    respected by EAS CLI."
 #
-# Ou seja: (1) um .easignore dentro de mobile/airmouse-mobile/ e IGNORADO
+# Ou seja: (1) um .easignore dentro de mobile/maouse-mobile/ e IGNORADO
 # em silencio, e (2) a presenca deste ficheiro DESLIGA todos os
 # .gitignore do repo - incluindo web/.gitignore.
 #
@@ -14,37 +14,37 @@
 #
 # Estrategia: excluir a raiz toda e re-incluir so o projeto mobile.
 # (gitignore nao re-inclui um ficheiro se um diretorio pai esta excluido,
-# por isso o /mobile e o /mobile/airmouse-mobile sao re-incluidos um a um.)
+# por isso o /mobile e o /mobile/maouse-mobile sao re-incluidos um a um.)
 
 # ---- Excluir tudo da raiz do repositorio ----
 /*
 
 # ---- Re-incluir so o projeto mobile (necessario para o build) ----
 !/mobile
-!/mobile/airmouse-mobile
-!/mobile/airmouse-mobile/**
+!/mobile/maouse-mobile
+!/mobile/maouse-mobile/**
 
 # ---- Dentro do projeto mobile: o que o build nao precisa ----
 # dependencias (386MB) - o EAS corre npm install no worker
-/mobile/airmouse-mobile/node_modules
+/mobile/maouse-mobile/node_modules
 # caches e artefactos locais
-/mobile/airmouse-mobile/.expo
-/mobile/airmouse-mobile/dist
-/mobile/airmouse-mobile/web-build
-/mobile/airmouse-mobile/expo-env.d.ts
+/mobile/maouse-mobile/.expo
+/mobile/maouse-mobile/dist
+/mobile/maouse-mobile/web-build
+/mobile/maouse-mobile/expo-env.d.ts
 *.tsbuildinfo
 *.orig.*
 # pastas nativas geradas por `expo prebuild` - se forem enviadas o EAS
 # salta o prebuild e compila codigo nativo desatualizado
-/mobile/airmouse-mobile/android
-/mobile/airmouse-mobile/ios
+/mobile/maouse-mobile/android
+/mobile/maouse-mobile/ios
 # logs
 *.log
 npm-debug.*
 yarn-debug.*
 yarn-error.*
 # segredos - nunca upload
-/mobile/airmouse-mobile/.env
+/mobile/maouse-mobile/.env
 .env*.local
 *.p12
 *.p8

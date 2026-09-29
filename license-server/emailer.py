@@ -12,12 +12,12 @@ class Result(NamedTuple):
 
 def _cfg():
     return {
-        "enabled": os.getenv("AIRMOUSE_SMTP_ENABLED", "0") == "1",
-        "host": os.getenv("AIRMOUSE_SMTP_HOST", ""),
-        "port": int(os.getenv("AIRMOUSE_SMTP_PORT", "587")),
-        "user": os.getenv("AIRMOUSE_SMTP_USER", ""),
-        "password": os.getenv("AIRMOUSE_SMTP_PASSWORD", ""),
-        "from": os.getenv("AIRMOUSE_SMTP_FROM", "sales@maouse.app"),
+        "enabled": os.getenv("MAOUSE_SMTP_ENABLED", "0") == "1",
+        "host": os.getenv("MAOUSE_SMTP_HOST", ""),
+        "port": int(os.getenv("MAOUSE_SMTP_PORT", "587")),
+        "user": os.getenv("MAOUSE_SMTP_USER", ""),
+        "password": os.getenv("MAOUSE_SMTP_PASSWORD", ""),
+        "from": os.getenv("MAOUSE_SMTP_FROM", "sales@maouse.app"),
     }
 
 

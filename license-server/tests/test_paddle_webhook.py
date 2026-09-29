@@ -79,7 +79,7 @@ def test_webhook_ignores_non_completed():
 
 
 def test_webhook_returns_503_when_secret_unset(monkeypatch):
-    monkeypatch.delenv("AIRMOUSE_PADDLE_WEBHOOK_SECRET", raising=False)
+    monkeypatch.delenv("MAOUSE_PADDLE_WEBHOOK_SECRET", raising=False)
     client = TestClient(create_app())
     raw, _ = _signed(_completed_event())
     resp = client.post("/webhooks/paddle", content=raw,

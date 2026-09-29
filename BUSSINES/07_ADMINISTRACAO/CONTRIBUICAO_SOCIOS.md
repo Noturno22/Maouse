@@ -63,7 +63,7 @@ Todos os commits de autor `josefortunafortuna54-byte` até 2026-09-28:
 | `d9def7d` | 2026-09-15 | **fix(ci): CI headless verde — pynput/tray lazy, libs Qt+Xvfb e teste snap multiplataforma** | 🟢 **Infraestrutura de CI** — torna o pipeline headless e multiplataforma, desbloqueia a automatização da qualidade |
 
 **Totais:** 6 commits (5 substantivos + 1 merge). Domínio mobile: 2 commits no
-path `mobile/airmouse-mobile/` (os outros 4 são no core/desktop).
+path `mobile/maouse-mobile/` (os outros 4 são no core/desktop).
 
 ---
 
@@ -98,7 +98,7 @@ limitações**. As atribuíveis ao domínio do sócio:
 | 🔴 | Sem TLS + cliente remove `wss://` | `core/remote.py:227-231`, `remoteClient.ts:33-41` |
 | 🔴 | Sem rate limit / lockout / allowlist | `core/remote.py:250` |
 | 🔴 | Bypass do gate Pro no remote | ausência em `core/remote.py` |
-| 🟠 | Zero testes no mobile (sem `test` script, sem jest) | `mobile/airmouse-mobile/package.json` |
+| 🟠 | Zero testes no mobile (sem `test` script, sem jest) | `mobile/maouse-mobile/package.json` |
 | ⚪ **Sem impacto** | ~~`pyproject.toml` sem as dependências reais~~ — **premissa errada, e anterior ao sócio**: o projecto não é distribuído por pip, logo o item não era bug. Limpo pelo fundador a 2026-09-28 | `pyproject.toml` (secções mortas removidas) |
 | 🟠 | Bypass do toggle de pausa | ausência em `core/remote.py` |
 | 🟠 | Sem auto-reconnect / AppState / fila no mobile | `src/services/remoteClient.ts` |
@@ -118,7 +118,7 @@ limitações**. As atribuíveis ao domínio do sócio:
   limitações auditadas, das quais **4 🔴 reais** — e que bloqueiam a
   funcionalidade central em multi-monitor. (O alegado bloqueador de build da EAS
   foi retractado em §4.6: **zero bloqueadores de build**.)
-- **A propriedade do mobile é na prática do fundador.** `mobile/airmouse-mobile/`
+- **A propriedade do mobile é na prática do fundador.** `mobile/maouse-mobile/`
   tem 30 commits do `Noturno22` vs 2 do Fortuna. O domínio "mobile" do papel do
   sócio está, na prática, entregue acima de 90% pelo fundador.
 - **Contribuição invisível para o GitHub** — 🔴 ver §4.5. Não é tracking fraco: é

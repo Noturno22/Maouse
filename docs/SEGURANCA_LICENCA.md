@@ -24,7 +24,7 @@ aplicação desktop local (o servidor continua a validar em cada ativação/reva
 |---|---|---|---|
 | **Utilizador casual** | Apagar ficheiros, mexer em definições | Reiniciar o trial (apagar `license.json`) | ✅ Fechado (servidor-lembra) |
 | **Script kiddie** | Editar JSON, procurar "cracks", usar ferramentas de edição de JWT | Forjar `license.json` com `alg:none`, copiar licença de outro PC | ✅ Fechado (ES256 + machine binding) |
-| **Power user** | Conhecer o sistema de ficheiros, variáveis de ambiente | Procurar flag "developer", variável de bypass | ✅ Fechado (`--dev-pro`/`AIRMOUSE_DEV_PRO` removidos) |
+| **Power user** | Conhecer o sistema de ficheiros, variáveis de ambiente | Procurar flag "developer", variável de bypass | ✅ Fechado (`--dev-pro`/`MAOUSE_DEV_PRO` removidos) |
 | **Reverse engineer** | Desmontar o `.exe` (PyInstaller) e patchar o gate | Saltar a verificação no binário | ⚠️ Contido, não eliminado (ver §4) |
 | **Atacante da API** | `curl`/script contra o license-server | Abusar `/api/v1/trial/*` com `machine_id` inventado | ⚠️ Contido — não abre PRO sem chave (ver §4) |
 
@@ -35,11 +35,11 @@ e a integridade da venda (1 chave = 1 utilizador = 1 máquina; trial de 30 min c
 
 ## 2. Superfície de ataque
 
-1. **Cliente distribuído** — `AirMouse.exe` (PyInstaller), ficheiro `license.json`,
+1. **Cliente distribuído** — `Maouse.exe` (PyInstaller), ficheiro `license.json`,
    `core/licensing_public_key.pem` (pública, embutida de propósito).
 2. **Rede** — `HTTPS` para o license-server (`activate`, `revalidate`, `trial/*`).
 3. **Servidor** — `license-server/` (FastAPI + SQLite), env vars de produção
-   (`AIRMOUSE_LS_PRIVATE_KEY`, `AIRMOUSE_LS_ADMIN_TOKEN`, credenciais Google Play, segredos Paddle).
+   (`MAOUSE_LS_PRIVATE_KEY`, `MAOUSE_LS_ADMIN_TOKEN`, credenciais Google Play, segredos Paddle).
 4. **Compra** — webhook Paddle (`transaction.completed`) → emissão de chave.
 
 ---
@@ -55,16 +55,16 @@ e a integridade da venda (1 chave = 1 utilizador = 1 máquina; trial de 30 min c
 | Ativar a mesma chave noutra máquina | 1 chave = N máquinas | Regra dura no servidor: `machine_for_key` → segunda máquina recebe **403** | `license-server/service.py:activate` |
 | Replay de uma lease antiga | Renova indefinidamente | `revocation_nonce` (≥ último visto) + `use_seq` estritamente crescente; anti-replay rejeita leases antigos | `core/licensing.py:_validate_local_lease` · `license-server/service.py:revalidate` · `storage.py:bump_revocation_nonce` |
 | Replay do webhook Paddle | Emite chaves sem pagar | Webhook verifica **HMAC** e **dedup por `event_id`** | `license-server/app.py` (`POST /webhooks/paddle`) |
-| Flag de dev `--dev-pro` / `AIRMOUSE_DEV_PRO` | PRO sem chave | **Removido** do CLI e do runtime | `main.py` (verificado em `tests/test_main_flags.py`) |
+| Flag de dev `--dev-pro` / `MAOUSE_DEV_PRO` | PRO sem chave | **Removido** do CLI e do runtime | `main.py` (verificado em `tests/test_main_flags.py`) |
 | Roubar a chave privada do README/docs | Forja leases | Chave privada **nunca** entra no repo (`license-server/*.pem` no `.gitignore`); só a pública é trackeada | `docs/ASSINATURA_DIGITAL.md` · `git` (ver §3.1) |
 
 ### 3.1. Higiene de segredos (verificada 2026-09-05)
 
 - `git ls-files` → apenas `core/licensing_public_key.pem` (pública) está trackeado.
 - `license-server/private.pem` e `public.pem` estão no `.gitignore` → não versionados.
-- Token admin e chave privada do servidor vêm de **env vars** (`AIRMOUSE_LS_ADMIN_TOKEN`,
-  `AIRMOUSE_LS_PRIVATE_KEY`) — sem defaults funcionais de produção.
-- `PADDLE_PRODUCT_URLS` lê de env (`AIRMOUSE_PADDLE_*_URL`); `ui/license_dlg.py:26`
+- Token admin e chave privada do servidor vêm de **env vars** (`MAOUSE_LS_ADMIN_TOKEN`,
+  `MAOUSE_LS_PRIVATE_KEY`) — sem defaults funcionais de produção.
+- `PADDLE_PRODUCT_URLS` lê de env (`MAOUSE_PADDLE_*_URL`); `ui/license_dlg.py:26`
   tem `PADDLE_VENDOR_ID = 0  # TODO` — ainda **não operacional** (ver §6).
 
 ---
@@ -85,7 +85,7 @@ e a integridade da venda (1 chave = 1 utilizador = 1 máquina; trial de 30 min c
    (muitos `machine_id` por IP = abuso) — fora do alcance atual (YAGNI).
 
 3. **Segredos de produção** — o elo mais fraco não é o código, é a operação: se
-   `AIRMOUSE_LS_PRIVATE_KEY`, `AIRMOUSE_LS_ADMIN_TOKEN`, credenciais Play ou segredos Paddle
+   `MAOUSE_LS_PRIVATE_KEY`, `MAOUSE_LS_ADMIN_TOKEN`, credenciais Play ou segredos Paddle
    forem expostos (logs, repo, imagem, suporte), o sistema torna-se forjável. Regras → §6.
 
 ---
@@ -95,7 +95,7 @@ e a integridade da venda (1 chave = 1 utilizador = 1 máquina; trial de 30 min c
 Reprodutível localmente (ver `docs/DESKTOP_LICENSE_URL.md` para arrancar o servidor de teste):
 
 - [ ] `--dev-pro` não existe: `python main.py --help` → ausente.
-- [ ] `AIRMOUSE_DEV_PRO=1` não tem efeito.
+- [ ] `MAOUSE_DEV_PRO=1` não tem efeito.
 - [ ] Trial esgota 30 min → `is_blocked()` True → `process_frame` não move o rato
       (teste: `pytest tests/test_license_gate.py`).
 - [ ] Apagar `license.json` + rede → `reconcile_trial()` puxa `used_seconds` do servidor → não volta a 30 min.
@@ -113,19 +113,19 @@ contra servidor local ✅ (trial → chave `MAO-` → ativar → PRO → restart
 
 ## 6. Regras operacionais (produção)
 
-1. **Segredos só no servidor** (Render env, nunca no repo, logs ou imagens): `AIRMOUSE_LS_PRIVATE_KEY`,
-   `AIRMOUSE_LS_ADMIN_TOKEN`, `AIRMOUSE_GOOGLE_PLAY_CREDENTIALS_JSON`, segredos Paddle.
+1. **Segredos só no servidor** (Render env, nunca no repo, logs ou imagens): `MAOUSE_LS_PRIVATE_KEY`,
+   `MAOUSE_LS_ADMIN_TOKEN`, `MAOUSE_GOOGLE_PLAY_CREDENTIALS_JSON`, segredos Paddle.
 2. **Par privada↔pública emparelhada:** a pública embutida em `core/licensing_public_key.pem`
    **deve corresponder** à privada de produção antes do bake (verificar:
    `.venv\Scripts\python.exe tools/check_keypair.py` ou comparação PEM manual). Se a privada de
    produção for regenerada, **rebuildar o cliente na mesma release** — nunca a meio.
 3. **Bake do URL:** gravar `PROD_LICENSE_SERVER_URL` real em `core/licensing.py:25` antes do
    build final (procedimento completo em `docs/DESKTOP_LICENSE_URL.md`).
-4. **Paddle:** preencher `PADDLE_VENDOR_ID` e `AIRMOUSE_PADDLE_*_URL` quando a entidade UE e o
+4. **Paddle:** preencher `PADDLE_VENDOR_ID` e `MAOUSE_PADDLE_*_URL` quando a entidade UE e o
    catálogo existirem — hoje o checkout é fallback genérico (não operacional).
 5. **Monitorização:** alerta para `/health` down e para picos de `403` (abuso de ativação);
    revisão periódica de `keys` (chaves emitidas via `/admin/keys` são as únicas vendas).
-6. **`AIRMOUSE_MOBILE_DEV_ALLOW=1`** é só para dev do mobile — **nunca** em produção (validação
+6. **`MAOUSE_MOBILE_DEV_ALLOW=1`** é só para dev do mobile — **nunca** em produção (validação
    Play real é obrigatória).
 
 ---

@@ -118,7 +118,7 @@ Escolher UMA via: **(A)** **ativar o eSigner** no portal SSL.com → configurar 
 
 ## O que é
 
-Projeto novo dentro de `DEV\JARVIS\airmouse` — controla o rato do PC com a mão via webcam.
+Projeto novo dentro de `DEV\JARVIS\maouse` — controla o rato do PC com a mão via webcam.
 Criado porque o barehands parece amador; este usa técnicas profissionais para precisão:
 
 1. **One Euro Filter** — elimina tremor sem lag perceptível
@@ -134,7 +134,7 @@ Criado porque o barehands parece amador; este usa técnicas profissionais para p
 | Stack | Python 3.14 + MediaPipe 1.0.1 + OpenCV + pynput |
 | Controlo | Relativo (touchpad) com ganho ajustável (`move_gain`) |
 | Gestos | Básico: pinça=clique esq., punho=arrastar, 2 dedos (index+médio)=clique dir. |
-| Local | `C:\Users\Luar Studio Angola\Desktop\DEV\JARVIS\airmouse` |
+| Local | `C:\Users\Luar Studio Angola\Desktop\DEV\JARVIS\maouse` |
 | Modelo | `hand_landmarker.task` (MediaPipe Tasks API), download automático na 1ª execução |
 
 ### Mapeamento de gestos (implementado em `core/gestures.py`)
@@ -149,7 +149,7 @@ Criado porque o barehands parece amador; este usa técnicas profissionais para p
 ## Ficheiros já criados (CÓDIGO COMPLETO)
 
 ```
-airmouse/
+maouse/
 ├── config.py            ← TODOS os parâmetros de afinação estão aqui
 ├── main.py              ← loop tempo real, câmara, overlay, voz/IA/auto-afinação, selftest (--frames N)
 ├── requirements.txt     ← mediapipe==1.0.1, opencv-python, numpy, pynput, vosk, sounddevice
@@ -227,9 +227,9 @@ airmouse/
      "reais" falsos: split, treino, backup, inferencia 5/5).
 
 ### EXECUTAVEL (.exe)
-6. **`build.bat`** + `airmouse.spec` + `requirements-build.txt` (PyInstaller onedir).
+6. **`build.bat`** + `maouse.spec` + `requirements-build.txt` (PyInstaller onedir).
    - Paths congelados: `_base_dir()/_abs_path()` em main.py — settings.json e modelos
-     junto ao exe (dist\AirMouse\models copiado pelo build.bat).
+     junto ao exe (dist\Maouse\models copiado pelo build.bat).
    - NOTA: `matplotlib` e dependencia declarada do mediapipe; o primeiro build falhou
      porque a spec a excluia. Ja nao excluida; nada a instalar a mais.
    - Build OK (~395 MB). Exe congelado testado sem camara: importa mediapipe/vosk,

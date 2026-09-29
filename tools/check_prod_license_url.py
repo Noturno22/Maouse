@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from core.licensing import PROD_LICENSE_SERVER_URL
 
 _PLACEHOLDER = "https://licenses.maouse.example.com"
-_ALLOW_ENV = "AIRMOUSE_ALLOW_PLACEHOLDER_URL"
+_ALLOW_ENV = "MAOUSE_ALLOW_PLACEHOLDER_URL"
 _BAD_HINTS = ("example.com", "example.org", "placeholder", "<", ">", " ", ":memory:", "{", "}")
 
 

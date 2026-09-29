@@ -15,19 +15,19 @@ def test_build_message_contains_key():
 
 
 def test_send_disabled_when_no_smtp(monkeypatch):
-    monkeypatch.setenv("AIRMOUSE_SMTP_ENABLED", "0")
+    monkeypatch.setenv("MAOUSE_SMTP_ENABLED", "0")
     res = emailer.send_key_email("a@b.c", "MAO-X")
     assert res.fired is False
     assert res.error == ""
 
 
 def test_send_uses_smtp(monkeypatch):
-    monkeypatch.setenv("AIRMOUSE_SMTP_ENABLED", "1")
-    monkeypatch.setenv("AIRMOUSE_SMTP_HOST", "smtp.example.com")
-    monkeypatch.setenv("AIRMOUSE_SMTP_PORT", "587")
-    monkeypatch.setenv("AIRMOUSE_SMTP_USER", "u")
-    monkeypatch.setenv("AIRMOUSE_SMTP_PASSWORD", "p")
-    monkeypatch.setenv("AIRMOUSE_SMTP_FROM", "sales@maouse.app")
+    monkeypatch.setenv("MAOUSE_SMTP_ENABLED", "1")
+    monkeypatch.setenv("MAOUSE_SMTP_HOST", "smtp.example.com")
+    monkeypatch.setenv("MAOUSE_SMTP_PORT", "587")
+    monkeypatch.setenv("MAOUSE_SMTP_USER", "u")
+    monkeypatch.setenv("MAOUSE_SMTP_PASSWORD", "p")
+    monkeypatch.setenv("MAOUSE_SMTP_FROM", "sales@maouse.app")
     sent = []
 
     class _S:
@@ -55,9 +55,9 @@ def test_send_uses_smtp(monkeypatch):
 
 
 def test_send_returns_error_not_raises(monkeypatch):
-    monkeypatch.setenv("AIRMOUSE_SMTP_ENABLED", "1")
-    monkeypatch.setenv("AIRMOUSE_SMTP_HOST", "smtp.example.com")
-    monkeypatch.setenv("AIRMOUSE_SMTP_PORT", "587")
+    monkeypatch.setenv("MAOUSE_SMTP_ENABLED", "1")
+    monkeypatch.setenv("MAOUSE_SMTP_HOST", "smtp.example.com")
+    monkeypatch.setenv("MAOUSE_SMTP_PORT", "587")
 
     class BoomSMTP:
         def __enter__(self):
@@ -82,7 +82,7 @@ def test_send_returns_error_not_raises(monkeypatch):
 
 
 def test_generic_email_disabled_returns_noop(monkeypatch):
-    monkeypatch.setenv("AIRMOUSE_SMTP_ENABLED", "0")
+    monkeypatch.setenv("MAOUSE_SMTP_ENABLED", "0")
     result = send_generic_email("a@b.c", "Assunto", "Corpo")
     assert result.fired is False
     assert result.error == ""

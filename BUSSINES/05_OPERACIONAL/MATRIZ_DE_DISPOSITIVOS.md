@@ -1,4 +1,4 @@
-# Matriz de Compatibilidade de Dispositivos — Mãouse (AirMouse)
+# Matriz de Compatibilidade de Dispositivos — Mãouse (Maouse)
 
 > Ficheiro **operacional** de recolha de dados. Preencher **uma linha por dispositivo testado**,
 > em hardware real, **durante o beta fechado e o arranque**. A matriz é a base comercial da regra

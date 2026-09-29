@@ -14,40 +14,40 @@ services:
     plan: free
     dockerfilePath: ./license-server/Dockerfile
     envVars:
-      - key: AIRMOUSE_LS_ADMIN_TOKEN
+      - key: MAOUSE_LS_ADMIN_TOKEN
         sync: false # define no painel (não versionar)
-      - key: AIRMOUSE_LS_ADMIN_SESSION_SECRET
+      - key: MAOUSE_LS_ADMIN_SESSION_SECRET
         sync: false # definir no painel do Render
-      - key: AIRMOUSE_LS_PRIVATE_KEY
+      - key: MAOUSE_LS_PRIVATE_KEY
         sync: false
-      - key: AIRMOUSE_LS_PUBLIC_KEY
+      - key: MAOUSE_LS_PUBLIC_KEY
         sync: false
-      - key: AIRMOUSE_PADDLE_WEBHOOK_SECRET
+      - key: MAOUSE_PADDLE_WEBHOOK_SECRET
         sync: false
-      - key: AIRMOUSE_SMTP_ENABLED
+      - key: MAOUSE_SMTP_ENABLED
         value: "0"
-      - key: AIRMOUSE_SMTP_HOST
+      - key: MAOUSE_SMTP_HOST
         sync: false
-      - key: AIRMOUSE_SMTP_PORT
+      - key: MAOUSE_SMTP_PORT
         value: "587"
-      - key: AIRMOUSE_SMTP_USER
+      - key: MAOUSE_SMTP_USER
         sync: false
-      - key: AIRMOUSE_SMTP_PASSWORD
+      - key: MAOUSE_SMTP_PASSWORD
         sync: false
-      - key: AIRMOUSE_SMTP_FROM
+      - key: MAOUSE_SMTP_FROM
         sync: false
       # Mobile (IAP Pro) — validação server-side das compras Google Play.
       # Definição no painel: o JSON da conta de serviço é grande e secreto.
-      - key: AIRMOUSE_MOBILE_PRODUCT_ID
+      - key: MAOUSE_MOBILE_PRODUCT_ID
         value: maouse_mobile_pro
-      - key: AIRMOUSE_MOBILE_PACKAGE_NAME
-        value: com.airmouse.mobile
-      - key: AIRMOUSE_GOOGLE_PLAY_CREDENTIALS_JSON
+      - key: MAOUSE_MOBILE_PACKAGE_NAME
+        value: com.maouse.mobile
+      - key: MAOUSE_GOOGLE_PLAY_CREDENTIALS_JSON
         sync: false
-      - key: AIRMOUSE_MOBILE_DEV_ALLOW
+      - key: MAOUSE_MOBILE_DEV_ALLOW
         value: "0"
       # Caminho da base de dados (efémero no free; persistente no starter com disco).
-      - key: AIRMOUSE_LS_DB
+      - key: MAOUSE_LS_DB
         value: /data/license.db
     healthCheckPath: /health
     # PRODUÇÃO (1ª venda): descomentar o bloco e mudar plan: free -> starter (único com disco).

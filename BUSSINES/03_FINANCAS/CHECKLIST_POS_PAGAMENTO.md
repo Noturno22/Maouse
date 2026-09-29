@@ -1,4 +1,4 @@
-# Checklist Pós-Pagamento — Mãouse (AirMouse)
+# Checklist Pós-Pagamento — Mãouse (Maouse)
 
 > Passos de **execução sem custo** que transformam "ingredientes comprados"
 > (**Render pago: $225–235/ano**, ver `CUSTOS_DE_LANCAMENTO.md` e `MAPA_OPS_VS_MARKETING.md`)
@@ -13,7 +13,7 @@
 - [ ] Definir a password via variável de ambiente `PFX_PASS` (não fica no histórico do shell)
 - [ ] Correr `build.bat` (assina o `.exe` + o instalador Inno Setup automaticamente)
 - [ ] Verificar com `Get-AuthenticodeSignature` → `Status: Valid` + Publisher "Luar Studio Angola"
-      em `dist\AirMouse\AirMouse.exe` e `dist\Maouse-Setup-1.0.0.exe`
+      em `dist\Maouse\Maouse.exe` e `dist\Maouse-Setup-1.0.0.exe`
 
 > Lembrar: certificados novos ainda podem mostrar SmartScreen até ganhar reputação —
 > resolve-se com downloads legítimos e volume, não é bug da assinatura.
@@ -24,12 +24,12 @@
 
 - [ ] Blueprint com `render.yaml` (código já está pronto)
 - [ ] Definir as env vars **obrigatórias**:
-  - `AIRMOUSE_LS_ADMIN_TOKEN` (ex.: `openssl rand -hex 24`)
-  - `AIRMOUSE_LS_PRIVATE_KEY` / `AIRMOUSE_LS_PUBLIC_KEY` (PEM de `license-server/`)
-- [ ] Métricas da conta de serviço Google: `AIRMOUSE_GOOGLE_PLAY_CREDENTIALS_JSON`
+  - `MAOUSE_LS_ADMIN_TOKEN` (ex.: `openssl rand -hex 24`)
+  - `MAOUSE_LS_PRIVATE_KEY` / `MAOUSE_LS_PUBLIC_KEY` (PEM de `license-server/`)
+- [ ] Métricas da conta de serviço Google: `MAOUSE_GOOGLE_PLAY_CREDENTIALS_JSON`
       (Android Publisher API) — sem isto o `mobile/entitle` só corre em modo dev
-- [ ] Opcionais: `AIRMOUSE_PADDLE_*`, `AIRMOUSE_SMTP_*` + `AIRMOUSE_SMTP_ENABLED=1`
-- [ ] Disco persistente **1 GB em `/data`** (`AIRMOUSE_LS_DB=/data/license.db`)
+- [ ] Opcionais: `MAOUSE_PADDLE_*`, `MAOUSE_SMTP_*` + `MAOUSE_SMTP_ENABLED=1`
+- [ ] Disco persistente **1 GB em `/data`** (`MAOUSE_LS_DB=/data/license.db`)
 - [ ] Confirmar: `curl https://<service>.onrender.com/health` → `200 ok`
 
 ---
@@ -38,7 +38,7 @@
 
 - [ ] Em `core/licensing.py`, `_default_endpoints()`: trocar o placeholder
       `https://licenses.maouse.example.com` pelo URL real `https://<service>.onrender.com`
-- [ ] Igualar também `tools/issue_pro_key.py` (`AIRMOUSE_LS_URL` default) se usado
+- [ ] Igualar também `tools/issue_pro_key.py` (`MAOUSE_LS_URL` default) se usado
 - [ ] Rebuildar e reassinar o `.exe` (`build.bat`)
 - [ ] **Nunca** mudar o URL depois de distribuir sem rebuildar
 
@@ -50,9 +50,9 @@
 ## 4. Pagamento + email (Paddle/SMTP)
 
 - [ ] Conta Paddle + criar o produto com `PADDLE_PRODUCT_URLS` do `core/licensing.py`
-- [ ] Definir `AIRMOUSE_PADDLE_WEBHOOK_SECRET`, `AIRMOUSE_PADDLE_VENDOR_ID`, `AIRMOUSE_PADDLE_API_KEY`
+- [ ] Definir `MAOUSE_PADDLE_WEBHOOK_SECRET`, `MAOUSE_PADDLE_VENDOR_ID`, `MAOUSE_PADDLE_API_KEY`
 - [ ] Conta de email transacional free tier (ex. Resend) + domínio `maouse.app`
-      → `AIRMOUSE_SMTP_HOST/PORT/USER/PASSWORD/FROM`
+      → `MAOUSE_SMTP_HOST/PORT/USER/PASSWORD/FROM`
 - [ ] Testar **uma compra real** → webhook `transaction.completed` emite a chave
       `MAO-` e o email chega ao comprador
 
@@ -64,8 +64,8 @@
 - [ ] Criar produto IAP `maouse_mobile_pro` (o code-side já está ✅: expo-iap +
       validação Google no license-server + paywall `ProGate`)
 - [ ] Criar conta de serviço Google com permissão Android Publisher API
-      → `AIRMOUSE_GOOGLE_PLAY_CREDENTIALS_JSON` no Render
-- [ ] Desligar `AIRMOUSE_MOBILE_DEV_ALLOW=0` em produção
+      → `MAOUSE_GOOGLE_PLAY_CREDENTIALS_JSON` no Render
+- [ ] Desligar `MAOUSE_MOBILE_DEV_ALLOW=0` em produção
 - [ ] Icons Mãouse + privacy policy URL + store listing (copy de acessibilidade)
 - [ ] Upload do código com IAP (EAS Build/prebuild + `submit.production`)
 

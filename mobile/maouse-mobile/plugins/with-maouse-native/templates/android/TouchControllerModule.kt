@@ -1,4 +1,4 @@
-package com.airmouse.mobile
+package com.maouse.mobile
 
 import com.facebook.react.bridge.Callback
 import com.facebook.react.bridge.ReactApplicationContext
@@ -6,21 +6,21 @@ import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
 
 /**
- * TouchControllerModule: bridge React Native → AirMouseAccessibilityService.
+ * TouchControllerModule: bridge React Native → MaouseAccessibilityService.
  *
  * Permite simular toques/gestos no ecrã do telemóvel a partir do JS
  * (por exemplo Aparece 4 dedos abertos → longPress no centro do ecrã).
  *
- * Requer que o AirMouseAccessibilityService esteja ativo em
- * Definições > Acessibilidade > AirMouse.
+ * Requer que o MaouseAccessibilityService esteja ativo em
+ * Definições > Acessibilidade > Maouse.
  */
 class TouchControllerModule(reactContext: ReactApplicationContext) :
     ReactContextBaseJavaModule(reactContext) {
 
     override fun getName(): String = "TouchController"
 
-    private val service: AirMouseAccessibilityService?
-        get() = AirMouseAccessibilityService.instance
+    private val service: MaouseAccessibilityService?
+        get() = MaouseAccessibilityService.instance
 
     @ReactMethod
     fun tap(x: Double, y: Double) {

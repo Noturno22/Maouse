@@ -22,7 +22,7 @@
 
 | Data | Marco | Tipo | Detalhe |
 |---|---|---|---|
-| 2026-08 (≈) | **Conceção do produto** | Produto | Ideia e primeiro código do rato aéreo por webcam (AirMouse/Mãouse) |
+| 2026-08 (≈) | **Conceção do produto** | Produto | Ideia e primeiro código do rato aéreo por webcam (Maouse/Mãouse) |
 | 2026-08–09 | **Construção com IA** | Produto | Produto desktop completo construído por 1 fundador + agentes de IA; motor de precisão, gestos, voz offline, snap magnético |
 | 2026-09-01 | **Decisões de negócio fechadas (D1–D7)** | Estratégia | `01_ESTRATEGIA/DECISOES.md`: licença Pro, gateway Paddle, desconto acessibilidade, língua base PT-BR, estrutura dupla Angola+PT, telemetria opt-in, política de reembolso |
 | 2026-09-13 | **Pitch de investimento criado** | Investidores | `06_INVESTIDORES/PITCH_INVESTIDOR.md` — documento completo de apresentação |

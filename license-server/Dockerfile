@@ -16,7 +16,7 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 COPY license-server /app
 
 # Cria um volume para a base de dados SQLite persistente.
-# O Render monta um disco neste caminho se AIRMOUSE_LS_DB apontar para cá.
+# O Render monta um disco neste caminho se MAOUSE_LS_DB apontar para cá.
 RUN mkdir -p /data
 
 EXPOSE 8000

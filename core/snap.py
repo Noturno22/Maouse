@@ -65,7 +65,7 @@ class SnapEngine:
             return
         self._running = True
         self._thread = threading.Thread(
-            target=self._loop, name="airmouse-snap", daemon=True
+            target=self._loop, name="maouse-snap", daemon=True
         )
         self._thread.start()
 

@@ -13,7 +13,7 @@ import time
 
 
 def _db_path() -> str:
-    return os.getenv("AIRMOUSE_LS_DB", "license_server.db")
+    return os.getenv("MAOUSE_LS_DB", "license_server.db")
 
 
 def connect() -> sqlite3.Connection:

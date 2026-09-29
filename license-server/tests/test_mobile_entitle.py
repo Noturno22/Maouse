@@ -12,25 +12,25 @@ from security import decode_jwt
 
 VALID_DEV_TOKEN = "test_valid_dev_token_123"
 PRODUCT_ID = "maouse_mobile_pro"
-PACKAGE = "com.airmouse.mobile"
+PACKAGE = "com.maouse.mobile"
 DEVICE = "device-instance-abc"
 
 
 @pytest.fixture()
 def client(monkeypatch):
-    monkeypatch.setenv("AIRMOUSE_MOBILE_DEV_ALLOW", "1")
-    monkeypatch.setenv("AIRMOUSE_MOBILE_PRODUCT_ID", PRODUCT_ID)
+    monkeypatch.setenv("MAOUSE_MOBILE_DEV_ALLOW", "1")
+    monkeypatch.setenv("MAOUSE_MOBILE_PRODUCT_ID", PRODUCT_ID)
     app = create_app()
     return TestClient(app)
 
 
 def test_dev_validate_accepts_test_token(monkeypatch):
-    monkeypatch.setenv("AIRMOUSE_MOBILE_DEV_ALLOW", "1")
+    monkeypatch.setenv("MAOUSE_MOBILE_DEV_ALLOW", "1")
     assert validate_purchase(PACKAGE, PRODUCT_ID, "test_foo") == ""
 
 
 def test_dev_validate_rejects_non_test_token(monkeypatch):
-    monkeypatch.setenv("AIRMOUSE_MOBILE_DEV_ALLOW", "1")
+    monkeypatch.setenv("MAOUSE_MOBILE_DEV_ALLOW", "1")
     with pytest.raises(PlayValidationError):
         validate_purchase(PACKAGE, PRODUCT_ID, "not_test_token")
 

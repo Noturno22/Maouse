@@ -1,4 +1,4 @@
-# Checklist de Validação por Dispositivo — Mãouse (AirMouse)
+# Checklist de Validação por Dispositivo — Mãouse (Maouse)
 
 > Checklist operacional do `HARDWARE/` LAB. **Marcar com data + build version** a cada teste.
 > Depois de completar, registar o resultado na `BUSSINES/MATRIZ_DE_DISPOSITIVOS.md` e as

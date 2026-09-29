@@ -1,4 +1,4 @@
-"""AirMouse — bootstrap/CLI.
+"""Maouse — bootstrap/CLI.
 
 Extraído para ``core/`` todo o motor (``core.engine``), hotkeys
 (``core.hotkeys``), comandos (``core.commands``) e renderização do preview
@@ -151,7 +151,7 @@ def parse_args():
 def acquire_single_instance():
     try:
         kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-        handle = kernel32.CreateMutexW(None, False, "AirMouse_JARVIS_v3")
+        handle = kernel32.CreateMutexW(None, False, "Maouse_JARVIS_v3")
         err = ctypes.get_last_error()
         if not handle or err == 183:
             return None

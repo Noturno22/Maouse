@@ -1,7 +1,7 @@
 # Assinatura Digital do Windows (code-signing)
 
 Para deixar de aparecer o "Publisher desconhecido / SmartScreen" e evitar AV a bloquear,
-os executáveis (AirMouse.exe e o instalador) devem ser **assinados digitalmente**.
+os executáveis (Maouse.exe e o instalador) devem ser **assinados digitalmente**.
 
 > **Estado:** o `.exe` e o instalador são gerados **sem assinatura** por defeito —
 > funciona, mas mostra aviso. A assinatura é um passo de execução comercial que
@@ -64,7 +64,7 @@ build.bat
 ```
 
 Com o certificado presente, o `build.bat`:
-1. Assina `dist\AirMouse\AirMouse.exe` (SHA256 + timestamp) — passo `[5/6]`;
+1. Assina `dist\Maouse\Maouse.exe` (SHA256 + timestamp) — passo `[5/6]`;
 2. Assina também o instalador Inno Setup (passa o `.pfx` ao `installer.iss`) — passo `[6/6]`.
 
 Sem certificado, o build continua mas fica **NÃO assinado** (SmartScreen/AV avisam) — é o estado atual.
@@ -72,7 +72,7 @@ Sem certificado, o build continua mas fica **NÃO assinado** (SmartScreen/AV avi
 ### 4. Verificar a assinatura
 
 ```powershell
-Get-AuthenticodeSignature "dist\AirMouse\AirMouse.exe"
+Get-AuthenticodeSignature "dist\Maouse\Maouse.exe"
 Get-AuthenticodeSignature "dist\Maouse-Setup-1.0.0.exe"
 ```
 

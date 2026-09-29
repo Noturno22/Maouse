@@ -1,15 +1,15 @@
 /**
- * Expo Config Plugin — AirMouse Native Modules
+ * Expo Config Plugin — Maouse Native Modules
  *
  * Injeta durante `expo prebuild` (Android e iOS):
- * 1. AirMouseAccessibilityService (injeção de gestos/teclado sem root)
+ * 1. MaouseAccessibilityService (injeção de gestos/teclado sem root)
  * 2. TouchControllerModule / KeyboardControllerModule / SystemControllerModule
- * 3. AirMousePackage + registo no MainApplication.kt
+ * 3. MaousePackage + registo no MainApplication.kt
  * 4. Serviço de acessibilidade no AndroidManifest.xml + strings
  * 5. KeyboardController.swift (iOS, paridade com os módulos Android)
  *
  * Registo em app.json:
- *   ["../../plugins/with-airmouse-native", {}]
+ *   ["../../plugins/with-maouse-native", {}]
  *
  * @platform Android, iOS
  */
@@ -24,20 +24,20 @@ const fs = require("fs");
 const path = require("path");
 
 const TEMPLATES_DIR = path.join(__dirname, "templates");
-const PACKAGE_NAME = "com.airmouse.mobile";
+const PACKAGE_NAME = "com.maouse.mobile";
 const PACKAGE_DIR = PACKAGE_NAME.replace(/\./g, "/");
 
-const SERVICE_NAME = "AirMouseAccessibilityService";
+const SERVICE_NAME = "MaouseAccessibilityService";
 
 // -------------------------------
 // Ficheiros Kotlin a copiar (Android)
 // -------------------------------
 const ANDROID_KOTLIN_FILES = [
-  "AirMouseAccessibilityService.kt",
+  "MaouseAccessibilityService.kt",
   "TouchControllerModule.kt",
   "KeyboardControllerModule.kt",
   "SystemControllerModule.kt",
-  "AirMousePackage.kt",
+  "MaousePackage.kt",
 ];
 
 // -------------------------------
@@ -63,26 +63,26 @@ function ensureClassDecl(contents, marker, replacement) {
 }
 
 // -------------------------------
-// 1. MainApplication.kt — registar AirMousePackage
+// 1. MainApplication.kt — registar MaousePackage
 // -------------------------------
-function withAirMouseMainApplication(config) {
+function withMaouseMainApplication(config) {
   return withMainApplication(config, (mod) => {
     let contents = mod.modResults.contents;
 
-    if (!contents.includes("AirMousePackage")) {
-      // Injeta add(AirMousePackage()) dentro do PackageList(...).packages.apply { ... }
+    if (!contents.includes("MaousePackage")) {
+      // Injeta add(MaousePackage()) dentro do PackageList(...).packages.apply { ... }
       if (contents.includes("PackageList(this).packages.apply {")) {
         contents = contents.replace(
           /PackageList\(this\)\.packages\.apply\s*\{/,
           `PackageList(this).packages.apply {
-          add(AirMousePackage())`
+          add(MaousePackage())`
         );
-        console.log("[AirMouseNative] ✅ Registered AirMousePackage in MainApplication.kt");
+        console.log("[MaouseNative] ✅ Registered MaousePackage in MainApplication.kt");
       } else {
-        console.log("[AirMouseNative] ⚠️  Não encontrei PackageList(...).packages — salta registo");
+        console.log("[MaouseNative] ⚠️  Não encontrei PackageList(...).packages — salta registo");
       }
     } else {
-      console.log("[AirMouseNative] ⏭️  AirMousePackage já registado");
+      console.log("[MaouseNative] ⏭️  MaousePackage já registado");
     }
 
     mod.modResults.contents = contents;
@@ -93,28 +93,28 @@ function withAirMouseMainApplication(config) {
 // -------------------------------
 // 2. AndroidManifest.xml — serviço de acessibilidade
 // -------------------------------
-function withAirMouseManifest(config) {
+function withMaouseManifest(config) {
   return withAndroidManifest(config, (mod) => {
     const manifest = mod.modResults.manifest;
     const app = manifest["application"] && manifest["application"][0];
     if (!app) {
-      console.log("[AirMouseNative] ⚠️  Sem <application> no manifest — salta serviço");
+      console.log("[MaouseNative] ⚠️  Sem <application> no manifest — salta serviço");
       return mod;
     }
     let services = app["service"];
     if (services && services.length) {
       const already = services.some(
-        (s) => s["$"] && s["$"]["android:name"] === ".AirMouseAccessibilityService"
+        (s) => s["$"] && s["$"]["android:name"] === ".MaouseAccessibilityService"
       );
       if (already) {
-        console.log("[AirMouseNative] ⏭️  AirMouseAccessibilityService já existe");
+        console.log("[MaouseNative] ⏭️  MaouseAccessibilityService já existe");
         return mod;
       }
     }
     if (!services) services = [];
     services.push({
       $: {
-        "android:name": ".AirMouseAccessibilityService",
+        "android:name": ".MaouseAccessibilityService",
         "android:exported": "false",
         "android:permission": "android.permission.BIND_ACCESSIBILITY_SERVICE",
         "android:label": "@string/accessibility_service_label",
@@ -134,7 +134,7 @@ function withAirMouseManifest(config) {
       ],
     });
     app["service"] = services;
-    console.log("[AirMouseNative] ✅ Added AirMouseAccessibilityService to AndroidManifest.xml");
+    console.log("[MaouseNative] ✅ Added MaouseAccessibilityService to AndroidManifest.xml");
     return mod;
   });
 }
@@ -142,7 +142,7 @@ function withAirMouseManifest(config) {
 // -------------------------------
 // 3. strings.xml — descrição do serviço de acessibilidade
 // -------------------------------
-function withAirMouseStrings(config) {
+function withMaouseStrings(config) {
   return withStringsXml(config, (mod) => {
     const strings = mod.modResults.resources.string;
     const add = (name, value) => {
@@ -162,7 +162,7 @@ function withAirMouseStrings(config) {
 // -------------------------------
 // 4. Copiar ficheiros Kotlin + xml do serviço (Android)
 // -------------------------------
-function withAirMouseAndroidFiles(config) {
+function withMaouseAndroidFiles(config) {
   return withDangerousMod(config, [
     "android",
     async (mod) => {
@@ -177,18 +177,18 @@ function withAirMouseAndroidFiles(config) {
         const content = readTemplate(path.join("android", file));
         const dest = path.join(javaDir, file);
         if (writeFileIfChanged(dest, content)) {
-          console.log(`[AirMouseNative] ✅ ${file}`);
+          console.log(`[MaouseNative] ✅ ${file}`);
         } else {
-          console.log(`[AirMouseNative] ⏭️  ${file} inalterado`);
+          console.log(`[MaouseNative] ⏭️  ${file} inalterado`);
         }
       }
 
       const xmlContent = readTemplate(path.join("android", "accessibility_service_config.xml"));
       const xmlDest = path.join(xmlDir, "accessibility_service_config.xml");
       if (writeFileIfChanged(xmlDest, xmlContent)) {
-        console.log("[AirMouseNative] ✅ accessibility_service_config.xml");
+        console.log("[MaouseNative] ✅ accessibility_service_config.xml");
       } else {
-        console.log("[AirMouseNative] ⏭️  accessibility_service_config.xml inalterado");
+        console.log("[MaouseNative] ⏭️  accessibility_service_config.xml inalterado");
       }
 
       return mod;
@@ -199,22 +199,22 @@ function withAirMouseAndroidFiles(config) {
 // -------------------------------
 // 5. KeyboardController.swift (iOS)
 // -------------------------------
-function withAirMouseIosFiles(config) {
+function withMaouseIosFiles(config) {
   return withDangerousMod(config, [
     "ios",
     async (mod) => {
       const projectRoot = mod.modRequest.projectRoot;
       const iosDir = path.join(projectRoot, "ios");
       if (!fs.existsSync(iosDir)) {
-        console.log("[AirMouseNative] ⏭️  Sem pasta ios/ (só Android?)");
+        console.log("[MaouseNative] ⏭️  Sem pasta ios/ (só Android?)");
         return mod;
       }
       const content = readTemplate(path.join("ios", "KeyboardController.swift"));
       const dest = path.join(iosDir, "KeyboardController.swift");
       if (writeFileIfChanged(dest, content)) {
-        console.log("[AirMouseNative] ✅ KeyboardController.swift");
+        console.log("[MaouseNative] ✅ KeyboardController.swift");
       } else {
-        console.log("[AirMouseNative] ⏭️  KeyboardController.swift inalterado");
+        console.log("[MaouseNative] ⏭️  KeyboardController.swift inalterado");
       }
       return mod;
     },
@@ -224,13 +224,13 @@ function withAirMouseIosFiles(config) {
 // -------------------------------
 // Plugin principal
 // -------------------------------
-function withAirMouseNative(config) {
-  config = withAirMouseMainApplication(config);
-  config = withAirMouseManifest(config);
-  config = withAirMouseStrings(config);
-  config = withAirMouseAndroidFiles(config);
-  config = withAirMouseIosFiles(config);
+function withMaouseNative(config) {
+  config = withMaouseMainApplication(config);
+  config = withMaouseManifest(config);
+  config = withMaouseStrings(config);
+  config = withMaouseAndroidFiles(config);
+  config = withMaouseIosFiles(config);
   return config;
 }
 
-module.exports = withAirMouseNative;
+module.exports = withMaouseNative;

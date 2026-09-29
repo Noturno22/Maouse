@@ -16,9 +16,16 @@ Faz duplo clique em **`build.bat`** → gera `dist\Maouse-Setup-1.0.0.exe`.
 O instalador já inclui os modelos críticos (`hand_landmarker.task` e
 `gesture_mlp.npz`) — arranca offline, sem downloads. Voz (Vosk ~49 MB) e TTS
 (Piper ~60 MB) são descarregados na primeira utilização para
-`%LOCALAPPDATA%\AirMouse\models` (diretório do utilizador, sempre escrevível).
+`%LOCALAPPDATA%\Maouse\models` (diretório do utilizador, sempre escrevível).
 Nota: o instalador ainda NÃO está assinado digitalmente (aviso SmartScreen);
 a assinatura será adicionada quando o certificado EV for ativado no eSigner.
+
+> **Vens de uma instalação anterior a 2026-09-29?** O produto chamava-se
+> `AirMouse` e foi renomeado. Corre **`uninstall_startup.bat`** antes de instalar
+> a versão nova: a tarefa agendada de arranque automático e a pasta de
+> configuração/user-data `%LOCALAPPDATA%\AirMouse\` não se apagam sozinhas, e a
+> nova instalação não as conhece. A app continua a funcionar se as ignorares, mas
+> o arranque automático fica duplicado e a licença não é encontrada.
 
 ### Desenvolvimento
 Modelo `hand_landmarker.task` (~8 MB) descarrega automaticamente na primeira
@@ -116,7 +123,7 @@ sintético + reais, mostra accuracy de validação REAL e guarda o modelo anteri
 
 ### Executável (.exe, sem Python)
 
-Faz duplo clique em **`build.bat`** → cria `dist\AirMouse\` com `AirMouse.exe` + modelos.
+Faz duplo clique em **`build.bat`** → cria `dist\Maouse\` com `Maouse.exe` + modelos.
 Distribuível como pasta zipada; não precisa de Python instalado.
 
 ## Afinação (`config.py` ou teclas em tempo real)
@@ -157,7 +164,7 @@ Distribuível como pasta zipada; não precisa de Python instalado.
 
 ## Estrutura
 ```
-airmouse/
+maouse/
 ├── config.py            ← todos os parâmetros
 ├── main.py              ← loop tempo real, overlay, hotkeys, voz, bandeja, assistente
 ├── setup.bat / start.bat / build.bat

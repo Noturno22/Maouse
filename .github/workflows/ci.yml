@@ -68,7 +68,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: mobile/airmouse-mobile
+        working-directory: mobile/maouse-mobile
     steps:
       - uses: actions/checkout@v4
 
@@ -76,7 +76,7 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: mobile/airmouse-mobile/package-lock.json
+          cache-dependency-path: mobile/maouse-mobile/package-lock.json
 
       - name: Install dependencies
         run: npm ci

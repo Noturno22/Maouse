@@ -21,6 +21,11 @@ CLASSES = (
 FEATURES = 120
 N_CLASSES = len(CLASSES)
 
+# `airmouse-ai` é um org GitHub de terceiros, não nosso. A string sobreviveu ao
+# rename de 2026-09-29 (AirMouse -> Maouse) de propósito: trocar o nome aqui
+# não arranja nada — a release já dava 404 antes do rename, a URL é a mesma — e
+# parte um link que não temos. Se algum dia isto mudar, o modelo tem de ser
+# republicado primeiro; não é um find-and-replace.
 MODEL_URLS = (
     "https://github.com/airmouse-ai/models/releases/download/v1/gesture_mlp.npz",
 )

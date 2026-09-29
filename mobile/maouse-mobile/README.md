@@ -21,7 +21,7 @@ Controle total do telemóvel usando gestos de mão detetados pela câmara fronta
 ## Instalação
 
 ```bash
-cd mobile/airmouse-mobile
+cd mobile/maouse-mobile
 npm install
 ```
 
@@ -41,7 +41,7 @@ npx expo start --ios
 ## Estrutura do Projeto
 
 ```
-airmouse-mobile/
+maouse-mobile/
 ├── App.tsx                    # Componente principal + gate de gestos Pro
 ├── src/
 │   ├── engine/
@@ -104,12 +104,12 @@ A versão gratuita navega/pré-visualiza; o controlo de gestos completo desbloqu
 |-------|-------|-----------|
 | `licenseServerUrl` | `https://license.maouse.app` | Base URL do license-server |
 | `mobileProductId` | `maouse_mobile_pro` | Product ID do Pro (pago único) no Play Console |
-| `androidPackage` | `com.airmouse.mobile` | Package Android |
+| `androidPackage` | `com.maouse.mobile` | Package Android |
 
 > **Builds nativos:** o `expo-iap` requer **custom dev client / prebuild**. Requer Android SDK:
 > `npx expo prebuild --clean` antes de fazer build/upload para o Play Console.
-> No license-server, define `AIRMOUSE_GOOGLE_PLAY_CREDENTIALS_JSON` (conta de serviço com permissão
-> "Android Publisher") — sem isso a validação só corre em modo dev (`AIRMOUSE_MOBILE_DEV_ALLOW=1`, nunca em produção).
+> No license-server, define `MAOUSE_GOOGLE_PLAY_CREDENTIALS_JSON` (conta de serviço com permissão
+> "Android Publisher") — sem isso a validação só corre em modo dev (`MAOUSE_MOBILE_DEV_ALLOW=1`, nunca em produção).
 
 ## Licença
 

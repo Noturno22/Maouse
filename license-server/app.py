@@ -1,4 +1,4 @@
-"""FastAPI app for the AirMouse License Server."""
+"""FastAPI app for the Maouse License Server."""
 import json
 import os
 
@@ -104,10 +104,10 @@ def create_app() -> FastAPI:
 
     @app.post("/api/v1/mobile/entitle")
     def api_mobile_entitle(req: MobileEntitleRequest, db=Depends(get_db)):
-        expected_product = os.getenv("AIRMOUSE_MOBILE_PRODUCT_ID",
+        expected_product = os.getenv("MAOUSE_MOBILE_PRODUCT_ID",
                                      "maouse_mobile_pro")
-        expected_package = os.getenv("AIRMOUSE_MOBILE_PACKAGE_NAME",
-                                     "com.airmouse.mobile")
+        expected_package = os.getenv("MAOUSE_MOBILE_PACKAGE_NAME",
+                                     "com.maouse.mobile")
         from playstore import PlayValidationError, validate_purchase
         try:
             lease, session_id, first_time = mobile_entitle(
@@ -168,7 +168,7 @@ def create_app() -> FastAPI:
 
     @app.post("/webhooks/paddle")
     async def paddle_webhook(request: Request):
-        secret = os.getenv("AIRMOUSE_PADDLE_WEBHOOK_SECRET", "")
+        secret = os.getenv("MAOUSE_PADDLE_WEBHOOK_SECRET", "")
         if not secret:
             return JSONResponse(status_code=503,
                                 content={"error": "paddle_nao_configurado"})

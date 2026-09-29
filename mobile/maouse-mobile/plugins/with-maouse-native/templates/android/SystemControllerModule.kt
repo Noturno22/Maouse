@@ -1,4 +1,4 @@
-﻿package com.airmouse.mobile
+﻿package com.maouse.mobile
 
 import android.accessibilityservice.AccessibilityService
 import android.content.Context
@@ -26,8 +26,8 @@ class SystemControllerModule(reactContext: ReactApplicationContext) :
 
     override fun getName(): String = "SystemController"
 
-    private val service: AirMouseAccessibilityService?
-        get() = AirMouseAccessibilityService.instance
+    private val service: MaouseAccessibilityService?
+        get() = MaouseAccessibilityService.instance
 
     @ReactMethod
     fun goBack() {
