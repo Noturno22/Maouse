@@ -729,7 +729,10 @@ detectores*, não *benchmarks de precisão*") está fechada:
 * **Gravar** — `main.py --record <ficheiro.npz>` (com `--record-max-frames`,
   `--frame-width/height`) guarda landmarks **e** o rótulo que o utilizador
   Estava a fazer em cada frame. Corre em todo o pipeline, sem câmaras
-  adicionais.
+  adicionais. **O procedimento operativo está em
+  `HARDWARE/RECOLHA_CORPUS.md`**: as três regras, a sequência dos 13
+  gestos e como se lê o relatório. Este ficheiro é o *porquê*; aquele é
+  o *como*.
 * **Reproduzir** — `main.py --replay <ficheiro.npz>` corre o classificador
   real sobre as landmarks gravadas e imprime o relatório. Sem câmara, sem rato,
   sem interface, sem licença — corre em qualquer máquina de CI.
