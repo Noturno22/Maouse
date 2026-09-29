@@ -16,6 +16,33 @@ Formato de uma entrada:
 
 ---
 
+## [2026-09-29 08:48] Publicar no main os 10 commits com autoria correta
+
+- **Objetivo:** o outro computador (`Noturno22`) não via os últimos commits.
+  Causa: os 10 commits de 26–28/09 viviam só no ramo `feature/touch` local e
+  nunca tinham sido enviados (`git log origin/feature/touch..HEAD` = 10;
+  reflog sem nenhum `push`). E estavam assinados com o email placeholder
+  `teu-email-do-github`, pelo que o GitHub não os atribuía à conta
+  `josefortunafortuna54-byte`.
+- **Alterações:**
+  - `git config user.email "josefortunafortuna54@gmail.com"` (repo-local) e
+    `git config user.name "josefortunafortuna54-byte"` — identidade para os
+    re-commits e para o futuro merge.
+  - `git rebase --exec 'git commit --amend --reset-author --no-edit' d9def7d`
+    — re-assinou os 10 commits de `feature/touch`
+    (`d7bda33..7894317` → `2e9ba8b..f77e8d6`).
+  - `git fetch origin` — trouxe `origin/main`→`c1fcac8` (39 commits novos no
+    remoto, incluindo `4c4c43d Rename AirMouse -> Maouse`).
+- **Verificação:** `git log --format='%h %an <%ae>' d9def7d..HEAD` → os 10
+  commits passaram todos a `josefortunafortuna54-byte
+  <josefortunafortuna54@gmail.com>`.
+- **Estado:** Em curso — falta push de `feature/touch`, merge em `main`
+  (conflitos esperados: `core/remote.py`, `core/licensing.py`, `core/engine.py`,
+  `config.py`, `core/log.py`, `build.bat`; renames `airmouse.spec`→`maouse.spec`
+  e `mobile/airmouse-mobile/`→`mobile/maouse-mobile/`) e push de `main`.
+
+---
+
 ## ONDE RETOMAR (2026-09-27 23:15) — o PC foi desligado aqui
 
 **Estado:** o clique está corrigido e confirmado no aparelho real. Nada
