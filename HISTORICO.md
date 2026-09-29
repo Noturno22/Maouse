@@ -69,6 +69,70 @@ Formato de uma entrada:
 
 ---
 
+## [2026-09-26 16:10] Licença PRO restaurada — license-server local
+
+- **Objetivo:** o utilizador reportou que o PC estava a pedir para activar o
+  plano Pro. Diagnóstico e correção.
+- **Diagnóstico (não era pedido de compra — era bloqueio):**
+  - `~/AirMouse/license.json` tinha `trial_used: 300/300` → `is_blocked()=True`,
+    `block_reason=trial_esgotado`. O trial Free de 5 min já estava gasto.
+  - Havia um lease Pro guardado, mas **expirado**: `iat` 2026-09-17 19:06,
+    `exp` 2026-09-24 19:06 (TTL de 7 dias, `license-server/security.py:12`).
+    Em `_validate_local_lease` (`core/licensing.py:212`) o `exp` faz o
+    lease ser rejeitado → o cliente volta a FREE → o trial já gasto bloqueia.
+    Toast em `core/engine.py:213`.
+  - Ativação online não resolvia: `PROD_LICENSE_SERVER_URL` ainda é o
+    placeholder `https://licenses.maouse.example.com`
+    (`core/licensing.py:25`) e `PADDLE_VENDOR_ID = 0  # TODO`
+    (`ui/license_dlg.py:39`).
+- **Chave privada — verificada, NÃO está exposta:**
+  `license-server/private.pem` casa com `core/licensing_public_key.pem`
+  (comparação DER byte a byte: True). O ficheiro está em `.gitignore:39`
+  (`license-server/*.pem`), modo `600` e **não** é rastreado pelo git
+  (`git ls-files license-server/` não o lista).
+- **Correção — license-server local em `127.0.0.1:8899` (caminho real):**
+  ```bash
+  cd license-server
+  AIRMOUSE_LS_DB=/tmp/maouse-license-dev.db \
+  AIRMOUSE_LS_ADMIN_TOKEN=dev-local-239898 \
+  AIRMOUSE_LS_ADMIN_SESSION_SECRET=dev-local-secret \
+  setsid nohup ../.venv/bin/python -m uvicorn app:app \
+    --host 127.0.0.1 --port 8899 > /tmp/maouse-ls.log 2>&1 < /dev/null &
+  ```
+  - `POST /admin/keys` → chave `MAO-PROC7-FFC1B-57B00-14484-1`
+    (guardada em `/tmp/maouse-pro-key.txt`)
+  - Ativação com o cliente real e `AIRMOUSE_LICENSE_URLS=http://127.0.0.1:8899`:
+    ```bash
+    AIRMOUSE_LICENSE_URLS=http://127.0.0.1:8899 \
+      .venv/bin/python main.py --activate-key MAO-PROC7-FFC1B-57B00-14484-1
+    # -> "Licença Pro ATIVADA com sucesso."
+    ```
+  - `main.py` foi reiniciado **com** `AIRMOUSE_LICENSE_URLS` para que
+    `maybe_revalidate()` (`core/licensing.py:255`) consiga renovar o lease
+    em vez de cair no URL placeholder.
+- **Verificação:**
+  - `tier=pro`, `is_pro=True`, `is_blocked()=False`, `block_reason=''`
+  - lease novo expira **2026-10-03 16:10** (7 dias)
+  - `revalidate()` → `True`, lease renovado, `use_seq` incrementado
+  - `main.py` → `License: PRO`, `Camera 0 ativa`, `Controlo remoto ativo em
+    0.0.0.0:8765` (PID 575561)
+  - `curl http://127.0.0.1:8899/health` → `{"status":"ok"}`
+- **Renovar daqui a ~7 dias** (quando `exp` passar):
+  ```bash
+  cd /home/fortuna/Desktop/Maouse-main
+  AIRMOUSE_LICENSE_URLS=http://127.0.0.1:8899 \
+    .venv/bin/python -c "from core.licensing import LicenseManager; m=LicenseManager(); print(m.revalidate())"
+  ```
+  Se o license-server local não estiver a correr, reemitir uma chave nova em
+  `/admin/keys` e reativar com `--activate-key`.
+- **Não corrigido (TODO de produção, precisa de decisão):**
+  `PROD_LICENSE_SERVER_URL` continua placeholder e o vendor Paddle é `0` —
+  a ativação online real não funciona até o servidor estar deployed.
+- **Alterações:** `HISTORICO.md` — esta entrada. Nenhuma alteração a código.
+- **Estado:** OK — Pro ativo e renovável.
+
+---
+
 ## [2026-09-26 15:26] Sessão retomada — Metro + main.py a correr
 
 - **Objetivo:** arrancar os dois serviços que o reinício do PC matou.
