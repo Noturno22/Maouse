@@ -566,7 +566,13 @@ class CorpusRecorder:
         return bool(self._max_frames) and self.corpus.frames >= self._max_frames
 
     def set_label(self, label) -> None:
-        self._label = LABEL_NAMES[label_index(label)]
+        # `label_name(label_index(label))` e nao `LABEL_NAMES[label_index(...)]`:
+        # os sentinelas `ABSENT` (-1) e `SETTLE` (-2) indexam `LABEL_NAMES` a
+        # ceu aberto e dariam o penultimo e o antepenultimo gesto. Com
+        # `SETTLE_LABEL` obtinha-se 'SHAKA' em silencio - e SHAKA e Ctrl+V, ou
+        # seja, o erro nao se via. `label_name` existe para isso; faltava usa-lo
+        # tambem do lado da escrita.
+        self._label = label_name(label_index(label))
 
     def set_label_by_key(self, key: int) -> bool:
         """Selecciona a etiqueta pela tecla premida. Devolve True se mudou."""
