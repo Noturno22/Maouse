@@ -192,6 +192,59 @@
     `--replay-gate` F1 macro 1.0000 e 0 cliques fantasma, mutation-tested (com
     `PEACE = "scroll"`, 4 dos 5 testes falham).
 
+19. **Instrumentação do corpus de mãos reais — e a razão de nunca ter havido
+    um corpus de mãos reais.** Quatro commits em `instrumentacao-corpus-real`.
+    *O que faltava ao formato v1* eram duas coisas, e as duas custam caro
+    quando faltam. **A confiança**: `core/tracker.py` lia
+    `handedness[0].category_name` e deitava fora `handedness[0].score`, e um
+    corpus gravado sem ela fica sem ela **para sempre** — mãos reais não se
+    recolhem duas vezes. **A origem**: "sintético" era uma nota de rodapé em
+    três sítios do `PROGRESSO.md`, e o `--replay-gate` anunciava F1 macro 1.0000
+    sem dizer de que dados. Agora `meta["source"]` é um dado e o relatório
+    imprime-o na segunda linha; por omissão é `"unknown"`, **não** `"synthetic"`
+    — "não sei" é o que deixa o gate recusar-se a anunciar qualidade em vez de a
+    inventar. `FORMAT_VERSION` = 2, com `conf` (F,2) float32 a `NaN` nos slots
+    vazios (nunca `0.0`, que faria um limiar de abstenção descartar tudo sem
+    ninguém saber porquê) e `meta` em JSON, nunca pickle. O loader continua a ler
+    a v1 — a fixture do CI já existia em v1 — e um v3 continua a ser erro alto.
+    `replay()` **não** mudou de forma: há ~20 sítios que o descompactam em 5
+    valores e essa forma não é o que se quer mexer; quem precisa da confiança usa
+    `replay_with_conf()`.
+    *A confiança tem o nome que tem*: é o score da **classificação** da mão
+    (esquerda/direita), não a de detecção — a API Python do `HandLandmarker` não
+    a expõe, só os limiares `min_*_confidence`, que são um limiar e não uma
+    medida. Chamar-lhe "detection confidence" seria um over-claim.
+    *E o que apareceu pelo caminho.* `tools/collect_gestures.py` — o tool que
+    recolhe mãos reais — **nunca foi executado**: fazia `hands =
+    tracker.process(...)` e depois `hands[0]`, que levanta `ValueError`, porque
+    o `process()` devolve uma tupla desde o primeiro commit (`3a5c67b`). **É
+    provavelmente a razão de o modelo nunca ter visto mãos reais.** A terceira
+    tabela divergida do repo, com a mesma classe de silêncio das outras duas.
+    E nele: as classes e as teclas eram escritas à mão e já divergiam do seu par
+    — o `--record` usa 0-9 + `d`/`c`/`g` e `x` para limpar; este usava 1-9 e
+    `c` para limpar. `c` com dois sentidos opostos conforme o `if` que o apanhe,
+    e errar a tecla **não dá erro**: grava o gesto errado, que é a forma mais
+    cara de errar sobre mãos reais. Passou a importar `LABEL_KEY_CHOICES`.
+    *A premessa do plano ("estender o tool às 13 classes") estava errada, e
+    verifiquei antes de implementar.* O tool alimenta `train_gesture_ai.py`, não
+    o `Corpus`, e o que o treinador lê são as 9 `CLASSES` de `core/gesture_ai.py`.
+    Estender rebenta o `load_real` com `ValueError: zip() argument 2 is longer
+    than argument 1` (reproduzi antes de afirmar) e, pior, os pesos que o
+    produto distribui são um **modelo de 9 classes de um org de terceiros** —
+    alterar `N_CLASSES` sem retreinar faz o modelo distribuído mentir. **Decisão
+    de retraining, do dono do produto.** O que ficou feito sem a tomar: o tool
+    passa a recolher as 12 classes do enum (incluindo `PINKY`, com tecla), as de
+    fora do modelo marcadas a amarelo e com aviso no `save`; e o `load_real` falha
+    com uma frase que **nomeia a classe** e diz as duas saídas possíveis, em vez
+    de um sintoma de zip. `PINKY` era metade da confusão PINKY/SHAKA e **não tinha
+    tecla nenhuma** — essa confusão não se resolvia a recolher mais dados,
+    porque os dados de um dos lados não se podiam recolher.
+    *Verificado*: ruff limpo, **516** testes do cliente, 70 do license-server,
+    `--replay-gate` ACEITE com a origem impressa, fixture regenerada com métricas
+    idênticas, e 8 mutações testadas (as que não podiam falhar foram reescritas
+    até poderem: uma escrevia a lista de classes à mão e passava na igualdade;
+    a do `zip` só "morreu" por erro de sintaxe e foi repetida como mutação válida).
+
 ### 🔴 Bloqueadores em aberto (Sprint 2 → 1.ª venda paga)
 
 | # | Bloqueador | Estado |
@@ -200,6 +253,7 @@
 | 1 | **Assinatura digital do `.exe`** — pipeline pronto; certificado SSL.com **VALIDADO**; falta **enroll/ativação do eSigner** | 🟡 eSigner por ativar |
 | 2 | **Store listing mobile (Play Console)** — IAP code ✅; falta prebuild/upload/listing. O package agora é `com.maouse.mobile` e o app **ainda não foi submetido**, portanto o rename não custou nada aqui — mas também não há volta: depois do primeiro upload o package é imutável | 🔴 |
 | 3 | **LAB de compatibilidade** — matriz ≥5 dispositivos por categoria    | 🟡 1 🟡 (HP i3-5005U 14.6 fps) |
+| 4 | **Corpus de mãos reais** — a instrumentação está pronta (item 19), mas `--record` e `collect_gestures.py` nunca produziram um ficheiro: o tool estava partido. Recolher é ~20 min por gesto e não se repete; a partir de agora cada recolha grava a confiança e aproveniência | 🔴 precisa de mãos reais |
 
 ### Reserva financeira (Pista A)
 
@@ -310,7 +364,10 @@ maouse/
 4. **`tools/collect_gestures.py`** — janela interativa: teclas 1-5 escolhem gesto
    (OPEN/PINCH/PINCH_MID/FIST/PEACE), gravacao por frames com gate de qualidade,
    z/c/s/Q; modo automatico `--frames N --class X --no-preview` para testes.
-   Grava `data/real_landmarks.npz` (X=Nx21x2 px, y=classe).
+   Grava `data/real_landmarks.npz` (X=N×21×3 px, y=classe, conf=confiança da
+   classificação, meta=proveniência). **Correção (item 19):** este formato
+   nunca chegou a ser escrito, porque o `tracker.process` devolvia uma tupla e o
+   tool não a descompactava.
 5. **`tools/train_gesture_ai.py`** estendido:
    - `--real <npz>` mistura sintetico+reais; split estratificado 85/15;
      validacao REAL reportada epoca a epoca + matriz de confusao real.

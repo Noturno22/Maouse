@@ -389,7 +389,8 @@ def parse_args():
     )
     p.add_argument(
         "--class", dest="cls", default=None,
-        help="OPEN|PINCH|PINCH_MID|FIST|PEACE|THREE|THUMB_UP|ROCK|SHAKA",
+        help="gesto a recolher em modo automatico: "
+             + "|".join(COLLECTABLE_NAMES),
     )
     return p.parse_args()
 
