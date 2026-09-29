@@ -69,6 +69,36 @@ Formato de uma entrada:
 
 ---
 
+## [2026-09-26 15:26] Sessão retomada — Metro + main.py a correr
+
+- **Objetivo:** arrancar os dois serviços que o reinício do PC matou.
+- **Armadilha encontrada:** `python3 main.py` com o Python do sistema falha
+  com `ModuleNotFoundError: No module named 'cv2'`. O projeto tem venv em
+  `.venv/` — tem de ser `.venv/bin/python main.py`.
+- **Comandos (ambos em background, `setsid nohup`, sem TTY):**
+  ```bash
+  cd mobile/airmouse-mobile
+  setsid nohup npx expo start --host lan --port 8081 > logs/expo-dev3.log 2>&1 < /dev/null &
+  cd ../..
+  setsid nohup .venv/bin/python main.py > logs/maouse-run.log 2>&1 < /dev/null &
+  ```
+  O `main.py` não precisa de stdin (as teclas são lidas por um listener
+  global do pynput), por isso corre bem desacoplado do terminal.
+- **Verificação:**
+  - `ss -tlnp | grep 8081` → `LISTEN *:8081` (PID 500315)
+  - `curl http://192.168.0.107:8081/` → `200`
+  - `ss -tlnp | grep 8765` → `LISTEN 0.0.0.0:8765` (PID 504056)
+  - `/dev/tcp/192.168.0.107/8765` → alcançável (a nova regra do UFW funciona)
+  - `logs/maouse-run.log` → `License: FREE`, `Camera 0 ativa`,
+    `Controlo remoto ativo em 0.0.0.0:8765 (IPs: 192.168.0.107; token: a693…)`
+- **No telefone:** ecrã do dev-client → `http://192.168.0.107:8081`;
+  no ecrã Remote do app, host `192.168.0.107`, porta `8765`, token
+  `a69352f45ba7efc1` (`settings.json` → `remote_token`).
+- **Alterações:** `HISTORICO.md` — esta entrada. Nenhuma alteração a código.
+- **Estado:** OK — ambos os serviços a correr.
+
+---
+
 ## [2026-09-26 14:04] Ligar o app Mãouse (Expo) ao telefone
 
 - **Objetivo:** o telefone abria o ecrã do dev-client ("Start a local development
