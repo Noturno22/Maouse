@@ -479,6 +479,62 @@
     > tecla; se adoptares a pose e só depois premires, os primeiros frames ficam
     > com a etiqueta anterior — e esse erro fica gravado para sempre.
 
+24. **O `main` estava vermelho antes de este trabalho, e duas das armadilhas
+    encontradas são do mesmo feitio: uma lista que ninguém confere porque é a
+    única fonte.** Fusão dos 12 commits de `instrumentacao-corpus-real` com
+    `--no-ff` e **sem** `--reset-author` — a autoria do `Noturno22` é legítima e
+    o `--reset-author` de 2026-08-29 foi para identidades erradas, não para
+    apagar autoria de quem escreveu o código. **528 → 664 testes.** Conflito
+    único, no import de `core.remote`: o ramo partiu de `c1fcac8`, antes do
+    árbitro existir, e a resolução é a **união** (`MouseCtl, MuteMouse` +
+    `RemoteArbiter, RemoteServer, lan_ips`). Não é escolha: o bloco que liga o
+    `RemoteArbiter` ao estado fundeu limpo e referencia o símbolo, e
+    `MuteMouse` é construído em `main.py:442`. `--record` passa a calar o rato,
+    o teclado e o brilho, **pelo mesmo objecto por onde o telemóvel entra** —
+    que era o certo a fazer.
+    *`requirements-linux.txt` não terminava em newline.* O `printf '>>'` do
+    costume — a forma natural de acrescentar uma dependência a um manifesto —
+    colava-a à última linha e produzia `cryptography>=42dbus-next>=0.2.3`. O
+    `read_requirements` parte no `>` e lê `cryptography`: **a dependência nova
+    desaparece em silêncio**, o `TestImportsEstaoDeclarados` vê a declaração e
+    dá-se por satisfeito, e o `setup.bat` instala um ambiente sem ela. Mesmo
+    formato de bug do `cryptography` em falta, pelo mesmo caminho. **Não há
+    guarda pelo conteúdo que o apanhe**, porque a linha não fica inválida —
+    fica válida e errada. Daí os dois testes novos: newline final (a causa) e
+    contagem de operadores de versão antes do marker (o sintoma, com linha e
+    conteúdo). Ambos provados contra o estado partido antes de passarem a
+    verde.
+    *`build-android.yml` nunca funcionou.* Apontava para
+    `mobile/airmouse-mobile`, que não existe desde 2026-08-29, e como só corre
+    por `workflow_dispatch` nunca deu vermelho: o botão é que não fazia nada.
+    O `ci.yml` já usava o caminho certo — a cópia que ficou para trás foi esta.
+    E o `eas build:list --limit 1 --status=finished` escolhia "o último build
+    acabado" da conta inteira: com outro build a terminar ao mesmo tempo
+    descarregava o APK errado e subia-o com o nome do perfil pedido, porque o
+    nome do artefacto vem do input. O id passa a ser lido da resposta do
+    próprio `eas build --json`, e os dois `head -1` silenciosos dão
+    `::error::` — sem isso, `apk_path` vazio fazia o `upload-artifact` subir o
+    directório de trabalho inteiro com o nome do APK.
+    *Um erro de plano que vale registar.* A ideia era declarar `zeroconf` e
+    `dbus-next` nos manifestos numa fase de preparação, e escrever o código
+    depois. **`TestSemDependenciasFantasmas` reprova isso** — o que é declarado e
+    não importado é resíduo, pela mesma razão pela qual `comtypes` saiu do
+    manifesto. As dependências têm de entrar **no mesmo commit que o código que
+    as importa**, ou seja, a descoberta e o BLE declaram as suas no próprio dia.
+    *Ainda por fazer, e não é meu para decidir:* a numeração desta secção tem
+    21, 22 e 23 duas vezes (linhas 291, 315 e 344, 385, 422) — os commits mais
+    recentes acrescentaram 21–23 sem renumerar os 21–22 que já lá estavam. Não
+    renumerei porque as referências cruzadas não resolvem: a da linha 434
+    ("o item 22", `core/fingerprint.py:13`) aponta para a série nova, mas a da
+    linha 460 (`machine_id`, decisão do dono do produto) não resolve para
+    nenhum dos dois "22" — já estava errada antes. Renumerar seria adivinhar
+    a intenção de quem escreveu as entradas.
+    *Verificado*: ruff limpo, **668** testes do cliente (1 falha
+    ambiental pré-existente: `OSError: PortAudio library not found`, a lib do
+    sistema não está instalada), 75 do license-server, `--replay-gate` ACEITE
+    com F1 1.000 nos 12 gestos e 0 cliques fantasma, CI verde nos dois jobs
+    (`ci` e `mobile`) em `5440bd6`, `3791659` e `15be498`.
+
 ### Reserva financeira (Pista A)
 
 Gasto **US$168.34** de **US$222** (cert US$129 + domínio US$14.342 + Play US$25) →
