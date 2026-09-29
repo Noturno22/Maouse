@@ -393,9 +393,10 @@
     `core/licensing.py:163` valida a licença por `machine_id`, ou seja: a
     licença de uma máquina funciona noutra. Num produto pago, isso é receita
     que sai sem dar erro a ninguém.
-    *Não é hipotético.* O `wmic` foi descontinuado e já não vem no Windows 11
-    recente: `core/fingerprint.py:_wmic` volta `""` para os dois números de
-    série. Falta só o acesso ao registo (`MachineGuid`) também falhar — e esse
+    *Não é hipotético.* O `wmic` foi removido de vez no Windows 11 24H2+
+    (ver o item 24 para a medida): `core/fingerprint.py:_wmic` volta `""` para
+    os dois números de série. Falta só o acesso ao registo (`MachineGuid`)
+    também falhar — e esse
     `except` era `except Exception: pass`, que não distingue um `PermissionError`
     de um `ImportError`, que são problemas de conserto completamente
     diferentes. Este ficou estreito (`OSError`, `ImportError`) e passa a registar
@@ -448,6 +449,36 @@
     importa, e `ast.parse` nem sequer o abre. Está no `.gitignore`, é rascunho
     de alguém, e não é achado.
 
+24. **A margem do buraco #5, medida em vez de estimada.** Escrevi no
+    bloqueador que o buraco abria "basta o acesso ao registo falhar". Isso era
+    uma afirmação; agora é uma medição, e é **menos largo do que parecia**.
+    O `wmic` foi **removido de vez** no Windows 11 24H2+ — não é um FoD, foi
+    reformado e o FoD desaparece em 2026 (Microsoft, "WMIC removal from
+    Windows"). Portanto nessas máquinas `_wmic` volta `""` para os dois números de
+    série, e a fingerprint fica a **1 componente de 3**:
+    | Máquina | Componentes com conteúdo | `degenerate()` |
+    |---|---|---|
+    | esta (Win 10 22H2, tem `wmic.exe`) | 3 de 3 | não |
+    | Win 11 24H2+ | **1 de 3** | não |
+    | Win 11 24H2+ **e** registo indisponível | 0 de 3 | **sim** |
+    *O que muda:* o `MachineGuid` do registo passou a ser **a única coisa** que
+    sustenta a identidade. Confirmado: dois `MachineGuid` diferentes dão
+    `machine_id` diferentes, o que é o que se quer — o problema nunca foi a
+    força do hash, foi haver uma só fonte.
+    *Isto torna o bloqueador menos urgente e mais frágil.* Menos urgente porque
+    é preciso o registo falhar, e ele só falha por `PermissionError` ou chave
+    corrompida. Mais frágil porque **deixou de haver redundância**: antes havia
+    três independentes, e a queda de uma não apoderia nada. Uma política de
+    empresa que negue a leitura do registo é plausível, e o `except` estreito do
+    item 22 agora diz qual foi a razão.
+    *Onde é que isto se decide:* fechar o buraco **não** é uma alteração de
+    produto disfarçada de correcção. Faz `machine_id()` recusar, obriga a
+    `licensing.py` a decidir o que fazer sem identidade estável, e essa decisão
+    (recusar a activação? avisar e continuar com um id derivado do que houver?
+    pedir uma confirmação ao utilizador?) muda o que o produto faz a quem paga.
+    Fica como bloqueador #5, **com a dimensão agora medida** para a decisão ser
+    tomada com números em vez de com um "isto pode ser grave".
+
 ### 🔴 Bloqueadores em aberto (Sprint 2 → 1.ª venda paga)
 
 | # | Bloqueador | Estado |
@@ -457,7 +488,7 @@
 | 2 | **Store listing mobile (Play Console)** — IAP code ✅; falta prebuild/upload/listing. O package agora é `com.maouse.mobile` e o app **ainda não foi submetido**, portanto o rename não custou nada aqui — mas também não há volta: depois do primeiro upload o package é imutável | 🔴 |
 | 3 | **LAB de compatibilidade** — matriz ≥5 dispositivos por categoria    | 🟡 1 🟡 (HP i3-5005U 14.6 fps) |
 | 4 | **Corpus de mãos reais** — a instrumentação está pronta (item 19), mas `--record` e `collect_gestures.py` nunca produziram um ficheiro: o tool estava partido. Recolher é ~20 min por gesto e não se repete; a partir de agora cada recolha grava a confiança e a proveniência | 🔴 precisa de mãos reais — **caminho corrigido (itens 21–22), falta gravar** |
-| 5 | **`machine_id` degenerado é partilhado entre máquinas** — se nenhuma componente de hardware for lida, o `machine_id` é o sha256 de uma string constante e `core/licensing.py:163` valida a licença por ele: a licença de uma máquina passa a funcionar noutra. Plausível agora, porque o `wmic` já não vem no Windows 11 recente e basta o acesso ao registo falhar. O teste que deveria apanhar isto era `assert comps`, que passa com as três componentes vazias. **Aberto de propósito:** fechar exige que `machine_id()` recuse e que `licensing.py` decida o que fazer sem identidade estável — e essa decisão é do dono do produto (item 22) | 🔴 decisão do dono do produto |
+| 5 | **`machine_id` degenerado é partilhado entre máquinas** — se nenhuma componente de hardware for lida, o `machine_id` é o sha256 de uma string constante (`751f034653eeaa33…`), o mesmo em todas as máquinas assim, e `core/licensing.py:163` valida a licença por ele: a licença de uma máquina passa a funcionar noutra. **Margem medida (item 24):** no Windows 11 24H2+ o `wmic` foi removido de vez, por isso **1 das 3 componentes** enche; o buraco só abre se o acesso ao registo ao `MachineGuid` falhar também. A defesa do servidor existe (`license-server/service.py:78` recusa quando `claims["sub"] != f"machine:{machine_id}"`) e é exactamente esse valor partilhado que a anula. **Aberto de propósito:** fechar exige que `machine_id()` recuse e que `licensing.py` decida o que fazer sem identidade estável — decisão do dono do produto (item 22) | 🔴 decisão do dono do produto |
 
     > **As duas ferramentas não são o mesmo trabalho**, e o bloqueador tratava-as
     > como se fossem. `tools/eval_recognition.py` — e portanto o `--replay` e o
