@@ -382,6 +382,72 @@
     *Verificado*: ruff limpo, **560** testes do cliente, `--replay-gate` ACEITE,
     3 mutações testadas.
 
+22. **Um teste chamado "nonempty" que não verificava se algum valor tinha
+    conteúdo — e estava a proteger a identidade de licenciamento.**
+    `tests/test_fingerprint.py` tinha `assert comps`, e `collect_components()`
+    devolve sempre um dicionário com três chaves. Passava **com as três
+    componentes vazias**.
+    `machine_id()` é o sha256 de `"board_uuid=…|disk_serial=…|machine_guid=…"`.
+    Com as três vazias, esse sha256 é uma **constante** —
+    `751f034653eeaa33…`, o mesmo em todas as máquinas degradadas. E
+    `core/licensing.py:163` valida a licença por `machine_id`, ou seja: a
+    licença de uma máquina funciona noutra. Num produto pago, isso é receita
+    que sai sem dar erro a ninguém.
+    *Não é hipotético.* O `wmic` foi descontinuado e já não vem no Windows 11
+    recente: `core/fingerprint.py:_wmic` volta `""` para os dois números de
+    série. Falta só o acesso ao registo (`MachineGuid`) também falhar — e esse
+    `except` era `except Exception: pass`, que não distingue um `PermissionError`
+    de um `ImportError`, que são problemas de conserto completamente
+    diferentes. Este ficou estreito (`OSError`, `ImportError`) e passa a registar
+    a falha em `debug`. Um `except: pass` indistinguível de não ter o bloco
+    custa um dia inteiro a um suporte quando a activação falha.
+    *O `test_machine_id_deterministic` passa neste estado*, porque `a == b` é
+    verdadeiro tanto para uma identidade boa como para uma partilhada. O
+    determinismo é a única propriedade garantida, e ela não distingue as duas.
+    **Nada na suite apanhava isto.**
+    *O que mudou*: `core/fingerprint.py::degenerate()` dá nome à condição (uma
+    função, e não uma comparação espalhada — é o nome que permite escrever um
+    teste), `machine_id()` deixa de falar em silêncio, e
+    `test_a_maquina_tem_pelo_menos_uma_componente_real` falha **de propósito**
+    numa máquina sem identidade, com a mensagem a explicar porquê.
+    *O buraco fica aberto de propósito.* `test_o_machine_id_degradado_e_partilhado_entre_maquinas`
+    fixa a constante para que ela não desapareça em silêncio — mas fechá-lo
+    exige que `machine_id()` recuse e que `licensing.py` decida o que fazer sem
+    identidade estável, e recusa a activação é decisão do dono do produto, não
+    um efeito colateral de um teste. Registado como bloqueador #5.
+    *Verificado*: ruff limpo, 2 mutações testadas — degradar a máquina (o
+    teste antigo passava, o novo morre) e `degenerate()` a devolver sempre
+    `False`.
+
+23. **Varredura `grep Error` — o resto.** Concluída a classe "código escrito e
+    nunca exercitado" nos três sítios onde ela aparece: tabelas escritas à mão
+    (itens 18, 20, 21), `except` que engole, e código ao topo do módulo.
+    *Os `except` que engole* — 18 no código do cliente, **15 sem justificação
+    escrita**. Perolhamente legíveis:
+    | Sítio | Veredicto |
+    |---|---|
+    | `main.py:617` `remote.stop()` | correcto — melhor esforço no fecho |
+    | `core/gesture_ai.py:148` | correcto — `continue` para o URL seguinte |
+    | `core/remote.py` ×4 | correcto — limpeza de rede |
+    | `core/tts.py`, `core/media_ctl.py`, `core/voice.py` | periférico, isolado |
+    | `config.py:253,365` | correcta a leer, a justificação é que falta |
+    | **`core/fingerprint.py:13`** | **corrigido — o item 22** |
+
+    Os que ficaram por justificar são todos de periférico ou de fecho, e
+    nenhum está no caminho de um clique. Não foram tocados: mexer neles sem
+    caminho é um risco sem recompensa, e vale a mesma regra que o resto — não
+    mexer no que não está partido.
+    *O código ao topo do módulo* que executa no `import` só existe em
+    `tools/test_*.py` e `tools/debug_*.py`, que são *scripts* com
+    `if __name__ == "__main__"`, e em `license-server/admin_api.py:56`, que é
+    um servidor feito para se executar. Nenhum deles é importado por outro
+    módulo, que é o que tornaria a execução no `import` um efeito secundário
+    em vez do ponto do ficheiro.
+    *Falso alarme que vale registar*: `temp_baseline_ref.py`, na raiz, **não é
+    UTF-8** — é UTF-16. O Python lê `.py` como UTF-8, portanto o ficheiro não
+    importa, e `ast.parse` nem sequer o abre. Está no `.gitignore`, é rascunho
+    de alguém, e não é achado.
+
 ### 🔴 Bloqueadores em aberto (Sprint 2 → 1.ª venda paga)
 
 | # | Bloqueador | Estado |
@@ -391,6 +457,7 @@
 | 2 | **Store listing mobile (Play Console)** — IAP code ✅; falta prebuild/upload/listing. O package agora é `com.maouse.mobile` e o app **ainda não foi submetido**, portanto o rename não custou nada aqui — mas também não há volta: depois do primeiro upload o package é imutável | 🔴 |
 | 3 | **LAB de compatibilidade** — matriz ≥5 dispositivos por categoria    | 🟡 1 🟡 (HP i3-5005U 14.6 fps) |
 | 4 | **Corpus de mãos reais** — a instrumentação está pronta (item 19), mas `--record` e `collect_gestures.py` nunca produziram um ficheiro: o tool estava partido. Recolher é ~20 min por gesto e não se repete; a partir de agora cada recolha grava a confiança e a proveniência | 🔴 precisa de mãos reais — **caminho corrigido (itens 21–22), falta gravar** |
+| 5 | **`machine_id` degenerado é partilhado entre máquinas** — se nenhuma componente de hardware for lida, o `machine_id` é o sha256 de uma string constante e `core/licensing.py:163` valida a licença por ele: a licença de uma máquina passa a funcionar noutra. Plausível agora, porque o `wmic` já não vem no Windows 11 recente e basta o acesso ao registo falhar. O teste que deveria apanhar isto era `assert comps`, que passa com as três componentes vazias. **Aberto de propósito:** fechar exige que `machine_id()` recuse e que `licensing.py` decida o que fazer sem identidade estável — e essa decisão é do dono do produto (item 22) | 🔴 decisão do dono do produto |
 
     > **As duas ferramentas não são o mesmo trabalho**, e o bloqueador tratava-as
     > como se fossem. `tools/eval_recognition.py` — e portanto o `--replay` e o

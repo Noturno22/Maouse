@@ -1,4 +1,4 @@
-﻿"""A ajuda diz ao utilizador que atalho é que o gesto prime.
+"""A ajuda diz ao utilizador que atalho é que o gesto prime.
 
 Isto é a quarta tabela deste repo escrita à mão que já divergiu do seu par, e a
 única em que a divergência é visível para quem paga: o banner de arranque

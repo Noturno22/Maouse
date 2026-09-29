@@ -1,4 +1,4 @@
-﻿"""O ecrã não pode dizer que não há mão quando há mão.
+"""O ecrã não pode dizer que não há mão quando há mão.
 
 O `BADGES` de `core/overlay.py` tem 11 entradas e o `Gesture` tem 13 membros.
 Faltam `THUMB_DOWN` e `ROCK`, e os dois são produzidos pelo motor:
