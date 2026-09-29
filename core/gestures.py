@@ -10,13 +10,22 @@ THUMB_TIP, INDEX_TIP, MIDDLE_TIP = 4, 8, 12
 
 
 class Gesture(Enum):
+    # Os `value` são o que um humano lê no código; o que o utilizador vê está em
+    # `core/overlay.py:BADGES` e `ui/theme.py:GESTURE_LABELS`, e tem de bater
+    # certo com estes (trancado em tests/test_gesture_labels.py).
+    #
+    # REGRA: os valores têm de ser ÚNICOS. Num Enum do Python, dois membros com o
+    # mesmo valor não são dois membros: o segundo vira alias do primeiro, some da
+    # iteração e passa a devolver o nome do outro. A Onda 1 §1.4 mandava só
+    # corrigir o FIST para "scroll" — com o PEACE já em "scroll" isso apagava o
+    # PEACE em silêncio. Por isso os dois mudaram.
     NONE = "sem mao"
     OPEN = "mover"
     ONE = "mover (1 dedo)"
     PINCH = "clique esquerdo"
     PINCH_MID = "clique direito"
-    FIST = "arrastar"
-    PEACE = "scroll"
+    FIST = "scroll"
+    PEACE = "dois dedos"
     THREE = "volume"
     THUMB_UP = "play/pausa"
     THUMB_DOWN = "deslike"

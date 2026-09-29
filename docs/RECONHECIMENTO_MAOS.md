@@ -591,8 +591,8 @@ botão preso por perda de tracking.
 | `ONE` | mover (1 dedo) | só indicador | **mover cursor** |
 | `PINCH` | clique esquerdo | polegar + indicador | **clique / arrastar** |
 | `PINCH_MID` | clique direito | polegar + médio | clique direito |
-| `FIST` | arrastar | punho | scroll vertical (por delta) |
-| `PEACE` | scroll | indicador + médio | scroll (mão esq.) / brilho (mão dir. 2 mãos) |
+| `FIST` | scroll | punho | scroll vertical (por delta) |
+| `PEACE` | dois dedos | indicador + médio | brilho (mão dir., 2 mãos) / interface (mão esq.) |
 | `THREE` | volume | 3 dedos | volume |
 | `THUMB_UP` | play/pausa | punho + polegar cima | play/pausa |
 | `THUMB_DOWN` | deslike | punho + polegar baixo | gate de UI |
@@ -603,10 +603,12 @@ botão preso por perda de tracking.
 Mãos que movem o cursor: `MOVE_GESTURES = {OPEN, ONE, PINCH}`
 (`core/engine.py:42`).
 
-⚠️ **Inconsistência de nomenclatura a resolver**: o enum diz
-`FIST = "arrastar"` e `PEACE = "scroll"`, mas na prática `FIST` produz
-**scroll** e `PEACE` está desviado para brilho/interfaces. Os rótulos são
-legados de uma versão anterior da taxonomia e confundem quem lê o overlay.
+✅ **Inconsistência de nomenclatura resolvida** (2026-09-29, Onda 1 §1.4). O enum
+dizia `FIST = "arrastar"` e `PEACE = "scroll"`, e era verdade o inverso: o `FIST`
+produz **scroll** por delta (`core/gestures.py:338`) e o `PEACE` está desviado
+para brilho/interfaces. Corrigido para `FIST = "scroll"` e
+`PEACE = "dois dedos"` — este último **não** pode ser `"scroll"`, e o §1.4
+original mandava só mexer no FIST; ver §1.4 para o que isso partia.
 
 ## 1.13 Referência de configuração
 
@@ -1153,9 +1155,37 @@ passam a ser **ajustados ao maior off-diagonal**.
 
 ### 1.4 Corrigir os rótulos ⚠️ barato
 
-Renomear `Gesture.FIST` de `"arrastar"` para `"scroll"` e `PEACE` de `"scroll"`
-para o que realmente faz, para o overlay deixar de mentir. Mudança puramente
-textual, zero risco, remove uma fonte de confusão para o utilizador.
+> **✅ Feito (2026-09-29), e a prescrição estava errada em duas coisas.**
+>
+> *O motivo não secemia.* O texto dizia que os rótulos existiam "para o overlay
+> deixar de mentir". O overlay nunca mentiu: `core/overlay.py:BADGES` e
+> `ui/theme.py:GESTURE_LABELS` diziam — e dizem — `FIST → "SCROLL"` e
+> `PEACE → "DOIS DEDOS"`. Ninguém lê o `value` do enum; o que o utilizador vê
+> sai dos dicionários. A mentira era para quem lê o **código**. Corrigido na
+> mesma, porque a divergência entre as duas fontes é o que faz a próxima pessoa
+> confiar na errada.
+>
+> *A prescrição à letra partia o enum.* Mandava renomear só o `FIST` para
+> `"scroll"`, com o `PEACE = "scroll"` que já lá estava. Num `Enum` do Python dois
+> membros com o mesmo valor não são dois membros: o segundo vira **alias** do
+> primeiro. Medido, não suposto — `Gesture.PEACE is Gesture.FIST` passa a ser
+> `True`, o `PEACE` some de `list(Gesture)`, `Gesture.PEACE.name` devolve
+> `"FIST"`, e os 7 sítios que comparam `Gesture.PEACE` passam a comparar FIST,
+> incluindo o brilho de `core/engine.py:428`. O `BADGES` e as classes da IA,
+> keyed por membro, respondem com FIST. **Nenhuma excepção** — a mesma classe de
+> silêncio do `cryptography` em falta.
+>
+> Por isso a correcção mexeu nos **dois** valores: `FIST = "scroll"` e
+> `PEACE = "dois dedos"`, que é o rótulo que o overlay já lhe põe e a descrição
+> que serve os dois modos (mão direita muda o brilho, mão esquerda a interface).
+>
+> *O guard que faltava:* `tests/test_gesture_labels.py` (5 testes) fixa a
+> unicidade dos valores, o `.name` de cada membro, e a concordância entre o
+> `value` do enum e o rótulo do badge. A unicidade é escrita com
+> `Gesture.__members__` e **não** com a iteração, porque a iteração não vê o
+> alias — a primeira versão do teste passava com o bug presente, e foi
+> reescrita depois de isso acontecer. Mutation-tested: com `PEACE = "scroll"`,
+> 4 dos 5 testes falham.
 
 ### 1.5 Ligar o `HandLock` ⚠️ com cautela
 

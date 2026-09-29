@@ -165,6 +165,33 @@
     dois lados do bug foi reintroduzido à mão e os testes falharam). Total:
     **447** testes do cliente.
 
+18. **Onda 1 §1.4 fechada — e a prescrição partia o enum.** O item era
+    "renomear `Gesture.FIST` de `arrastar` para `scroll`", descrito como
+    *"mudança puramente textual, zero risco"*. Feito à letra, era um bug.
+    *Um `Enum` do Python com dois membros de valor igual não tem dois membros:
+    o segundo vira **alias** do primeiro.* Com o `PEACE = "scroll"` que já lá
+    estava, `FIST = "scroll"` apaga o **PEACE**: `Gesture.PEACE is Gesture.FIST`,
+    o membro some de `list(Gesture)`, `PEACE.name` passa a devolver `"FIST"`, e
+    os 7 sítios que comparam `Gesture.PEACE` passam a comparar FIST — o brilho
+    de `engine.py:428` incluído. Medido, não suposto, e sem uma única excepção:
+    a mesma classe de silêncio do `cryptography` e da variável vazia.
+    *E o motivo do item era falso.* Dizia ser "para o overlay deixar de
+    mentir"; o overlay nunca mentiu — `core/overlay.py:BADGES` e
+    `ui/theme.py:GESTURE_LABELS` já diziam `FIST → "SCROLL"` e
+    `PEACE → "DOIS DEDOS"`, e ninguém lê o `value` do enum. A mentira era para
+    quem lê o **código**. Por isso mexeu nos **dois** valores: `FIST = "scroll"`,
+    `PEACE = "dois dedos"`.
+    *O guard que faltava* está em `tests/test_gesture_labels.py` (5 testes):
+    unicidade dos valores, `.name` de cada membro, e concordância entre o
+    `value` e o rótulo do badge. Escrito com `Gesture.__members__` e **não** com
+    a iteração — a primeira versão passava com o bug presente, porque a
+    iteração não vê aliases, e foi reescrita depois de isso acontecer. É a
+    segunda vez nesta sessão que um teste meu passava com o bug dentro; a regra
+    que daqui sai é que um guard que não consegue falhar não é um guard.
+    *Verificado*: ruff limpo, **452** testes do cliente, 70 do license-server,
+    `--replay-gate` F1 macro 1.0000 e 0 cliques fantasma, mutation-tested (com
+    `PEACE = "scroll"`, 4 dos 5 testes falham).
+
 ### 🔴 Bloqueadores em aberto (Sprint 2 → 1.ª venda paga)
 
 | # | Bloqueador | Estado |
