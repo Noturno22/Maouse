@@ -16,6 +16,45 @@ Formato de uma entrada:
 
 ---
 
+## [2026-09-26 23:02] Mobile: o toque/clique mandava o cursor para outra direção
+
+- **Objetivo:** no telemóvel, arrastar funcionava mas o toque (clique) colocava
+  o cursor no sítio errado.
+- **Causa raiz:** o `onPanResponderRelease` convervia o toque com
+  `touch.locationX / layoutRef.current.w`. Em React Native o `locationX` é
+  relativo **à vista que recebeu o toque**, não à vista que tem o
+  `PanResponder`. O touchpad tem dois filhos por cima dele:
+  `touchpadHint` (um `Text` centrado, que ocupa a maior parte da área) e
+  `screenPill` (`position: absolute`, canto superior direito). Tocar em cima de
+  qualquer um dos dois dava coordenadas relativas ao `Text`/ao `pill`, ou seja
+  quase (0,0) — e o cursor saltava para o canto, noutra direção.
+  O pan não tinha o problema porque usa `pageX`/`pageY` (absolutos) para os
+  deltas.
+- **Alterações:**
+  - `mobile/airmouse-mobile/src/components/RemoteScreen.tsx`:
+    - `PadRect` (w, h, pageX, pageY) + `padRef` e `measurePad()`, que usa
+      `measureInWindow` para saber onde está o touchpad na janela;
+    - o toque passa a usar `pageX`/`pageY` menos a origem do pad, com clamp a
+      0..1 — coerente com o pan e independente de qual vista foi tocada;
+    - `measurePad()` corre no `onLayout` **e** a cada `onPanResponderGrant`:
+      abrir/fechar o teclado ou rodar o telefone muda a posição do pad sem
+      necessariamente mudar o tamanho, e o `onLayout` só dispara quando o
+      tamanho muda.
+- **Verificação:**
+  - `npx tsc --noEmit` → limpo (confirma também que `measureInWindow` existe
+    com esta assinatura no RN 0.86 do Expo SDK 57; é API do React Native core,
+    sem página própria na doc do Expo).
+  - `curl "http://127.0.0.1:8081/index.bundle?platform=android&dev=true"` →
+    HTTP 200, e o fix está no bundle servido (`touch.pageX - pad.pageX`).
+  - **Por confirmar no aparelho:** não há framework de teste no projeto mobile
+    (sem jest), logo a verificação do comportamento é manual — recarregar a app
+    e tocar em quatro pontos do touchpad, incluindo por cima do texto de dica e
+    do distintivo do ecrã.
+- **Estado:** Parcial — código e build verificados, falta confirmar no
+  telemóvel.
+
+---
+
 ## [2026-09-26 22:31] Licença: recuperação de lease divergente (409 + chave persistente + lock)
 
 - **Objetivo:** resolver os três pontos pedidos para o `seq_repetido` que

@@ -24,6 +24,15 @@ interface Size {
   h: number;
 }
 
+// O touchpad também sabe onde está na janela. Sem isto, o toque tinha de ser
+// convertido com `locationX`, que é relativo à vista que recebeu o toque — e
+// como o touchpad tem o texto de dica e o distintivo do ecrã por cima, tocar
+// em cima deles mandava o cursor para outra direção.
+interface PadRect extends Size {
+  pageX: number;
+  pageY: number;
+}
+
 interface TouchPos {
   x: number;
   y: number;
@@ -118,7 +127,20 @@ export default function RemoteScreen({ onBack }: Props) {
     if (remote.isConnected) remote.key('backspace');
   }, []);
 
-  const layoutRef = useRef<Size>({ w: 1, h: 1 });
+  const layoutRef = useRef<PadRect>({ w: 1, h: 1, pageX: 0, pageY: 0 });
+  const padRef = useRef<View>(null);
+
+  // `measureInWindow` dá a posição do touchpad na janela, para depoisconverter
+  // `pageX`/`pageY` (que são absolutos) em coordenadas relativas ao touchpad.
+  const measurePad = useCallback(() => {
+    const node = padRef.current;
+    if (!node) return;
+    node.measureInWindow((x, y, w, h) => {
+      if (w > 0 && h > 0) {
+        layoutRef.current = { w, h, pageX: x, pageY: y };
+      }
+    });
+  }, []);
   const touchState = useRef({
     count: 0,
     last: new Map<number, TouchPos>(),
@@ -135,6 +157,10 @@ export default function RemoteScreen({ onBack }: Props) {
       onPanResponderTerminationRequest: () => false,
       onPanResponderGrant: (evt) => {
         const ts = touchState.current;
+        // Remedir a cada toque: o teclado abrir/fechar ou o telefone rodar
+        // mudam a posição do touchpad sem necessariamente mudar o tamanho, e o
+        // `onLayout` só dispara quando o tamanho muda.
+        measurePad();
         ts.count = evt.nativeEvent.touches.length;
         ts.startTime = Date.now();
         ts.moved = false;
@@ -216,8 +242,13 @@ export default function RemoteScreen({ onBack }: Props) {
             let x = 0.5;
             let y = 0.5;
             if (touch) {
-              x = Math.max(0, Math.min(1, touch.locationX / layoutRef.current.w));
-              y = Math.max(0, Math.min(1, touch.locationY / layoutRef.current.h));
+              // `pageX`/`pageY` são absolutos e não dependem de qual vista
+              // recebeu o toque. `locationX` depende — e o touchpad tem o texto
+              // de dica e o distintivo do ecrã por cima, portanto tocar neles
+              // mandava o cursor para outra direção.
+              const pad = layoutRef.current;
+              x = Math.max(0, Math.min(1, (touch.pageX - pad.pageX) / pad.w));
+              y = Math.max(0, Math.min(1, (touch.pageY - pad.pageY) / pad.h));
             }
             remote.gesture('tap', x, y);
             haptic();
@@ -263,9 +294,16 @@ export default function RemoteScreen({ onBack }: Props) {
     <View style={styles.connectedWrap}>
       <View style={styles.touchpadWrap}>
         <View
+          ref={padRef}
           style={styles.touchpad}
           onLayout={(e) => {
-            layoutRef.current = { w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height };
+            const { width, height } = e.nativeEvent.layout;
+            if (width > 0 && height > 0) {
+              layoutRef.current = { ...layoutRef.current, w: width, h: height };
+            }
+            // A posição na janela só vem do `measureInWindow`, e é o que
+            // permite acertar o ponto do toque.
+            measurePad();
           }}
           accessible
           accessibilityRole="none"
