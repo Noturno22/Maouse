@@ -325,7 +325,7 @@ def process_frame(cfg, cam, tracker, mouse, gesture_ai, voice, tuner, ctx, state
         idx = _active_hand_index(
             hands, w, h, hand_frame.palm_center if hand_frame is not None else None
         )
-        E.recorder.observe(hands, sides, idx, ts_ms)
+        E.recorder.observe(hands, sides, idx, ts_ms, confs)
 
     # Liberta o Alt+Tab seguro por timeout (mesmo que a mao desapareca).
     if E.alt_hold and now > E.alt_hold_until:

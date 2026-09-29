@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import json
 import os
+import platform
 from typing import NamedTuple
 
 import numpy as np
@@ -496,6 +497,28 @@ LABEL_KEY_CHOICES = {
 LABEL_KEYS = {ord(ch): name for ch, name in LABEL_KEY_CHOICES.items()}
 
 
+def describe_device() -> str:
+    """Nome legível da máquina, para carimbar a sessão de recolha.
+
+    Existe porque comparar dois corpora de mãos reais sem saber em que máquinas
+    foram gravados não diz nada: o mesmo gesto lido numa máquina a 14,6 fps e
+    noutra a 30 fps são evidences diferentes, e `HARDWARE/LAB.md` já tem uma
+    matriz de dispositivos por causa disso.
+
+    Compõe o que o sistema diz e **diz que não sabe** quando não diz. Um
+    `platform.processor()` vazio no Windows é o caso comum, não a exceção, e
+    devolver "" seria indistinguível de "não consultámos".
+    """
+    parts = []
+    ident = os.environ.get("PROCESSOR_IDENTIFIER", "").strip()
+    if ident:
+        parts.append(ident)
+    machine = platform.machine().strip()
+    if machine and machine not in " ".join(parts):
+        parts.append(machine)
+    return ", ".join(parts) if parts else "desconhecido"
+
+
 class CorpusRecorder:
     """Acumula a mao do cursor de cada frame com a etiqueta escolhida a mao.
 
@@ -504,12 +527,25 @@ class CorpusRecorder:
     etiquetado e pior do que um corpus pequeno: mediria a etiqueta errada.
     """
 
-    def __init__(self, path=None, label: str = ABSENT_LABEL, max_frames: int = 0):
+    def __init__(
+        self,
+        path=None,
+        label: str = ABSENT_LABEL,
+        max_frames: int = 0,
+        meta: dict | None = None,
+    ):
         self.path = path
         self.corpus = Corpus()
         self._label = ABSENT_LABEL
         self._max_frames = max_frames
         self.set_label(label)
+        # Um gravador de `--record` vê uma câmara e mãos de uma pessoa. Não há
+        # caminho em que isto seja sintético, portanto declará-lo "real" não é
+        # uma afirmação otimista, é o que o classe sabe. (O caminho sintético
+        # passa por `tools/make_corpus_fixture.py`, que não usa esta classe.)
+        self.corpus.set_meta(source="real", recorder="CorpusRecorder")
+        if meta:
+            self.corpus.set_meta(**meta)
 
     # ------------------------------------------------------------------ estado
 
@@ -543,20 +579,48 @@ class CorpusRecorder:
 
     def reset(self) -> None:
         self.corpus.clear()
+        # `source` e `recorder` sobrevivem: continuam a ser verdadeiros depois de
+        # um reset, que é o inicio de uma nova série da mesma sessão. O que
+        # tem de desaparecer é o que era medido e deixou de ser — daí o fps.
+        self.corpus.set_meta(fps=None, frames=None, seconds=None)
+
+    def measured_fps(self) -> float | None:
+        """Frames por segundo **medidos nesta gravação**, ou ``None``.
+
+        Sai dos ``t_ms`` que o próprio gravador escreveu, não da taxa pedida à
+        câmara: o que interessa para um corpus é a taxa a que as mãos foram
+        vistas, que é a que limita o debounce e a latência.
+
+        ``None`` com menos de dois frames. Com um só não há intervalo, e
+        devolver ``0.0`` seria um número que parece uma medida e não é.
+        """
+        if self.corpus.frames < 2:
+            return None
+        span = self.corpus.duration_s()
+        if span <= 0.0:
+            return None
+        return (self.corpus.frames - 1) / span
 
     # ----------------------------------------------------------------- escrita
 
-    def observe(self, hands, sides, index: int, t_ms: int) -> bool:
+    def observe(self, hands, sides, index: int, t_ms: int, confs=None) -> bool:
         """Grava a mao ``index`` de ``hands`` com a etiqueta actual.
 
         Em repouso (``NONE``) um frame sem mao tambem e gravado, porque e a
         evidencia de que o pipeline nao inventou um gesto. Com qualquer outra
         etiqueta, um frame sem mao e descartado: nao ha nada para avaliar.
+
+        ``confs`` e a confianca da **classificacao**, paralela a ``hands``
+        (``core/tracker.py::parse_landmarks_result``). E opcional, e um
+        descasamento de tamanho aqui **nao levanta**: este codigo esta no meio
+        de uma recolha de minutos e perdia-se a sessão toda por causa de uma
+        lista. Fica a ``NaN`` — "nao medido" — e grava-se à mesma.
         """
         if self.full:
             return False
         hands = list(hands)
         sides = list(sides)
+        confs = list(confs) if confs is not None else []
         resting = self._label == ABSENT_LABEL
         if not hands:
             if not resting:
@@ -565,12 +629,32 @@ class CorpusRecorder:
             return True
         if not 0 <= index < len(hands):
             return False
+        conf = None
+        if index < len(confs):
+            try:
+                conf = float(confs[index])
+            except (TypeError, ValueError):
+                conf = None
         self.corpus.add_frame(
-            t_ms, [hands[index]], [sides[index]], [self._label], 0
+            t_ms,
+            [hands[index]],
+            [sides[index]],
+            [self._label],
+            0,
+            None if conf is None else [conf],
         )
         return True
 
     def flush(self) -> bool:
         if self.path is None:
             return False
+        # O que se aprendeu com a sessao só se sabe no fim: fps, nº de frames e
+        # duração. `set_meta` ignora None, por isso um `measured_fps()` sem
+        # medição não escreve nada em vez de escrever 0.
+        fps = self.measured_fps()
+        self.corpus.set_meta(
+            fps=round(fps, 1) if fps is not None else None,
+            frames=self.corpus.frames,
+            seconds=round(self.corpus.duration_s(), 3),
+        )
         return self.corpus.save(self.path)

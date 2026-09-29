@@ -323,10 +323,18 @@ def main():
     # OpenCV, portanto --record desliga a GUI PySide6 e nunca toca no rato.
     recorder = None
     if args.record:
-        from core.corpus import CorpusRecorder
+        from core.corpus import CorpusRecorder, describe_device
 
         recorder = CorpusRecorder(
-            path=args.record, max_frames=args.record_max_frames
+            path=args.record,
+            max_frames=args.record_max_frames,
+            # Quem vai ler este ficheiro em daqui a seis meses precisa de saber
+            # em que máquina e a que taxa as mãos foram vistas, sem ter de
+            # adivinhar. O fps medido é carimbado no `flush`, no fim.
+            meta={
+                "device": describe_device(),
+                "camera": f"{cfg.cam_width}x{cfg.cam_height}@{cfg.cam_fps}",
+            },
         )
         cfg.preview = True
         args.no_gui = True
