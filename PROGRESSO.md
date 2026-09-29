@@ -479,6 +479,40 @@
     Fica como bloqueador #5, **com a dimensão agora medida** para a decisão ser
     tomada com números em vez de com um "isto pode ser grave".
 
+25. **A gravação dizia a etiqueta uma vez e desaparecia — e a tecla errada é
+    permanente.** A ajuda que dei para gravar dependia de duas coisas que não
+    se defendem: o operador decorar `d PINKY` / `c SHAKA` / `g ROCK`, e
+    apanhar o toast de 1,3 s que confirmava a etiqueta. As duas falhavam em
+    silêncio, e o custo não era um ficheiro meio estragado: `x` limpa a
+    sessão **inteira**, portanto um engano no minuto 4 obriga a refazer tudo,
+    com a mão já cansada e a luz já diferente.
+    *O que mudou:* com `--record`, o preview passa a ter uma **faixa
+    permanente** com a etiqueta corrente, a tecla que a repete, os frames do
+    segmento e do total, e o **fps medido** (`--`, enquanto não há dois
+    frames) — e um **rodapé com a tabela de teclas inteira**, sempre visível.
+    A barra de `ganho`/`suavidade` dá lugar ao rodapé durante a recolha, e o
+    `fps` sobe para a faixa. Se aparecer **duas mãos no ecrã**, a faixa avisa
+    em rosa: só a mão do cursor é gravada, e uma tecla só não descreve duas
+    mãos. O `h` ganhou as três regras (tecla **antes** da pose, mão única,
+    `x` limpa tudo) e desce para `y=140` para não ficar por baixo da faixa.
+    *Duas decisões que valem registar:*
+    - A tabela de teclas **não é escrita no texto do preview**. Sai de
+      `core.corpus.LABEL_KEY_CHOICES` via `ui["record"]["keys"]`, e a quebra
+      de linhas mede o texto com `getTextSize` — um `len()` fixo dava uma
+      tabela truncada, e `THUMB_D` a meio de uma recolha é pior do que não
+      mostrar nada. `tests/test_record_hud.py` fixa a ordem, a integridade e a
+      largura em píxeis a 640/800/1280/480.
+    - **`_record_hud` não levanta.** Um painel que uma excepção mate no meio
+      de uma recolha de minutos acaba a sessão sem ninguém saber porquê — o
+      mesmo argumento que `CorpusRecorder.observe` dá para o descasamento de
+      `confs`. O que o gravador não sabe lê-se `?` / `--`, nunca um número.
+      Foi isto que apareceu: o spy de `tests/test_recorder_provenance.py` só
+      implementa `observe`, e o painel deixou-o de fora antes de o segundo
+      teste o dizer.
+    `tests/test_record_hud.py`, 30 testes. `main.py --replay` sobre a fixture
+    continua em **F1 macro 1.0000** e `--replay-gate` continua a sair 0 — o
+    painel só existe com `ui["record"]`, que só existe com `--record`.
+
 ### 🔴 Bloqueadores em aberto (Sprint 2 → 1.ª venda paga)
 
 | # | Bloqueador | Estado |

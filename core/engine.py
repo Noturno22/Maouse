@@ -13,7 +13,7 @@ import cv2
 
 from config import SMOOTH_PRESETS, save_settings
 from core.commands import _click_assist, apply_command
-from core.corpus import LABEL_KEYS
+from core.corpus import LABEL_KEY_CHOICES, LABEL_KEYS
 from core.filters import AccelCurve, FilterPair2D
 from core.gestures import Gesture
 from core.hotkeys import (
@@ -120,6 +120,55 @@ def _cursor_hand_frame(results, frame_w: int):
 ALT_HOLD_TIMEOUT_S = 1.3
 
 
+# Quantos segmentos ficam no historico do painel. O suficiente para ver a
+# ultima volta de gestos sem tapar a camara com texto; o corpus completo diz o
+# resto, e `tools/eval_recognition.py` da a contagem por classe.
+_REC_HISTORY_MAX = 8
+
+
+def _record_hud(E, rec) -> None:
+    """Mantem o painel de gravacao em sincronia com o corpus.
+
+    O operador nao pode tirar os olhos da mao para saber em que etiqueta esta:
+    o unico feedback de hoje era um toast que dura 1,3 s, e uma etiqueta errada
+    nao se desfaz - `x` limpa a sessao inteira. Por isso o painel e permanente.
+
+    O contador de frames e a parte honesta: um segmento em 0f diz que a
+    etiqueta foi posta sem mao a vista, e isso descobre-se ali e nao tres meses
+    depois numa matriz de confusao.
+
+    Nao levanta, por proposito. Um painel que uma excepcao RUIM aqui matte no
+    meio de uma recolha de minutos, e a sessao acabava sem ninguem saber por
+   quê - o mesmo argumento que `CorpusRecorder.observe` da para o descasamento
+    de `confs`. O que falta ao gravador le-se "nao medido" (`?`, `--`) e nunca
+    como um numero: um HUD com `--` e honesto, um HUD que chumba a gravacao
+    por causa de si e mentira disfarçada de rigor.
+    """
+    label = getattr(rec, "label", None)
+    if label is None:
+        return
+    total = getattr(rec, "frames", 0)
+    if label != E.rec_label:
+        if E.rec_label is not None:
+            E.rec_history.append((E.rec_label, total - E.rec_seg_start))
+            del E.rec_history[:-_REC_HISTORY_MAX]
+        E.rec_label = label
+        E.rec_seg_start = total
+    E.ui["record"] = {
+        "label": label,
+        "key": rec.key_char() if hasattr(rec, "key_char") else "?",
+        "frames": total,
+        "seg_frames": total - E.rec_seg_start,
+        "history": list(E.rec_history),
+        "hands": E.ui.get("hands", 0),
+        "keys": LABEL_KEY_CHOICES,
+        # O fps que o gravador mediu, e nao o pedido a camara: e o que vai
+        # ser carimbado no `flush`, e o operador precisa de o ver antes de
+        # gravar dez minutos a 6 fps sem dar por isso.
+        "fps": rec.measured_fps() if hasattr(rec, "measured_fps") else None,
+    }
+
+
 def _active_hand_index(hands, width: int, height: int, palm_center) -> int:
     """Indice, em ``hands``, da deteccao que corresponde a ``palm_center``.
 
@@ -211,6 +260,10 @@ def make_engine_ctx(cfg, smooth_idx, gesture_ai, tuner, ctx, recorder=None):
         switcher_pick=False,
         glitches=0, last_seq=-1, last_scroll=None, fps=0.0, infer_total=0.0,
         frames_done=0, warmup_left=max(cfg.warmup_frames, 0), started=None,
+        # Contabilidade do painel de gravacao (ver `_record_hud`). Vive aqui e
+        # nao no gravador porque e apresentacao: o corpus nao guarda segmentos,
+        # e nao deve passar a guardar por causa de um HUD.
+        rec_label=None, rec_seg_start=0, rec_history=[],
         window="Mãouse",
         # Com o ecrã espelhado (mirror=True), o lado esquerdo do ecrã corresponde
         # à mão "Right" do MediaPipe (e vice-versa). A mão de comandos é a que o
@@ -327,6 +380,7 @@ def process_frame(cfg, cam, tracker, mouse, gesture_ai, voice, tuner, ctx, state
             hands, w, h, hand_frame.palm_center if hand_frame is not None else None
         )
         E.recorder.observe(hands, sides, idx, ts_ms, confs)
+        _record_hud(E, E.recorder)
 
     # Liberta o Alt+Tab seguro por timeout (mesmo que a mao desapareca).
     if E.alt_hold and now > E.alt_hold_until:

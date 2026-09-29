@@ -495,6 +495,10 @@ LABEL_KEY_CHOICES = {
     "g": "ROCK",
 }
 LABEL_KEYS = {ord(ch): name for ch, name in LABEL_KEY_CHOICES.items()}
+# O inverso, derivado da MESMA tabela: quem mostra a etiqueta no preview
+# precisa de dizer com que tecla se repete ("PINCH [3]"), e reescrever os 13
+# pares a mao seria exactamente o tipo de divergencia que `set_label` ja sofreu.
+LABEL_KEY_BY_NAME = {name: ch for ch, name in LABEL_KEY_CHOICES.items()}
 
 
 def describe_device() -> str:
@@ -582,6 +586,16 @@ class CorpusRecorder:
         changed = name != self._label
         self._label = name
         return changed
+
+    def key_char(self) -> str:
+        """A tecla que volta a por esta etiqueta, para o preview a mostrar.
+
+        `"?"` quando nao ha tecla - e nao `""`: um HUD que mostra
+        `PINCH []` le-se como um bug de desenho, e `PINCH [?]` le-se como
+        "esta etiqueta nao se repete". Nao ha caso real para o `?`, mas o
+        default tem de ser o que denuncia a falha em vez de a esconder.
+        """
+        return LABEL_KEY_BY_NAME.get(self._label, "?")
 
     def reset(self) -> None:
         self.corpus.clear()
