@@ -121,7 +121,7 @@ def _dbus():
     não é exigido.
     """
     try:
-        from dbus_next import BusType, Message
+        from dbus_next import BusType, Message, Variant
 
         # `MessageBus` do `dbus_next.aio`, e não o do topo: o topo só
         # reexporta o do GLib (sincrónico, com mainloop própria) e este módulo
@@ -134,7 +134,7 @@ def _dbus():
 
         return _DBusApi(
             BusType, MessageBus, PropertyAccess, ServiceInterface,
-            dbus_property, method, Message,
+            dbus_property, method, Message, Variant,
         )
     except Exception as e:
         log.info("Bluetooth indisponivel (%s). Sem controlo por BLE.", e)
@@ -152,7 +152,7 @@ class _DBusApi:
     """
 
     def __init__(self, bus_type, message_bus, property_access,
-                 service_interface, dbus_property, method, message):
+                 service_interface, dbus_property, method, message, variant):
         self.BusType = bus_type
         self.MessageBus = message_bus
         self.PropertyAccess = property_access
@@ -160,6 +160,7 @@ class _DBusApi:
         self.dbus_property = dbus_property
         self.method = method
         self.Message = message
+        self.Variant = variant
 
 
 # ── Framing ─────────────────────────────────────────────────────────
@@ -491,6 +492,10 @@ class RemoteBLE:
         self._tx = None
         self._sessions: dict[str, _Session] = {}
         self._ready = threading.Event()
+        # O caminho do adaptador, guardado para o `stop()` voltar a pôr o
+        # `Discoverable` como estava, e o valor que lá estava antes de nós.
+        self._adapter_caminho = None
+        self._discoverable_antes = None
 
     # ── Ciclo de vida ────────────────────────────────────────────────
     def start(self) -> bool:
@@ -554,6 +559,7 @@ class RemoteBLE:
     def stop(self) -> None:
         """Desregista a aplicação e fecha a ligação ao bus."""
         loop, bus = self._loop, self._bus
+        adapter = self._adapter_caminho
         if loop is not None and bus is not None:
             async def _shutdown():
                 try:
@@ -563,6 +569,11 @@ class RemoteBLE:
                             await gatt.call_unregister_application(self._app_path)
                 except Exception as e:
                     log.debug("Desregistar a aplicacao GATT falhou: %s", e)
+                # O anúncio é do adaptador, não do objecto exportado: sem isto
+                # o PC continuava visível a qualquer telefone depois de o BLE
+                # estar desligado nas definições.
+                if adapter is not None:
+                    await self._advertise(adapter, False)
                 self._unexport_all()
                 bus.disconnect()
 
@@ -685,6 +696,9 @@ class RemoteBLE:
             self._ready.set()
             return
 
+        # O mesmo adaptador, para o `stop()` poder restaurar o `Discoverable`.
+        self._adapter_caminho = await self._adapter_path(self._api.Message)
+
         # Exportar o serviço e as características ANTES do registo. Ao contrário
         # do `RegisterObject` (o outro sentido do GATT), o BlueZ vai ao bus
         # introspectar cada caminho durante o registo; um caminho que não
@@ -720,7 +734,92 @@ class RemoteBLE:
             return
 
         log.info("BLE: servico %s registado (%s).", SERVICE_UUID, self._app_path)
+
+        # ── E agora o passo que faltava: DIZER AO ADAPTADOR QUE ANUNCIE ──
+        #
+        # `RegisterApplication` publica o serviço no *object tree* do BlueZ. Não
+        # põe o adaptador a transmitir nada: o `Discoverable` do `Adapter1`
+        # continua como estava, e por omissão é `false`. Resultado: o serviço
+        # estava todo registado — o `bluetoothctl info` mostrava o UUID
+        # "Vendor specific" — e nenhum telefone o encontrava, porque ninguém
+        # transmitia. O log dizia "servico registado" e parecia sucesso.
+        #
+        # Isto encontrou-se a tentar, e nao a ler: com o adaptador real e um
+        # central BLE a varrer, zero dispositivos. O `Discoverable` estava `no`.
+        if not await self._advertise(self._adapter_caminho, True):
+            log.info(
+                "BLE: registado, mas o adaptador nao ficou anunciavel — o "
+                "telefone nao vai encontrar o PC. O `Discoverable` do BlueZ "
+                "recusou."
+            )
         self._ready.set()
+
+    async def _adapter_prop(self, path, nome):
+        """Lê uma propriedade do `Adapter1`, ou `None` se não der."""
+        try:
+            msg = self._api.Message(
+                destination="org.bluez",
+                path=path,
+                interface="org.freedesktop.DBus.Properties",
+                member="Get",
+                signature="ss",
+                body=["org.bluez.Adapter1", nome],
+            )
+            reply = await self._bus.call(msg)
+            return reply.body[0].value
+        except Exception as e:
+            log.debug("Ler %s.%s falhou: %s", path, nome, e)
+            return None
+
+    async def _set_adapter_prop(self, path, nome, valor, assinatura):
+        try:
+            msg = self._api.Message(
+                destination="org.bluez",
+                path=path,
+                interface="org.freedesktop.DBus.Properties",
+                member="Set",
+                signature="ssv",
+                body=[
+                    "org.bluez.Adapter1",
+                    nome,
+                    self._api.Variant(assinatura, valor),
+                ],
+            )
+            await self._bus.call(msg)
+            return True
+        except Exception as e:
+            log.debug("Pôr %s.%s = %r falhou: %s", path, nome, valor, e)
+            return False
+
+    async def _advertise(self, path, on):
+        """Liga (ou restaura) o anúncio do adaptador.
+
+        **O `DiscoverableTimeout` é a parte que faz isto funcionar.** Pôr
+        `Discoverable = true` sem mexer no timeout anuncia o PC durante os 180
+        segundos por omissão e depois **cala-se sozinho** — sem erro, sem log, e
+        sem que nada volte a anunciá-lo. Um peripheral de sessão longa precisa de
+        `DiscoverableTimeout = 0`, que no BlueZ significa "até alguém desligar".
+
+        Em `off` restaura o valor que estava lá antes. O `Discoverable` é uma
+        propriedade **do adaptador**, não nossa: se o utilizador tinha o
+        discoverable ligado para outra coisa, desligar o BLE da Maouse não tem
+        o direito de o desligar por ele.
+        """
+        if on:
+            if self._discoverable_antes is None:
+                self._discoverable_antes = bool(
+                    await self._adapter_prop(path, "Discoverable")
+                )
+            if not await self._set_adapter_prop(path, "DiscoverableTimeout",
+                                                0, "u"):
+                log.debug("DiscoverableTimeout recusado; o anuncio pode expirar.")
+            ok = await self._set_adapter_prop(path, "Discoverable", True, "b")
+            if ok:
+                log.info("BLE: adaptador a anunciar (Discoverable=true).")
+            return ok
+        if self._discoverable_antes:
+            return await self._set_adapter_prop(path, "Discoverable", True, "b")
+        return await self._set_adapter_prop(path, "Discoverable", False, "b")
 
     def _unexport_all(self):
         for path in (RX_PATH, TX_PATH, SERVICE_PATH):

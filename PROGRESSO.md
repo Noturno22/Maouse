@@ -7,6 +7,40 @@
 > Posição no `PLANO_DE_EXECUCAO_90_DIAS.md`: **Sprint 2 (dias 31–60)**. Execução comercial em
 > curso; trabalho em aberto nos 3 bloqueadores da `PRONTIDAO_PARA_VENDA.md` (§4).
 
+### ✅ Feito recentemente (30 set) — contra o `bluetoothd` e a câmara reais
+
+10. **O BLE registava o serviço e não anunciava nada.** O `RemoteBLE` registava
+    a aplicação GATT, exportava as características e registava-se no log como
+    "BLE ativo" — mas nunca mexia no `Discoverable` do `Adapter1`, que é uma
+    propriedade **do adaptador**, não nossa. Medido: `Discoverable: no` e
+    `DiscoverableTimeout: 0xb4` (180 s) enquanto a Maouse corria, e um telefone
+    a varrer não via nada. O registo do GATT não anuncia sozinho.
+    Agora arranca com `DiscoverableTimeout = 0` (que no BlueZ quer dizer "até
+    alguém desligar", e sem ele o PC cala-se sozinho aos 3 minutos, sem erro e
+    sem log) e `Discoverable = true`, e o `stop()` repõe o valor que lá estava —
+    se o utilizador o tinha ligado para outra coisa, não é nosso para o
+    desligar. **7 testes novos** em `TestAnuncioDoAdaptador`, verificados por
+    mutação (tirar o `DiscoverableTimeout` e ignorar o valor anterior fazem
+    falhar cada um o seu teste).
+
+11. **`SIGINT` e `SIGTERM` não limpavam nada.** Não havia handler de `SIGTERM`:
+    um `kill` matava o processo a meio e o adaptador ficava anunciável para
+    sempre. E `window.close()` **não encerra a aplicação** — com o ícone de
+    bandeja activo o `QApplication` fica vivo, a janela fecha (o `closeEvent`
+    corre, o BLE é reposto) e o processo fica lá. O pedido de saída passou a ser
+    `app.quit()`, e o `SIGTERM` leva rede de segurança para o caso de o event
+    loop estar preso.
+    *Medido contra a aplicação real* (`/tmp/opencode/test_signal.sh`, que lança
+    a Maouse, manda o sinal e mede `Discoverable` antes e depois):
+    `SIGINT` e `SIGTERM` saem ambos em ~15 s com `Discoverable` reposto.
+
+12. **Aprendido a medir isto de jeito** (vale o registo): `setsid` faz *fork*
+    quando já é líder de grupo, e `pgrep | head -1` dá o *wrapper* que já
+    morreu — nunca o processo real. Três "conclusões" antes disso estavam
+    erradas, e uma delas tinha acabado por escrever um parágrafo a justificar
+    código com uma medição que não existia. O script ficou parametrizado
+    (`test_signal.sh INT|TERM`) para não voltar a tropeçar.
+
 ### ✅ Feito recentemente (14–22 set)
 
 1. **`maouse.app` ao vivo** — domínio comprado (Cloudflare, US$14.34/ano) + DNS/HTTPS ativos

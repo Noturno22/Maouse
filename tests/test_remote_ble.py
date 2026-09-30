@@ -937,3 +937,159 @@ class TestAFachadaNaSaoApanhadaPelaRaiz:
             "a fachada esta importada mas o `gesture` nao e chamado — o import "
             "foi corrigido e o comando continua a nao sair"
         )
+
+
+class _AdaptadorFalso:
+    """Regista o que a Maouse manda pôr no `Adapter1` do BlueZ."""
+
+    def __init__(self, inicial=False, falhar_em=()):
+        self.inicial = inicial
+        self.falhar_em = falhar_em
+        self.escritos = []
+
+    async def _adapter_prop(self, path, nome):
+        return self.inicial
+
+    async def _set_adapter_prop(self, path, nome, valor, assinatura):
+        self.escritos.append((nome, valor, assinatura))
+        if nome in self.falhar_em:
+            return False
+        return True
+
+
+class TestAnuncioDoAdaptador:
+    """O `Discoverable` do adaptador, que e o que faz o telefone encontrar o PC.
+
+    Medido no `bluetoothd` real: o serviço GATT registava-se e o `bluetoothctl
+    show` listava o UUID, mas o `Discoverable` ficava a `no` e um telefone a
+    varrer nao via nada. O registo do GATT **nao** anuncia nada sozinho.
+    """
+
+    def _ble(self, adaptador):
+        ble = remote_ble.RemoteBLE.__new__(remote_ble.RemoteBLE)
+        ble._discoverable_antes = None
+        ble._adapter_caminho = "/org/bluez/hci0"
+        ble._adapter_prop = adaptador._adapter_prop
+        ble._set_adapter_prop = adaptador._set_adapter_prop
+        return ble
+
+    def test_ligar_mete_discoverable_e_tira_o_timeout(self):
+        """O timeout por omissao e 180s: aos 3 minutos o PC caca-se sozinho."""
+        adaptador = _AdaptadorFalso(inicial=False)
+        ble = self._ble(adaptador)
+
+        assert asyncio.run(ble._advertise("/org/bluez/hci0", True)) is True
+        assert ("DiscoverableTimeout", 0, "u") in adaptador.escritos, (
+            "o DiscoverableTimeout ficou no omissao: o PC desaparece sozinho ao "
+            "fim de 180 segundos, sem erro e sem log"
+        )
+        assert ("Discoverable", True, "b") in adaptador.escritos
+
+    def test_o_timeout_vem_antes_do_discoverable(self):
+        """Se inverter, o `Discoverable` liga com o timeout velho ainda la."""
+        adaptador = _AdaptadorFalso(inicial=False)
+        ble = self._ble(adaptador)
+
+        asyncio.run(ble._advertise("/org/bluez/hci0", True))
+        nomes = [e[0] for e in adaptador.escritos]
+        assert nomes.index("DiscoverableTimeout") < nomes.index("Discoverable")
+
+    def test_desligar_repõe_o_que_estava(self):
+        """`Discoverable` e do adaptador, nosso nao: se o utilizador o tinha
+        ligado para outra coisa, nao temos direito de o desligar por ele."""
+        adaptador = _AdaptadorFalso(inicial=False)
+        ble = self._ble(adaptador)
+        asyncio.run(ble._advertise("/org/bluez/hci0", True))
+
+        adaptador.escritos.clear()
+        asyncio.run(ble._advertise("/org/bluez/hci0", False))
+        assert adaptador.escritos == [("Discoverable", False, "b")]
+
+    def test_desligar_respeita_o_que_ja_estava_ligado(self):
+        adaptador = _AdaptadorFalso(inicial=True)
+        ble = self._ble(adaptador)
+        asyncio.run(ble._advertise("/org/bluez/hci0", True))
+
+        adaptador.escritos.clear()
+        asyncio.run(ble._advertise("/org/bluez/hci0", False))
+        assert adaptador.escritos == [("Discoverable", True, "b")], (
+            "tinhamos lido que o Discoverable estava `true` e na o desligámos "
+            "mesmo assim: e um utilizaador, nao nosso, que o tinha ligado"
+        )
+
+    def test_o_antes_so_e_lido_uma_vez(self):
+        """Se o relesse a cada `on`, um `on` no meio restore e voltava a ler
+        `false` — o valor ja alterado por nos — e nunca mais se restaura."""
+        adaptador = _AdaptadorFalso(inicial=False)
+        ble = self._ble(adaptador)
+
+        async def _cenario():
+            await ble._advertise("/org/bluez/hci0", True)
+            await ble._advertise("/org/bluez/hci0", False)
+            await ble._advertise("/org/bluez/hci0", True)
+
+        asyncio.run(_cenario())
+        assert ble._discoverable_antes is False
+
+    def test_timeout_recusado_nao_e_fatal(self):
+        """O `DiscoverableTimeout` pode ser recusado; o `Discoverable=true` e o
+        que interessa, e nao ha razao para nao tentar."""
+        adaptador = _AdaptadorFalso(inicial=False, falhar_em=("DiscoverableTimeout",))
+        ble = self._ble(adaptador)
+
+        assert asyncio.run(ble._advertise("/org/bluez/hci0", True)) is True
+        assert ("Discoverable", True, "b") in adaptador.escritos
+
+    def test_se_o_discoverable_falhar_devolve_false(self):
+        """O `start()` usa este booleano para avisar que o telefone nao vai
+        encontrar o PC; devolver `true` a falhar era mentir em silencio."""
+        adaptador = _AdaptadorFalso(inicial=False, falhar_em=("Discoverable",))
+        ble = self._ble(adaptador)
+
+        assert asyncio.run(ble._advertise("/org/bluez/hci0", True)) is False
+
+
+class TestOsSinaisNaoDeixamOAdaptadorAnunciavel:
+    """`SIGINT` e `SIGTERM` tem de fazer o mesmo: sair e repor o adaptador.
+
+    Isto e um teste de fonte, e nao finge ser outra coisa. Medido com a Maouse
+    real e o `bluetoothd` real (`/tmp/opencode/test_signal.sh`, que se lanca a
+    aplicacao a serio, manda o sinal e mede `Discoverable` antes e depois): um
+    `bluetoothd` num CI nao se instala. O que este teste prende e a correccao,
+    que e o que se desfaz sem dar por isso.
+    """
+
+    def _main(self):
+        with open(os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "main.py"
+        ), encoding="utf-8") as f:
+            return f.read()
+
+    def test_o_sigterm_esta_registado(self):
+        """`kill`, o `systemd` e o logout mandam `SIGTERM`. Sem registo, o
+        default mata o processo a meio e o adaptador fica anunciavel."""
+        assert "signal(_sig.SIGTERM" in self._main(), (
+            "o SIGTERM deixou de estar registado: um `kill` mata a Maouse sem "
+            "teardown e o `Discoverable` fica em `true` para sempre"
+        )
+
+    def test_o_sigint_esta_registado(self):
+        assert "signal(_sig.SIGINT" in self._main()
+
+    def test_sair_pede_um_quit_e_nao_so_fechar_a_janela(self):
+        """`window.close()` **nao** sai da aplicacao: com a bandeja a correr o
+        `QApplication` fica vivo, a janela fecha e o processo fica la. Foi
+        medido — o `Discoverable` voltava ao normal e a Maouse nao saia."""
+        fonte = self._main()
+        assert re.search(r"singleShot\(\s*0,\s*app\.quit\s*\)", fonte), (
+            "fechar a janela nao encerra a aplicacao com a bandeja activa; o "
+            "pedido de saida tem de ser `app.quit()`"
+        )
+
+    def test_o_sigterm_tem_rede_de_seguranca(self):
+        """Se o event loop estiver preso, `quit()` nao chega a correr e quem
+        mandou o sinal fica a espera de um `SIGKILL` que nao repõe nada."""
+        assert re.search(r"singleShot\(\s*10000,\s*lambda: os\._exit\(0\)", self._main()), (
+            "o SIGTERM ficou sem rede: um event loop preso deixa o `kill` a "
+            "esperar e o adaptador anunciavel"
+        )

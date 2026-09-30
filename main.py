@@ -241,17 +241,37 @@ def run_gui(cfg, cam, tracker, mouse, smooth_idx, gesture_ai, voice, tuner, spea
     # (gesto de paz com a mao esquerda). Serve apenas para configuracao.
     window.hide()
 
-    # Ctrl+C na consola fecha a janela de forma limpa (sem interromper o
-    # MediaPipe no meio do processamento nem deixar tracebacks repetidos).
+    # Ctrl+C e `kill` devem fechar a Maouse de forma limpa. O detalhe que
+    # demora a perceber e que **fechar a janela nao sai da aplicacao**: com
+    # o icone de bandeja a correr, o `window.close()` dispara o `closeEvent`
+    # (e o BLE e restaurado, ja medido) mas o `QApplication` fica vivo a
+    # espera no event loop. Por isso o pedido e `app.quit()`: o `exec()`
+    # regressa e o `window.close()` logo a seguir em `main.py` faz o teardown
+    # todo, pela ordem que o BLE precisa.
+    #
+    # O `SIGTERM` — o `kill`, o `systemd`, o logout — leva uma rede de
+    # seguranca: se o event loop estiver preso (uma leitura da camara que nao
+    # devolve, um modal aberto), `quit()` nao chega a correr e quem mandou o
+    # sinal fica a espera — ou vem com um `SIGKILL` que deixaria o adaptador
+    # **anunciavel**. A rede repete o pedido e, se ainda assim nao sair,
+    # sai na mesma. E uma rede, nao o caminho normal.
     try:
         import signal as _sig
 
         from PySide6.QtCore import QTimer as _QTimer
 
-        def _on_sigint(signum, frame):
-            _QTimer.singleShot(0, window.close)
+        def _sair(signum, frame):
+            _QTimer.singleShot(0, app.quit)
 
-        _sig.signal(_sig.SIGINT, _on_sigint)
+            def _segurar():
+                _QTimer.singleShot(5000, app.quit)
+                _QTimer.singleShot(10000, lambda: os._exit(0))
+
+            if signum == _sig.SIGTERM:
+                _segurar()
+
+        _sig.signal(_sig.SIGINT, _sair)
+        _sig.signal(_sig.SIGTERM, _sair)
     except Exception:
         pass
 
