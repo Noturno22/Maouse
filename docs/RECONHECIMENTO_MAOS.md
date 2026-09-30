@@ -409,8 +409,19 @@ um salto.
 ⚠️ **Nota importante**: `core/hand_lock.py` implementa um `HandLock` com
 continuidade de trajectória (`radius_frac`, `lost_grace_frames`) que seria
 exactamente o mecanismo certo — mas **está desligado**. Não é instanciado nem
-importado pelo `engine.py`. Existe apenas teste próprio (`tools/test_hand_lock.py`)
-e uma secção de config (`config.py:146-147`).
+importado pelo `engine.py`. Existe uma secção de config (`config.py:146-147`).
+
+A guarda deste módulo foi corrigida em 2026-09-30 e **não** o liga ao produto.
+Até então a única guarda era `tools/test_hand_lock.py`, um script standalone que
+corre as verificações ao nível do módulo e termina em `sys.exit()`; com
+`testpaths = ["tests"]` em `pyproject.toml` aquele ficheiro **nunca correu na
+suite** — os "13 PASS" vinham de o correr à mão. Pior: o único check que afirmava
+a garantia central do `HandLock` (um intruso longe não rouba o controlo durante a
+janela de graça) era `lock2.select([far], W, H) is None or True`, que é sempre
+verdadeiro, e estava colocado *depois* do ciclo de 12 frames, quando a graça já
+tinha expirado. Agora são 12 testes a sério em `tests/test_hand_lock.py`, com a
+garantia afirmada frame a frame, e verificados por mutação (gracar ao primeiro
+frame, raio desligado, aquisição pela primeira mão) — as três morrem.
 
 ## 1.9 Fase 8 — Movimento do cursor
 
@@ -629,7 +640,7 @@ Todos em `config.py`, persistidos em `settings.json` (ver `config.py:280+`).
 | `max_jump_frac` | 0.35 | rejeição de teleports |
 | `warmup_frames` | 10 | frames ignorados no arranque |
 | `low_light_boost` | False | CLAHE |
-| `hand_lock_radius_frac` / `hand_lost_grace_frames` | 0.30 / 10 | **desligado** |
+| `hand_lock_radius_frac` / `hand_lost_grace_frames` | 0.30 / 10 | **desligado** (guardado em `tests/test_hand_lock.py`) |
 
 ### Movimento
 
@@ -683,7 +694,7 @@ Todos em `config.py`, persistidos em `settings.json` (ver `config.py:280+`).
 | `core/motion.py` | `SmoothEmitter` 180 Hz, predição |
 | `core/autotune.py` | Auto-afinação de filtro e ganho |
 | `core/light.py` | Detecção de luz baixa com histerese |
-| `core/hand_lock.py` | `HandLock` — **código morto, não ligado** |
+| `core/hand_lock.py` | `HandLock` — **código morto, não ligado** (§1.5; guarda real em `tests/test_hand_lock.py`) |
 | `core/mouse_ctl.py` | Escrita no rato |
 | `core/hotkeys.py` | Atalhos (Alt+F4, Win+D, Cmd+±) |
 | `core/commands.py` | Comandos unificados · `_click_assist` |
@@ -717,9 +728,15 @@ Relevantes para o reconhecimento:
 | `test_eval_recognition.py` | métricas, exclusão de `SETTLE`, aceitação |
 | `test_corpus_fixture.py` | **portão de regressão**: fixture ↔ baseline comitado |
 
-Diagnóstico em `tools/`: `test_hand_lock.py`, `test_left_hand.py`,
-`test_new_gestures.py`, `test_click_latency.py`, `test_v3.py`,
-`test_retrain_smoke.py`.
+Diagnóstico em `tools/`: `test_left_hand.py`, `test_new_gestures.py`,
+`test_click_latency.py`, `test_v3.py`, `test_retrain_smoke.py`.
+
+`test_hand_lock.py` saiu desta lista a 2026-09-30: deixou de ser um script
+standalone em `tools/` e passou a ser `tests/test_hand_lock.py`, dentro da suite.
+Estes `tools/test_*.py` são diagnósticos manuais por natureza — correm
+afirmações ao nível do módulo e saem com `sys.exit()`, o que rebenta a recolha do
+pytest com `INTERNALERROR` se alguém os apontar. É por isso que `testpaths` está
+limitado a `tests/`; guardas que precisam de correr pertencem a `tests/`.
 
 ### Benchmark de precisão — fechado na Onda 0
 
@@ -785,7 +802,7 @@ Documentadas em `HARDWARE/PROBLEMAS_KNOWN.md` e confirmadas no código:
 | 2 | **`--gpu` inoperante** em iGPU antigas (`NotImplementedError`), sem ganho | §1.3 — 13.4 fps com `--gpu` |
 | 3 | **Label de handedness instável** — obriga à seleção por X | `engine.py:46-58`, `twohand.py:223` |
 | 4 | **`commands_ok` sem teste de integração** no engine | spec 2026-09-06 |
-| 5 | `HandLock` — continuidade de mão implementada mas não ligada | `hand_lock.py:19` |
+| 5 | `HandLock` — continuidade de mão implementada mas não ligada. A guarda passa a correr na suite em 2026-09-30 (antes era um script em `tools/` com um check `or True` que não podia falhar). Ligar continua **bloqueado por dados**: `docs:1598` | `hand_lock.py:19`, `tests/test_hand_lock.py` |
 | 6 | `MultiClapDetector` / `DualWaveDetector` implementados mas não instanciados | `twohand.py:408`, `:475` |
 | 7 | Rótulos do enum `Gesture` desactualizados face ao comportamento real | `gestures.py:18-19` |
 | 8 | Confiança de detecção do MediaPipe **descartada** | `tracker.py:89-99` |
@@ -1295,13 +1312,23 @@ passam a ser **ajustados ao maior off-diagonal**.
 
 ### 1.5 Ligar o `HandLock` ⚠️ com cautela
 
-`core/hand_lock.py:19` existe e está testado. **Não ligar directamente**: a
-seleção por X foi deliberada e está documentada como mais fiável que o label
-nesta câmara. O `HandLock` resolve a **troca de mão**, não o **lado**.
+`core/hand_lock.py:19` existe e agora **tem guarda que corre na suite**
+(`tests/test_hand_lock.py`, 12 testes, verificados por mutação). **Não ligar
+directamente**: a seleção por X foi deliberada e está documentada como mais
+fiável que o label nesta câmara. O `HandLock` resolve a **troca de mão**, não o
+**lado**.
 
 O que faz sentido é um **híbrido**: decidir o *lado* por X (como hoje) e usar o
 `HandLock` para decidir **qual mão** dentro do lado, quando há ambiguidade (duas
-detecções à esquerda). Ganho marginal, mas é código já escrito e testado.
+detecções à esquerda). Ganho marginal, e o código já está escrito e testado.
+
+**Estado: bloqueado por dados, não por código.** `docs:1598` é explícito — *"Não
+ligar `HandLock` sem o corpus"*. O que falta é o corpus de mãos reais (Onda 3
+§3.1) com pelo menos um caso de duas mãos do mesmo lado, para se poder medir se a
+troca de mão é um problema real nesta câmara antes de trocar o rato de mão. Ligar
+antes disso é um acto de fé com o rato do utilizador como espectador. Correr a
+calibração de `min_class_conf` no mesmo corpus, por isso Onda 3 §3.1 desbloqueia
+os dois.
 
 ## 3.3 Onda 2 — Arquitectura de features à Meta
 

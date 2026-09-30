@@ -892,8 +892,20 @@ maouse/
    nao roubam o controlo; apos `hand_lost_grace_frames` (10) qualquer mao pode adquirir.
    Com 1 mao: comportamento anterior intacto.
 2. Tracker agora com `num_hands=2` (config `num_hands`; flag `--single-hand` reverte).
-3. Testes `tools/test_hand_lock.py`: **13/13 PASS** (inclui caso apanhado pelo teste:
-   unica mao intrusa respeita a graca antes de assumir).
+3. Testes: **13/13 PASS** em `tools/test_hand_lock.py` — anotado aqui desde
+   antes, mas este número era aparência de cobertura, não cobertura. Corrigido a
+   **2026-09-30**: o ficheiro em `tools/` era um script standalone (asserções ao
+   nível do módulo, `sys.exit()` no fim) e com `testpaths = ["tests"]` **nunca
+   correu na suite** — o "13/13 PASS" vinha de o correr à mão. E o check que
+   alegava cobrir *"unica mao intrusa respeita a graca antes de assumir"* era
+   `lock2.select([far], W, H) is None or True` — sempre verdadeiro, e colocado
+   depois do ciclo de 12 frames, com a graça já expirada. Era exactamente o caso
+   que o ponto 1 acima promete. Agora são 12 testes a sério em
+   `tests/test_hand_lock.py`, com a garantia afirmada frame a frame
+   (`test_intruso_longe_nao_rouba_durante_a_graca` → dez `None`s seguidos),
+   verificados por mutação: gracar ao primeiro frame, raio desligado e aquisição
+   pela primeira mão **morrem** todas. O `HandLock` **continua desligado** — isto
+   só conserta a guarda, não liga o módulo.
 
 ### COLETA DE DADOS REAIS + RETREINO DA IA
 4. **`tools/collect_gestures.py`** — janela interativa: teclas 1-5 escolhem gesto
