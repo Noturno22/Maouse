@@ -64,11 +64,9 @@ def _load_public_key():
 
 class LicenseManager:
     def __init__(self, secret: str = "", store_path=None,
-                 agency: "LicenseAgency | None" = None,
                  endpoints=None, trial_seconds=TRIAL_DEFAULT_SECONDS,
                  public_key=None):
         self._store_path = store_path or _default_store_path()
-        self._agency = agency
         self._endpoints = endpoints or _default_endpoints()
         self._client = LicenseClient(self._endpoints)
         self._trial_seconds = trial_seconds
@@ -358,15 +356,18 @@ class LicenseManager:
             "Use tools/issue_pro_key.py remoto.")
 
 
-class LicenseAgency:
-    """Interface opcional para validação ONLINE (compat mit UI).
-
-    Mantida da API anterior; o caminho de produção é a ativação online
-    (LicenseManager.activate / lease ES256), não a validação offline.
-    """
-
-    def online_validate(self, license_doc: str) -> bool:
-        return True
+# `LicenseAgency` foi removida. Vivia aqui com um `online_validate()` que
+# devolvia `True` incondicionalmente — um validador que aprova tudo, mantido
+# "por compatibilidade". Nunca foi instanciada em lado nenhum do repo, e o
+# parâmetro `agency=` do `LicenseManager` escrevia `self._agency` sem nunca o
+# ler: um ponto de extensão que aceita uma dependência e a deita fora em
+# silêncio. Quem ligasse um validador a sério por lá ficaria com a certeza de
+# que estava a ser chamado, e sem chamada nenhuma.
+#
+# O caminho de produção é a ativação online (`activate` / lease ES256) e a
+# validação local do lease (`_validate_local_lease`). Se algum dia for preciso
+# um plug-in de validação, que seja uma interface com um método que possa
+# dizer "não" — e que o `LicenseManager` chame mesmo.
 
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
@@ -433,6 +434,6 @@ def active_tier() -> Tier:
 
 __all__ = [
     "Tier", "PRO_LOCKED", "entitlements", "is_pro_locked",
-    "LicenseManager", "LicenseAgency", "UsageWatchdog",
+    "LicenseManager", "UsageWatchdog",
     "set_active_license", "active_license", "active_tier",
 ]
