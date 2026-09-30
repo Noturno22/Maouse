@@ -580,6 +580,68 @@
     e 5% de ruído em esqueletos canónicos também não. Nenhuma das duas é
     defeito de modelo; registo-as para que ninguém as conte como falha.
 
+28. **A caixa de diálogo nova estava invisível — e a causa era código morto,
+    não um limiar mal afinado (30 set).** `ui/modern_messagebox.py` foi escrito
+    para substituir o `QMessageBox` em todo o diálogo de licença, e a caixa
+    ficava a **opacidade 0.0**: não aparecia. Sem excepção, sem log, sem nada —
+    só faltava aparecer. A causa está medida: a classe tinha *duas*
+    `QPropertyAnimation` na mesma property (`windowOpacity`) dentro de um
+    `QParallelAnimationGroup`, e o grupo deixava o valor no `startValue`.
+    **Medido: animação solitária 1.0 · grupo com duas 0.0 · grupo com uma 1.0.**
+    Havia ainda dois defeitos no caminho de fecho: um `TypeError` (o `finished`
+    de uma animação chama o slot sem argumentos, e o `done(self, result)` não
+    tinha valor por omissão) e um `event.ignore()` sem event loop, que deixava
+    a janela visível para sempre em vez de a fechar.
+    *O que ficou*: uma animação só, com pai explícito — a assinatura é
+    `QPropertyAnimation(target, propertyName, parent=None)`, o primeiro
+    argumento é o *alvo* e não o pai, e sem pai de QObject a animação não
+    aparece em `findChildren`, o que impedia sequer de verificar que havia uma
+    só. E o `finished` reforça o `1.0`, para a janela ficar visível mesmo que
+    a animação seja interrompida a meio. As animações de saída foram
+    **removidas** em vez de arranjadas: eram código morto ao serviço de uma
+    animação de entrada que não funcionava.
+    *Os guards* (`tests/test_modern_messagebox.py`, **15 testes**). O que fixou
+    a caixa foi `test_so_ha_uma_animacao`, que diz o *porquê* — o defeito não
+    foi um limiar mal afinado, foi uma segunda animação na mesma property — e
+    não `test_a_opacidade_chega_a_um`, que só via o sintoma.
+    *Um teste-guarda que era ele próprio um defeito:* a espera pela animação
+    era um `QTimer` de 400 ms para uma animação de 250 ms. Passava sozinho e
+    **falhava na suite completa** (opacidade 0.83), porque 400 ms de relógio
+    não chegam quando o event loop está atrasado. Passou a esperar pelo sinal
+    `finished`. Um guard não pode depender de o CPU estar livre.
+    *Mutações* — **24 tentadas, 20 mortas à primeira**; o resto registado em
+    vez de arredondado para cima:
+    - as duas animações em paralelo, o `closeEvent` a ignorar, o `done()` a
+      voltar a ser override, `show_error` a delegar em `warning`, a mensagem a
+      deixar de partir, a cor de erro trocada, rejeitar a reportar `Accepted`, e
+      a rede de segurança a repor `0.0` em vez de `1.0` — **todas mortas**.
+    - **duas não mediam nada**, e foram reescritas até morrerem. Uma inseria
+      `self._fade_in = None` a seguir a `setWindowOpacity(0.0)`, que está
+      *dentro* de `_setup_animations()` e por isso era sobrescrita duas linhas
+      depois — uma no-op. A outra apagava o `show_warning` do checkout e deixava
+      o `if` sem corpo, o que dá `IndentationError` na *recolha*; e um harness
+      que só lê linhas `FAILED` conta uma recolha falhada como "ninguém
+      morreu". **É a mesma armadilha da mutação do `zip` no item 19.**
+    - **uma não pode morrer, e não é defeito**: com a animação a ir de `0.0` a
+      `0.0`, a rede de segurança continua ligada e repõe o `1.0` quando ela
+      acaba — a janela fica visível na mesma. É a redundância deliberada a
+      funcionar, como as duas mutações do item 27 que "não deviam" partir.
+    - **uma revelou uma lacuna a sério**: não havia nenhum teste para a chave
+      **inválida**, que é o caminho que o utilizador encontra quando paga e a
+      chave não cola. Sem aviso, ele carrega outra vez e outra vez sem
+      perceber porquê que nada muda. Corrigido, com o tier a continuar FREE e
+      o diálogo a não fechar como se fosse sucesso.
+    *O diálogo de licença* deixou de usar `QMessageBox`: os testes
+    `test_license_dialog_free_ui.py` e `test_license_dialog_pro_ui.py` faziam
+    patch de `ld.QMessageBox`, que deixou de existir, o que dava 1 FAILED +
+    7 ERROR e deixava a suite pendurada em diálogos modais. Passam a gravar
+    as chamadas de `show_*` com um spy comum (`tests/_dialog_spies.py`).
+    *Verificado*: `ruff` limpo, **suite completa 654 testes, exit 0**.
+    `tools/cmd_hand_debug.txt` — dump gerado por `tools/debug_cmd_hand.py` —
+    saiu do rastreio do Git (o `*.log` do `.gitignore` não o apanhava por ser
+    `.txt`). E o `LicenseAgency` saiu de `core/licensing.py`: código morto,
+    nunca instanciado, que estava a pesar no diff do diálogo.
+
 ### 🔴 Bloqueadores em aberto (Sprint 2 → 1.ª venda paga)
 
 | # | Bloqueador | Estado |
