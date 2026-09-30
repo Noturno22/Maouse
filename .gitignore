@@ -51,6 +51,8 @@ settings.json
 # Playwright MCP (sessoes locais de debug)
 .playwright-mcp/
 temp_baseline_ref.py
+# Dump de debug gerado por tools/debug_cmd_hand.py
+tools/cmd_hand_debug.txt
 
 # Node (app movel)
 node_modules/
