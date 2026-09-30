@@ -698,10 +698,10 @@
       `RECONHECIMENTO_REMOTE.md` diz o mesmo com mais detalhe.
 
 28. **O BLE ficou com dois donos e a thread não saía — e há mais três coisas
-    deste caminho que ficam por corrigir, de propósito.** Duas foram corrigidas
-    no commit do BLE e uma neste commit. As outras três ficam aqui porque são a
-    diferença entre "isto não funciona" e "isto funciona mal", e nenhuma delas
-    se resolve sem uma decisão ou sem um aparelho.
+    deste caminho que ficam por corrigir, de propósito.** Quatro foram
+    corrigidas: duas no commit do BLE, uma no seguinte e uma neste. As três que
+    ficam aqui são a diferença entre "isto não funciona" e "isto funciona mal",
+    e nenhuma se resolve sem uma decisão ou sem um aparelho.
 
     * **Corrigido: o `RemoteBLE` era registado duas vezes.** O `main.py`
       criava e arrancava o objecto mas **não o passava** à janela, que punha
@@ -749,17 +749,43 @@
       documentação, e o §1.16 passou a abrir com o aviso. Um `settings.json`
       copiado de um Linux trazia `remote_ble: true` para o Windows, por isso o
       construtor e o "repor omissões de fábrica" o ignoram lá.
-    * **Em aberto, e do lado do telefone, que não foi provado com um:** o
-      `App.tsx:25` continua a importar o `remoteClient` antigo em vez da
-      fachada `remoteTransport` — o reencaminhamento da câmara para o PC está
-      **morto nos dois transportes**, e é a função que o produto chama por
-      "mãos". O `BleRemoteModule.kt` exige `BLUETOOTH_SCAN`/`CONNECT`, que não
-      existem abaixo de API 31, o que mata o BLE em Android 7–11 — a faixa que
-      o próprio módulo diz suportar. E a fila de escrita esvazia-se a partir do
-      `onCharacteristicWrite`, que nem todas as versões do Android entregam
-      para escritas *sem resposta*, com o topo da fila a ser descartado quando
-      o link atrasa. Nenhum destes se fecha sem um aparelho: o Kotlin nunca foi
-      compilado, e o `NsdManager` nunca viu um PC.
+    * **Corrigido: o `App.tsx` mandava os gestos pelo WebSocket certo, mas pelo
+      transporte errado.** Importava o `remoteClient` — o cliente cru — em vez
+      da fachada `remoteTransport`. O `status` que decide enviar o gesto vem da
+      store, que passa pela fachada e por isso cobre `wifi` **e** `ble`; o
+      comando é que ia pelo WebSocket cru. Por WiFi funcionava **por acidente**,
+      porque nessa altura o `ws` *é* o transporte activo — que é o que torna o
+      bug pior: escondia-se até alguém ligar o Bluetooth. Por BLE o `status`
+      ficava `connected`, a UI mostrava "PC remoto" ligado (`:661`) e o gesto
+      saía por um WebSocket que nunca tinha sido aberto: o rato não mexia e
+      nada no ecrã dizia porquê. Uma linha, e a guarda que impede a volta está
+      em `TestAFachadaNaSaoApanhadaPelaRaiz`.
+    * **Em aberto, e é o que bloqueia o resto: a fila de escrita do
+      `BleRemoteModule.kt` encrava no primeiro gesto.** `writeNext()` escreve
+      `writeQueue.firstOrNull()` e **não a remove** — o único código que remove
+      é o `drainWriteQueue()`, chamado só do `onCharacteristicWrite`. E os
+      gestos vão com `WRITE_TYPE_NO_RESPONSE`, para o qual o Android **não
+      garante** esse callback. Num ROM que não o entregue, o resultado não é
+      "comandos perdidos": o fragmento #1 é **reenviado a cada gesto** e nunca
+      sai da fila, o PC repete o primeiro gesto indefinidamente, e do 2.º em
+      diante não chega nada. Aos 64 (`MAX_QUEUED_WRITES`) o overflow deita a
+      cabeça fora e o replay avança para o seguinte — o rato vai atrás, sempre
+      atrasado. Num ROM que *entregue* o callback a fila drena uma escrita por
+      callback e funciona. A correcção é um `writeInFlight` mais um `pump()` com
+      `postDelayed` para o caso sem resposta, porque não se pode esperar por um
+      callback que não vem.
+    * **Em aberto: as permissões de BLE matam o Android 7–11.** O
+      `BleRemoteModule.kt` exige `BLUETOOTH_SCAN`/`CONNECT`, que não existem
+      abaixo de API 31 — a faixa que o próprio módulo diz suportar, e a mais
+      provável de um telemóvel barato.
+    * **Em aberto: o `NsdManager` nunca viu um PC.** Nenhum destes se fecha sem
+      um aparelho: **o Kotlin nunca foi compilado**. O `ci.yml` corre `ruff`,
+      `pytest` e `tsc` a cada push e não toca em Kotlin; o `build-android.yml`
+      que o compila é `workflow_dispatch` e vai para a EAS, ou seja, só alguém
+      o dispara à mão. E não há runner de testes na app mobile — nem um
+      `*.test.tsx` — pelo que a guarda nova lê o source e prova que o comando
+      sai pelo transporte que o `status` diz estar activo, e **não** que um
+      gesto chegue ao fim.
 
 ### Reserva financeira (Pista A)
 

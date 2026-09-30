@@ -9,6 +9,7 @@ a parte que se pode estragar a escrever código: o framing, a codificação, o
 """
 import asyncio
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -774,3 +775,165 @@ class TestSuportado:
             )
         finally:
             dlg.deleteLater()
+
+
+# ── O telefone tem de mandar pelo mesmo caminho que o estado ───────────────
+
+class TestAFachadaNaSaoApanhadaPelaRaiz:
+    """Ninguém fora de `src/services/` importa o cliente cru.
+
+    A `RemoteStore` é o que diz à app que o PC está ligado, e ela passa pela
+    **fachada** (`remoteTransport`), que escolhe `wifi` ou `ble`. O `App.tsx`
+    importava o `remoteClient` — o WebSocket cru — e mandava o gesto por aí. Por
+    WiFi funcionava por acidente, porque o `ws` *é* o transporte activo nessa
+    altura; por BLE, o `status` ficava `connected` e o gesto saía por um
+    WebSocket que nunca tinha sido aberto. O rato não mexia, a UI mostrava
+    "PC remoto" ligado, e nada no ecrã dizia porquê.
+
+    Isto apanha **a classe**, não o caso: o padrão é o singleton `remote` a ser
+    importado de fora de `src/services/`. Os *tipos* (`RemoteScreenInfo`,
+    `RemoteClientCallbacks`) e o `buildWsUrl` continuam a ser importados
+    directamente — partilhar tipos e um construtor de URL não é saltar a
+    fachada, e `bleRemoteClient.ts` e `store/remote.ts` fazem-no com razão.
+
+    **O que este teste não é**: não prova que um gesto chegue ao PC. O que fica
+    depois deste import — a MTU negociada, a fragmentação, e a fila de escrita
+    do `BleRemoteModule.kt`, que não entrega o 2.º gesto em diante quando o
+    Android não devolve o `onCharacteristicWrite` — não é observável daqui. O
+    que este teste garante é mais estreito e é verdade: o comando sai pelo
+    transporte que o `status` diz estar activo.
+    """
+
+    RAIZ = "mobile/maouse-mobile"
+
+    def _imports_de_remoteClient(self, path):
+        """Os `import` de `path` que venham do modulo `remoteClient`.
+
+        Devolve `[(nomes, origem)]` com os nomes já normalizados, chaves e
+        `as` fora. Três coisas que as primeiras versões deste método fizeram
+        mal, e as três davam um teste verde que não protegia nada:
+
+        * comparava `'remote' in ['{ remote }']`, que e `False` para sempre;
+        * o padrão não atravessava linhas, por isso o import multi-linha do
+          `bleRemoteClient.ts` não contava — `[^;]` com `DOTALL` resolve, e o
+          `;` é o que impede a passagem para a declaração seguinte;
+        * e sem ancoragem, um `import` escrito **dentro de um comentário** era
+          lido como o início da declaração, e o nome que o teste comparava
+          saía `"import { remote }"`. Aconteceu com o comentário que este
+          mesmo commit acrescenta ao `App.tsx` para explicar a armadilha.
+          Ancorar o `import` ao início da linha, com `MULTILINE`, só casa onde
+          uma declaração começa mesmo — que é como o código está escrito.
+        """
+        try:
+            fonte = open(path, encoding="utf-8").read()
+        except OSError:
+            return []
+        achados = []
+        padrao = r"^\s*import\s+([^;]*?)\s+from\s+'([^']*remoteClient)'"
+        for m in re.finditer(padrao, fonte, re.DOTALL | re.MULTILINE):
+            nomes = [
+                n.strip().strip("{}").strip()
+                for n in m.group(1).split(",")
+            ]
+            achados.append((nomes, m.group(2)))
+        return achados
+
+    def _varre_a_app(self):
+        """Todos os ficheiros `.ts`/`.tsx` da app, e confirma que os viu."""
+        vistos, maus = [], []
+        for base, _dirs, ficheiros in os.walk(self.RAIZ):
+            if "node_modules" in base or "android" in base or "ios" in base:
+                continue
+            for f in ficheiros:
+                if not f.endswith((".ts", ".tsx")):
+                    continue
+                caminho = os.path.join(base, f)
+                vistos.append(caminho)
+                for nomes, origem in self._imports_de_remoteClient(caminho):
+                    # `remoteClient` e `bleRemoteClient` sao ficheiros
+                    # diferentes; so o primeiro conta.
+                    if os.path.basename(origem) != "remoteClient":
+                        continue
+                    if "remote" in nomes:
+                        maus.append(os.path.relpath(caminho, self.RAIZ))
+        # Sem isto o teste passa a vazio quando `RAIZ` esta errado, que e
+        # exactamente o modo de falha que o `nomes` partido teve. O piso e
+        # baixo de proposito — a app tem 19 ficheiros de codigo, e o que
+        # intere e nao dar zero, mais o `App.tsx` estar entre eles.
+        assert len(vistos) >= 15, (
+            f"a varredura viu so {len(vistos)} ficheiros — o caminho "
+            f"{self.RAIZ!r} esta errado e este teste nao estaria a ver nada"
+        )
+        assert any(v.endswith("App.tsx") for v in vistos), (
+            "a varredura nao chegou ao App.tsx, que e o ficheiro que esta a ser "
+            "protegido"
+        )
+        return maus
+
+    def test_nada_fora_dos_services_importa_o_singleton(self):
+        maus = self._varre_a_app()
+        assert not maus, (
+            "importam o `remote` (o cliente WebSocket cru) em vez da fachada "
+            f"`remoteTransport`: {maus}. O `status` vem da fachada, que cobre "
+            "wifi E ble — por BLE o gesto iria por um WebSocket nunca aberto."
+        )
+
+    def test_a_varredura_encontra_o_caso_que_conhecemos(self):
+        """A guarda so vale se apanha a occorrencia que ja sabemos que existe.
+
+        Nao e um teste do produto: e um teste *da guarda*. Um teste que le
+        source e silencioso quando o caminho ou o padrao mudam, e o preco de nao
+        dar conta e um teste verde que nao protege nada. Os dois casos abaixo
+        sao reais, verificados agora: `bleRemoteClient.ts` tem o import
+        **multi-linha** (que e o que um `.*?` sem `DOTALL` nao via) e
+        `store/remote.ts` importa `buildWsUrl`, que e um valor e nao o
+        singleton — os dois tem de ser vistos e ninguno dos dois pode ser
+        complainado.
+        """
+        alvos = {
+            "import multi-linha de tipos, que nao e o singleton":
+                os.path.join("src", "services", "bleRemoteClient.ts"),
+            "import de `buildWsUrl`, que e um valor e nao o singleton":
+                os.path.join("src", "store", "remote.ts"),
+        }
+        for descricao, rel in alvos.items():
+            caminho = os.path.join(self.RAIZ, rel)
+            achados = self._imports_de_remoteClient(caminho)
+            assert achados, f"{rel} devia importar de remoteClient e nao importou ({descricao})"
+            for nomes, _origem in achados:
+                assert "remote" not in nomes, (
+                    f"{rel} importa o singleton `remote` ({descricao}) — e so a "
+                    "fachada o pode usar"
+                )
+
+        # E o inverso: a fachada usa o cliente cru, e por isso tem de ser
+        # encontrada — se a fachada mudar de forma, este aviso e para ser
+        # actualizado, nao para o teste adiar.
+        fachada = os.path.join(self.RAIZ, "src", "services", "remoteTransport.ts")
+        achados = self._imports_de_remoteClient(fachada)
+        assert achados, (
+            "a fachada deixou de importar de `remoteClient` — a forma mudou e "
+            "este teste deve ser actualizado, nao adiado"
+        )
+        assert any("RemoteClient" in n for nomes, _ in achados for n in nomes), (
+            "a fachada importa de `remoteClient` mas nao nenhum nome conhecido; "
+            f"viu {achados}"
+        )
+
+    def test_a_raiz_manda_os_gestos_pela_fachada(self):
+        """O ponto exacto que estava partido, dito sem ambiguidade."""
+        app = os.path.join(self.RAIZ, "App.tsx")
+        fonte = open(app, encoding="utf-8").read()
+        assert "from './src/services/remoteTransport'" in fonte, (
+            "o App.tsx deixou de importar a fachada — e ele e quem envia o "
+            "gesto que a camara capta para o PC"
+        )
+        assert "from './src/services/remoteClient'" not in fonte, (
+            "o App.tsx voltou a importar o cliente cru"
+        )
+        # E tem de ser o `gesture` a passar por la: um import correcto que
+        # ninguem usa nao corrige nada.
+        assert re.search(r"remote\.gesture\(", fonte), (
+            "a fachada esta importada mas o `gesture` nao e chamado — o import "
+            "foi corrigido e o comando continua a nao sair"
+        )
