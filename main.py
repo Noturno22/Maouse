@@ -30,6 +30,7 @@ from core.assistant import Assistant3D
 from core.autotune import AutoTuner
 from core.camera import CameraStream
 from core.commands import AppCtl, apply_command
+from core.discovery import MaouseAdvertiser
 from core.engine import run_loop
 from core.gesture_ai import GestureAI, ensure_ai_model
 from core.licensing import (
@@ -42,7 +43,7 @@ from core.licensing import (
 from core.llm import ChatClient
 from core.log import get_logger, setup_logging
 from core.mouse_ctl import MouseCtl, MuteMouse
-from core.remote import RemoteServer, lan_ips
+from core.remote import RemoteArbiter, RemoteServer, lan_ips
 from core.snap import SnapEngine
 from core.tracker import HandTracker, ensure_model
 from core.tray import TrayAppAdapter, TrayIcon
@@ -230,6 +231,7 @@ def run_gui(cfg, cam, tracker, mouse, smooth_idx, gesture_ai, voice, tuner, spea
         tuner=tuner, speaker=speaker, snap=snap,
         assistant=assistant, magnifier=magnifier,
         license_mgr=license_mgr, remote=remote,
+        state=state,
     )
     window.setWindowTitle("Mãouse")
     window.resize(900, 640)
@@ -440,11 +442,19 @@ def main():
     )
     mouse = MuteMouse() if mute_output else MouseCtl()
     remote = None
+    discovery = None
     if cfg.remote_enabled:
         remote = RemoteServer(cfg, mouse)
         if remote.start():
             log.info("Controlo remoto por telemovel ativo (IPs: %s, porta: %d).",
                      ", ".join(lan_ips()) or "-", cfg.remote_port)
+            # Só anuncia quem tem algo para anunciar: um `_maouse._tcp` a
+            # apontar para uma porta fechada é pior do que não anunciar, porque
+            # o telefone escolhe-o e perde tempo a sondar.
+            if cfg.remote_discovery:
+                discovery = MaouseAdvertiser(cfg)
+                if not discovery.start():
+                    discovery = None
     else:
         log.info("Controlo remoto por telemovel desativado.")
     tuner = AutoTuner(cfg)
@@ -505,6 +515,15 @@ def main():
         "mute_output": mute_output,
     }
     state["_usage_watchdog"] = UsageWatchdog(lic_, state)
+    # O motor da câmara e o telemóvel disputam o mesmo rato. O árbitro dá o
+    # rato ao telemóvel enquanto este envia comandos e devolve-o à câmara
+    # assim que fica em silêncio.
+    arbiter = RemoteArbiter(state, hold_s=1.5)
+    state["_remote_arbiter"] = arbiter
+    if remote is not None:
+        remote.on_activity = arbiter.note
+        remote.on_command_begin = arbiter.begin_command
+        remote.on_command_end = arbiter.end_command
     tray_icon = None
     tray_adapter = None
 
@@ -614,6 +633,11 @@ def main():
         if remote is not None:
             try:
                 remote.stop()
+            except Exception:
+                pass
+        if discovery is not None:
+            try:
+                discovery.stop()
             except Exception:
                 pass
         tracker.close()

@@ -26,6 +26,7 @@ PyInstaller, nao por pip.
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -86,6 +87,51 @@ class TestSemDependenciasFantasmas:
             "e residuo, ou e dependencia transitiva que devia deixar de ser "
             "fixada aqui."
         )
+
+
+class TestManifestosEstaoBemFormados:
+    """Nenhuma linha de manifesto pode ter duas especificacoes coladas.
+
+    `requirements-linux.txt` nao terminava em newline. O `printf '>>'` do
+    costume — que e a forma natural de acrescentar uma dependencia a um
+    manifesto — colava-a a ultima linha existente e produzia
+    `cryptography>=42dbus-next>=0.2.3`. O `read_requirements` le isso como
+    `cryptography`, porque parte a linha no `>`. A dependencia nova
+    desaparecia em silencio: o `TestImportsEstaoDeclarados` via a
+    declaracao e via-a, e o `setup.bat` instalava um ambiente sem ela.
+
+    Nao ha guarda pelo conteudo que apanhe isto, porque a linha nao fica
+    invalida — fica valida e errada, que e o pior formato de bug. A
+    definicao de "duas especificacoes" ignora o marker de ambiente
+    (`; python_version<"3.9"`), senao toda a dependencia com extras
+    contava como colada.
+    """
+
+    _OPERADORES = re.compile(r"==|>=|<=|~=|!=|[<>]")
+
+    @pytest.mark.parametrize("manifest", check_deps.RUNTIME_MANIFESTS)
+    def test_manifesto_termina_em_newline(self, manifest: str):
+        bruto = (Path(check_deps.REPO_ROOT) / manifest).read_text(encoding="utf-8")
+        assert bruto.endswith("\n"), (
+            f"{manifest} nao termina em newline. Acrescentar uma dependencia "
+            "cola-a a ultima linha e a dependencia desaparece em silencio."
+        )
+
+    @pytest.mark.parametrize("manifest", check_deps.RUNTIME_MANIFESTS)
+    def test_nenhuma_linha_tem_duas_versoes_coladas(self, manifest: str):
+        for numero, raw in enumerate(
+            (Path(check_deps.REPO_ROOT) / manifest).read_text(encoding="utf-8").splitlines(), 1
+        ):
+            linha = raw.split("#", 1)[0].strip()
+            if not linha:
+                continue
+            sem_marker = linha.partition(";")[0]
+            operadores = self._OPERADORES.findall(sem_marker)
+            assert len(operadores) <= 1, (
+                f"{manifest}:{numero} tem {len(operadores)} operadores de versao: "
+                f"{linha!r}. Sao especificacoes coladas — provavelmente um ficheiro "
+                "sem newline final, com uma dependencia acrescentada por cima da ultima."
+            )
 
 
 class TestManifestosNaoDivergem:

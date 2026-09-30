@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMessageBox,
     QPlainTextEdit,
     QPushButton,
     QSpinBox,
@@ -366,6 +367,20 @@ class SettingsDialog(QDialog):
         self._remote_en_ch.setChecked(self._cfg.remote_enabled)
         rl.addWidget(self._remote_en_ch)
 
+        # O touchpad do telemóvel é relativo: o dedo arrasta o cursor a partir
+        # de onde ele está. Sem ganho, uma varredura do dedo (~330 px) só
+        # cobria um quarto do ecrã e o cursor ficava sempre a meio caminho.
+        self._remote_gain_sl = TuneSlider(
+            "Sensibilidade do toque", lambda v: f"{v / 10:.1f}x"
+        )
+        self._remote_gain_sl.setRange(10, 80)
+        self._remote_gain_sl.setValue(int(self._cfg.remote_move_gain * 10))
+        self._remote_gain_sl.setToolTip(
+            "Quão longe corre o cursor por cada píxel de dedo. Mais alto é mais "
+            "rápido mas menos preciso para acertar alvos pequenos."
+        )
+        rl.addWidget(self._remote_gain_sl)
+
         port_lay = QHBoxLayout()
         port_lbl = QLabel("Porta:")
         port_lbl.setObjectName("SettingsLabel")
@@ -485,8 +500,15 @@ class SettingsDialog(QDialog):
     def _buy_trading_master(self):
         from ui.license_dlg import PADDLE_VENDOR_ID
 
-        if self._license_mgr is not None:
-            self._license_mgr.open_checkout("trading_master", PADDLE_VENDOR_ID)
+        if self._license_mgr is None:
+            return
+        if not self._license_mgr.open_checkout("trading_master", PADDLE_VENDOR_ID):
+            # Sem isto o botão "comprar" não fazia nada e o utilizador não
+            # percebia se a culpa era da app ou da configuração do Paddle.
+            QMessageBox.warning(
+                self, "Trading Master",
+                tr("license.checkout_unavailable"),
+            )
 
     def _refresh_remote_info(self):
         from core.remote import generate_token, lan_ips
@@ -520,6 +542,7 @@ class SettingsDialog(QDialog):
         self._stable_sl.setValue(defaults.gesture_stable_frames)
         self._remote_en_ch.setChecked(defaults.remote_enabled)
         self._remote_port_spin.setValue(defaults.remote_port)
+        self._remote_gain_sl.setValue(int(defaults.remote_move_gain * 10))
         self._tv_btn_ch.setChecked(defaults.tv_button_enabled)
 
     def _save(self):
@@ -549,6 +572,7 @@ class SettingsDialog(QDialog):
         self._cfg.remote_port = self._remote_port_spin.value()
         self._cfg.remote_bind = self._remote_bind_cb.currentData()
         self._cfg.remote_token = self._remote_token_edit.text().strip()
+        self._cfg.remote_move_gain = max(1.0, self._remote_gain_sl.value() / 10.0)
         self._cfg.tv_button_enabled = self._tv_btn_ch.isChecked()
         self._cfg.tv_tool_combos = self._parse_tv_combos()
         self.accept()

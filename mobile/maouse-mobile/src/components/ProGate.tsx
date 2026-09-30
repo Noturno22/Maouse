@@ -130,7 +130,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   buyText: {
-    color: '#FFF',
+    color: '#003049',
     fontSize: 16,
     fontWeight: '700',
   },
@@ -148,7 +148,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   freeText: {
-    color: '#777',
+    color: '#9E9E9E',
     fontSize: 14,
   },
 });

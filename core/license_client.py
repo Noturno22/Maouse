@@ -5,7 +5,28 @@ import urllib.request
 
 
 class LicenseError(Exception):
-    """Erro de licença (HTTP 4xx/5xx com corpo)."""
+    """Erro de licença (HTTP 4xx com corpo).
+
+    Transporta o `status` e o corpo inteiro para o cliente distinguir
+    situações que partilham o mesmo código — em especial o **409** de
+    `/api/v1/revalidate`, que significa "o lease guardado está atrás do
+    servidor, reativa a chave" e não "erro genérico".
+    """
+
+    def __init__(self, message: str, status: int = 0, payload: dict | None = None):
+        super().__init__(message)
+        self.status = status
+        self.payload = payload or {}
+
+    @property
+    def recovery(self) -> str:
+        """Pista de recuperação do servidor ("reativar"), ou ""."""
+        return self.payload.get("recovery", "")
+
+    @property
+    def needs_reactivation(self) -> bool:
+        """True quando o servidor diz explicitamente para reativar a chave."""
+        return self.status == 409 and self.recovery == "reativar"
 
 
 def _try_json(raw: bytes) -> dict:
@@ -29,31 +50,40 @@ class LicenseClient:
             if payload is not None:
                 data = json.dumps(payload).encode()
                 headers["Content-Type"] = "application/json"
-            req = urllib.request.Request(url, data=data, headers=headers, method=method)
-            try:
-                with urllib.request.urlopen(req, timeout=self._timeout) as resp:
-                    status = int(getattr(resp, "status", 200))
-                    raw = resp.read()
-                    if status >= 400:
-                        body = _try_json(raw)
-                        if status >= 500:
-                            # erro de servidor -> tentar o próximo endpoint
-                            last_err = body.get("error", f"http {status}")
-                            continue
-                        raise LicenseError(body.get("error", f"http {status}"))
-                    return json.loads(raw.decode("utf-8")) if raw else {}
-            except urllib.error.HTTPError as exc:
+                req = urllib.request.Request(url, data=data, headers=headers, method=method)
                 try:
-                    body = json.loads(exc.read().decode("utf-8"))
-                except Exception:
-                    body = {}
-                if exc.code >= 500:
-                    last_err = body.get("error", f"http {exc.code}")
+                    with urllib.request.urlopen(req, timeout=self._timeout) as resp:
+                        status = int(getattr(resp, "status", 200))
+                        raw = resp.read()
+                        if status >= 400:
+                            body = _try_json(raw)
+                            if status >= 500:
+                                # erro de servidor -> tentar o próximo endpoint
+                                last_err = body.get("error", f"http {status}")
+                                continue
+                            raise LicenseError(body.get("error", f"http {status}"),
+                                               status, body)
+                        return json.loads(raw.decode("utf-8")) if raw else {}
+                except urllib.error.HTTPError as exc:
+                    try:
+                        body = json.loads(exc.read().decode("utf-8"))
+                    except Exception:
+                        body = {}
+                    if exc.code >= 500:
+                        last_err = body.get("error", f"http {exc.code}")
+                        continue
+                    raise LicenseError(body.get("error", f"http {exc.code}"),
+                                       exc.code, body) from exc
+                except LicenseError:
+                    # Um 4xx que o urlopen devolveu em vez de levantar chega
+                    # aqui já transformado em LicenseError. NÃO pode cair no
+                    # `except Exception` seguinte — senão um 403/409 real
+                    # aparecia ao utilizador como "sem_servidor_reachavel",
+                    # que é o que torna estes erros impossíveis de diagnosticar.
+                    raise
+                except Exception as exc:
+                    last_err = exc
                     continue
-                raise LicenseError(body.get("error", f"http {exc.code}")) from exc
-            except Exception as exc:
-                last_err = exc
-                continue
         raise LicenseError(f"sem_servidor_reachavel: {last_err}")
 
     # `machine_weak` diz ao servidor que o `machine_id` não foi derivado de

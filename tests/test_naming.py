@@ -216,10 +216,14 @@ class TestVariaveisDeAmbienteDoRender:
             for p in (
                 *sorted((REPO_ROOT / "license-server").glob("*.py")),
                 REPO_ROOT / "core" / "licensing.py",
+                REPO_ROOT / "ui" / "license_dlg.py",
             )
         )
         lidas = set(
-            re.findall(r'(?:os\.getenv|os\.environ(?:\.get)?)\(\s*["\']?(MAOUSE_[A-Z0-9_]+)', fonte)
+            re.findall(
+                r'(?:os\.getenv|os\.environ(?:\.get)?|env_value|env_int)\(\s*["\']?(MAOUSE_[A-Z0-9_]+)',
+                fonte,
+            )
         )
         nunca_lidas = declaradas - lidas
         assert not nunca_lidas, (

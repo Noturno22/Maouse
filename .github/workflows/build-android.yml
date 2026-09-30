@@ -1,0 +1,87 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: "EAS build profile"
+        required: false
+        default: "preview"
+        type: choice
+        options:
+          - preview
+          - development
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        # Este workflow nao acompanhou a renomeacao airmouse -> maouse e
+        # apontava para um directorio que nao existe, por isso nunca chegou a
+        # correr. O `ci.yml` ja usava o caminho certo; aqui estava a copia
+        # antiga, com o nome antes de 2026-08-29.
+        working-directory: mobile/maouse-mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: mobile/maouse-mobile/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install EAS CLI
+        run: npm install -g eas-cli
+
+      # O id do build e lido da resposta deste passo e nao de um
+      # `eas build:list --limit 1` feito a seguir. A versao anterior escolhia
+      # "o build finished mais recente", o que numa conta com varios builds
+      # ou com outra execucao a terminar ao mesmo tempo descarregava o APK
+      # errado - e o artefacto subia com o nome do perfil pedido, por isso
+      # ninguem via o erro.
+      - name: Build APK (EAS)
+        id: build
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          eas build \
+            --platform android \
+            --profile ${{ github.event.inputs.profile || 'preview' }} \
+            --non-interactive \
+            --json > build.json
+          build_id=$(jq -r '.id' build.json)
+          if [ -z "$build_id" ] || [ "$build_id" = "null" ]; then
+            echo "::error::eas devolveu um id vazio: $(cat build.json)"
+            exit 1
+          fi
+          echo "build_id=$build_id" >> "$GITHUB_OUTPUT"
+
+      - name: Download APK from EAS
+        id: download
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          eas build:download \
+            --id "${{ steps.build.outputs.build_id }}" \
+            --platform android
+          APK_PATH=$(find . -name "*.apk" -maxdepth 2 | head -1)
+          if [ -z "$APK_PATH" ]; then
+            echo "::error::o download terminou mas nao ha APK no directorio"
+            exit 1
+          fi
+          echo "apk_path=$APK_PATH" >> "$GITHUB_OUTPUT"
+          echo "APK found at: $APK_PATH"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: maouse-android-${{ github.event.inputs.profile || 'preview' }}
+          # `upload-artifact` resolve o caminho a partir da raiz do workspace,
+          # nao do `working-directory` dos passos `run`. O `apk_path` ja e
+          # relativo a `mobile/maouse-mobile`, por isso o prefixo e preciso.
+          path: mobile/maouse-mobile/${{ steps.download.outputs.apk_path }}
+          retention-days: 14
