@@ -31,6 +31,17 @@ class Config:
     filter_min_cutoff: float = 1.4
     filter_beta: float = 0.028
 
+    # Onda 1 §1.1: um OneEuroFilter por coordenada dos 21 landmarks, dentro do
+    # GestureEngine. O cutoff e MUITO mais alto que o da palma (1.4) de proposito:
+    # as landmarks alimentam a geometria rapida da pinça, e a cascata
+    # palma-sobre-landmark seria o dobro do atraso. 5.0 suaviza 1.93x em repouso
+    # contra os 2.57x da palma, e mantem o F1 macro do corpus em 1.0000.
+    # `landmark_beta` e em PIXELS (ver `_apply_scale` em core/filters.py); se for
+    # usado como valor normalizado o One Euro degrada-se em low-pass estatico.
+    landmark_filter_enabled: bool = True
+    landmark_min_cutoff: float = 5.0
+    landmark_beta: float = 0.010
+
     accel_min_gain: float = 1.2
     accel_max_gain: float = 3.0
     accel_ref_speed: float = 1400.0
@@ -156,6 +167,16 @@ class Config:
     ai_confidence_min: float = 0.72
     ai_window: int = 5
     ai_model_path: str = "models/gesture_mlp.npz"
+
+    # Onda 1 §1.2: limiar da confianca da CLASSIFICACAO (esquerda/direita) abaixo
+    # do qual o motor se abstem. 0.0 desliga. `None`/`nan` nunca desliga.
+    #
+    # NAO ESTA MEDIDO, e e preciso dizer-se: o corpus versionado e sintetico e nao
+    # tem confianca real, portanto nao ha numero com que afinar isto. 0.5 e um
+    # ponto de partida conservador, nao um limiar afinado. O que decide e afinar
+    # e o corpus de maos reais (Onda 3 §3.1) — e ate la, o honesto e dizer que
+    # este valor e uma escolha, nao uma medicao.
+    min_class_conf: float = 0.5
 
     voice_enabled: bool = True
     voice_wake_word: str = "jarvis"

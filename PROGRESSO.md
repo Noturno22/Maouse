@@ -642,6 +642,114 @@
     `.txt`). E o `LicenseAgency` saiu de `core/licensing.py`: código morto,
     nunca instanciado, que estava a pesar no diff do diálogo.
 
+29. **Onda 1 §1.1 fechada — e os dois bugs que só apareceram porque o portão mede
+    (30 set).** `LandmarkFilterBank` (`core/filters.py`) põe um `OneEuroFilter`
+    em cada coordenada dos 21 landmarks, dentro do `GestureEngine`, **antes de
+    qualquer limiar** — escala, rácio de pinça, curl, SHAKA e palma consomem todos
+    a lista filtrada. O `reset()` vem do `GestureEngine.reset()`, que o `HandPool`
+    já chamava quando a mão desaparece. Fecha a limitação nº 9.
+    *Dois defeitos meus, ambos com sintoma medido e não teórico:*
+    - **Base temporal errada.** O filtro media `dt` pelo relógio de parede. Numa
+      câmara a 30 fps é um detalhe; num `--replay` que despeja o corpus à
+      velocidade do processador, `dt` é de microssegundos, `alpha = 1/(1+tau/dt)`
+      tende a zero e o filtro **congela**. F1 macro **1.0000 → 0.2787**, e todas as
+      confusões seguiam o gesto anterior (`ROCK→PEACE` 8/8, `SHAKA→PINKY` 8/8) —
+      a assinatura de um filtro parado, não de limiares partidos. Corrigido passando
+      o timestamp do frame (`ts_ms` no runtime, `t_ms` no replay) até ao filtro.
+      **Um filtro cuja saída depende da velocidade da máquina não é um filtro** —
+      o mesmo princípio do item 28, uma camada abaixo.
+    - **`beta` na escala errada.** `beta` foi herdado de `FilterPair2D`, afinado
+      sobre a palma em **pixels**, mas as landmarks chegam normalizadas em [0, 1].
+      Um salto de 32 px em 33 ms mede `|edx| = 591.7/s` em pixels e `0.925/s`
+      normalizado — logo `beta*|edx|` dava 5.92 Hz ou **0.0092 Hz**, 0.3% de um
+      cutoff de 3.0. O One Euro degradava-se num low-pass estático, que é
+      precisamente o que ele existe para não ser. Sintoma: a pinça não cruzava o
+      Schmitt a tempo, F1 macro **0.9098**. Corrigido escalando `beta` pelas
+      dimensões do frame (`_apply_scale`); `width`/`height` são argumentos
+      **obrigatórios**, porque um default de 1 voltaria a essa falha em silêncio.
+    *Medido depois:* F1 macro **1.0000**, 116/116, **0 cliques fantasma**,
+    `ACEITE`, `ruff` limpo, suite **654 → 656 testes**, exit 0. Com
+    `min_cutoff = 5.0` (acima do 1.4 da palma, como o plano mandava) a banca
+    suaviza **1.93x** em repouso contra os 2.57x da palma e arrasta 4.8 px a
+    970 px/s. O `min_cutoff = 3.0` era pior **nos dois** eixos (F1 0.9790,
+    latência 66 ms) — menos suavização é mais atraso, não menos.
+    *O custo, que é real.* **1 frame (33 ms) de latência no clique da pinça**, o
+    atraso de grupo do próprio filtro. A baseline foi re-gerada de `latency_p95_ms`
+    0.0 para 33.0 **com aval explícito do dono do produto**. O 0.0 anterior **não
+    era um alvo de mundo real**: era um zero sintético, porque no corpus a pinça é
+    instantânea e o trigger dispara no primeiro frame qualificado — medir o custo de
+    um filtro contra esse zero é medir contra nada. **Não há saída gratuita:** a
+    latência só volta a 0 ms **acima de 20 Hz**, onde a suavização cai para 1.14x
+    e o filtro deixa de filtrar. O `.npz` ficou **byte-idêntico** (só o JSON muda),
+    porque `--force` reescreve os dois e o corpus é a entrada fixa do teste.
+    *Limite honesto, e é um defeito da fixture, não do filtro.*
+    `tools/make_corpus_fixture.py:265-266` sorteia um **centro novo por frame**
+    (`cx = 0.5 ± 0.05`), teletransportando a mão ~49 px/frame mesmo numa pose
+    supostamente parada; o jitter que o `NOISE_FRAC = 0.008` queria modelar
+    (0.96 px) é ~50x menor e fica enterrado. Verifiquei que **não** é a origem do
+    custo de 33 ms (remediado o centro, a latência mantém-se), mas significa que
+    a fixture **não avalia comportamento temporal com fidelidade** — registado como
+    limitação nº 12, correcção é de scope da Onda 3. Tudo isto continua a ser
+    fixture sintética: trava contra *regressão*, não prova qualidade em mãos reais.
+
+30. **Onda 1 §1.2 fechada — e o código morto que parecia uma feature (30 set).**
+    O `core/tracker.py` já devolvia `handedness[0].score` como terceiro valor
+    desde a Onda 0, e o plumbing estava **inteiro**: `engine.py` → `HandPool` →
+    `GestureEngine.update(conf=...)`. E aí ficava. Ninguém lia o `conf`. Quatro
+    camadas de transporte para um valor que morria à porta — o pior tipo de
+    código, porque à leitura parece implementado e tem testes a passar. A §1.2
+    foi menos "implementar uma feature" e mais "perguntar a quem já transportava
+    isto para que lado vai, e porquê que não vai a lado nenhum".
+    *Os três usos, e sobretudo o que cada um não faz:*
+    - **Abstenção** (`too_far or low_conf` → `Gesture.NONE`): uma mão que não
+      sabemos de que lado é não mexe no rato.
+    - **Gate da IA** (`not (too_far or low_conf)`): um frame de baixa confiança
+      é **neutro, nunca confirmador**. Consultar um classificador cujas
+      entradas não sabemos de que lado estão não é decidir melhor — é fabricar
+      autoridade. E a IA fica com `ai_conf = 0.0`, que é o que ela é: não sabe.
+    - **Feedback**: badge `MAO ???`. A roadmap pedia "anel de tracking a
+      degradar"; escolhi um badge porque um anel a degradar **desenharia uma
+      qualidade que o tracker não mediu**. O badge só diz a única coisa verdadeira
+      — que o motor não sabe de que lado a mão está.
+    *A invariante que sustenta os três:* `None` e `NaN` são **não medido**, e
+    não medido **nunca** abstém. Não é um detalhe — o corpus versionado tem
+    **todas** as confianças a `NaN` por desenho (grava-se `NaN` em vez de
+    inventar um `0.0`). Bastava um `conf < min` sem guarda e a §1.2 silenciava
+    a IA em todas as mãos do portão de regressão, e o portão passava a verde
+    **por estar mudo**: o pior estado possível para um teste de regressão,
+    porque parece proteger-te e não mede nada. O `test_nan_nao_abste` existe
+    exactamente para travar essa regressão.
+    *Nome deliberadamente diferente do sugerido.* A roadmap propunha
+    `detect_conf`; ficou `class_conf`. `handedness[0].score` é a confiança da
+    **classificação** (esta mão é esquerda ou direita), não da **detecção** — o
+    `HandLandmarker` do MediaPipe não expõe confiança de detecção na API Python,
+    só limiares `min_hand_detection_confidence` / `min_hand_presence_confidence`,
+    que são limiares e não medidas. O `tests/test_tracker_confidence.py` já
+    escrevia isto antes de o código o fazer; chamei-lhe `detect_conf` seria
+    contradizer o nosso próprio teste.
+    *Duas armadilhas apanhadas pelo caminho.* O `classify()` da IA devolvia a
+    confiança em `conf` — **o mesmo nome** do parâmetro da classificação, dois
+    sentidos num só âmbito. Não rebentava (a normalização acontece antes), mas
+    qualquer código novo depois daquela linha leria a confiança da IA como se
+    fosse a da mão. Renomeado `ml_conf`. E a primeira versão do teste do
+    badge passava **por estar a medir o badge errado**: o rect "N MAOS" ocupa
+    exactamente (522,10)-(628,40), a mesma caixa do badge novo, porque o
+    `x_right` só é empurrado se o novo existir. Um teste que verde por razão
+    errada é pior do que um teste que falha.
+    Verificado: **16 testes novos** (`tests/test_class_conf_abstention.py`),
+    suite 656 → **672**, `ruff` limpo, portão de regressão **ACEITE** com F1
+    macro 1.0000, 116/116, 0 cliques fantasma e latência p95 33 ms **inalterada**
+    — que é a prova de que a abstenção não se auto-silencia no corpus.
+    *Limite honesto, e é o principal.* `min_class_conf = 0.5` **não está
+    afinado**: não há número com que o afinar, porque o corpus é sintético e
+    não tem confiança de classificação. É uma escolha conservadora, não uma
+    medição — o que a afina é o corpus de mãos reais (Onda 3 §3.1). A abstenção
+    também não diz *qual* dos lados é o incerto, e um badge é mais fraco do que
+    a roadmap pedia. E o `min_class_conf` já tinha estado na `config.py` desde a
+    sessão anterior sem ninguém o ler: **config morta**, exactamente a mesma
+    doença do `LicenseAgency` no item 28. Só passou a existir quando ganhou
+    leitura — e foi isso que a §1.2 me obrigou a verificar.
+
 ### 🔴 Bloqueadores em aberto (Sprint 2 → 1.ª venda paga)
 
 | # | Bloqueador | Estado |

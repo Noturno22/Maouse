@@ -234,6 +234,7 @@ def make_engine_ctx(cfg, smooth_idx, gesture_ai, tuner, ctx, recorder=None):
     ui = {
         "ai_on": gesture_ai is not None,
         "ai_conf": 0.0,
+        "class_conf": math.nan,
         "voice": "off",
         "toast": "",
         "toast_until": 0.0,
@@ -345,7 +346,10 @@ def process_frame(cfg, cam, tracker, mouse, gesture_ai, voice, tuner, ctx, state
     hands, sides, confs = tracker.process(rgb, ts_ms)
     E.infer_total += (time.perf_counter() - t_infer) * 1000.0
 
-    results = E.pool.update(hands, sides, w, h)
+    # `ts_ms` ja e o tempo monotonico do frame, o mesmo que o tracker recebeu.
+    # E o que se passa a banca de landmarks para o filtro ter uma base temporal
+    # que nao dependa da velocidade do loop.
+    results = E.pool.update(hands, sides, w, h, confs, ts_ms / 1000.0)
     now = time.perf_counter()
 
     event = None
@@ -707,6 +711,7 @@ def process_frame(cfg, cam, tracker, mouse, gesture_ai, voice, tuner, ctx, state
     E.frames_done += 1
 
     E.ui["ai_conf"] = hand_frame.ai_conf if hand_frame is not None else 0.0
+    E.ui["class_conf"] = hand_frame.class_conf if hand_frame is not None else math.nan
     if state.get("pinch_debug") and hand_frame is not None and now > state["dbg_until"]:
         state["dbg_until"] = now + 0.25
         log.info(

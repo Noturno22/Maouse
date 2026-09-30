@@ -768,8 +768,10 @@ def replay_corpus(corpus: Corpus, cfg, width: int, height: int, gesture_ai=None)
     events = []
     truth = []
     t_ms = []
-    for i, (t, hands, sides, labels, active) in enumerate(corpus.replay()):
-        results = pool.update(hands, sides, width, height)
+    for i, (t, hands, sides, labels, active, confs) in enumerate(
+        corpus.replay_with_conf()
+    ):
+        results = pool.update(hands, sides, width, height, confs, t / 1000.0)
         matched = _match_hands(results, sides)
         for h, name in enumerate(labels):
             pred = matched[h][0] if h < len(matched) else ABSENT_LABEL

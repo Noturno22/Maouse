@@ -3,6 +3,7 @@
 Extraído de ``main.py``: apenas apresentação do preview; a lógica vive em
 ``core.engine.process_frame``, partilhada com a MainWindow PySide6.
 """
+import math
 import time
 
 import cv2
@@ -214,6 +215,16 @@ def draw_overlay(frame, all_frames, active_side, last_scroll, fps, cfg,
         cv2.rectangle(frame, (x_right, 10), (w - 12, 40), COLOR_DARK, -1)
         cv2.putText(frame, ai_txt, (x_right + 10, 32),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.55, ai_col, 1, cv2.LINE_AA)
+        x_right -= 96
+    class_conf = ui.get("class_conf", math.nan)
+    if (
+        hand_frame is not None
+        and not math.isnan(class_conf)
+        and class_conf < getattr(cfg, "min_class_conf", 0.0)
+    ):
+        cv2.rectangle(frame, (x_right, 10), (w - 12, 40), COLOR_DARK, -1)
+        cv2.putText(frame, "MAO ???", (x_right + 10, 32),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, COLOR_GRAY, 1, cv2.LINE_AA)
         x_right -= 96
     if ui.get("magnify"):
         cv2.rectangle(frame, (x_right, 10), (w - 12, 40), COLOR_DARK, -1)
