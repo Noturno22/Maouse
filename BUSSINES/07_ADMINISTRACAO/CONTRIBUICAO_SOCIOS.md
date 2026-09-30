@@ -4,7 +4,14 @@
 > `ESTRUTURA_DA_EMPRESA.md` (§2 e §4 do registo administrativo). Consolida as
 > entregas verificáveis de um sócio no seu domínio de responsabilidade e avalia-as
 > face ao acordo de sociedade, para servir conversas de cap table e vesting.
-> Autor de registo: Luar Studio Angola · Última atualização: **2026-09-28** · Confidencial.
+> Autor de registo: Luar Studio Angola · Última atualização: **2026-09-30** · Confidencial.
+
+> 🟢 **Actualização de 2026-09-30 — o 🔴 de §4.5 e o 🟡 de §5.3 estão RESOLVIDOS.**
+> Verificado no repositório: o `user.email` foi corrigido e há **21 commits de
+> 2026-09-29 em `origin/main` com `josefortunafortuna54@gmail.com`** — o sócio é
+> agora *atribuível* no GitHub. Os "0 commits" e o "14 dias sem trabalho" que
+> este documento registava estavam certos a 2026-09-28 e deixaram de estar. Ver
+> §4.5, §5.1, §5.3 e §6.
 
 ---
 
@@ -14,7 +21,7 @@
 |---|---|
 | Nome | **Fortuna** — José Fortuna |
 | GitHub | `josefortunafortuna54-byte` (colaborador no `Noturno22/Maouse`) |
-| Email | `josefortunafortuna54@gmail.com` (GitHub) · git config actual: **`teu-email-do-github`** 🔴 ver §4.5 e §5.1 |
+| Email | `josefortunafortuna54@gmail.com` (GitHub) · git config: **corrigido** 🟢 — os 6 commits de 14–15/set ficaram com o placeholder `teu-email-do-github`, os **21 de 29/set já saem com o email certo** (ver §4.5) |
 | Papel | Sócio-função — mobile, remote, Linux, CI |
 | Participação | **4% com vesting** (plano, a formalizar em contrato) |
 | Capital investido | €0 (sócio-função) |
@@ -34,9 +41,13 @@ Só contam como contribuição **artefactos verificáveis** no repositório:
 | Documentação de domínio | `docs/` produzidos para o domínio do sócio |
 | Testes/CI | estado do pipeline no momento de cada entrega |
 
-> ⚠️ **Esta tabela mede o repositório, não o GitHub — e as duas coisas já não
-> coincidem.** Ver §4.5: o GitHub não atribui um único commit a este sócio. Onde
-> os dois discordarem, o GitHub é o número que um investidor ou um auditor vê.
+> ⚠️ **Esta tabela mede o repositório, não o GitHub — e as duas coisas voltaram a
+> coincidir a 2026-09-30.** Até 28/set o GitHub não atribuía um único commit a este
+> sócio, por causa do email `teu-email-do-github` (§4.5). Corrigido: os 21 commits
+> de 29/set já são atribuídos. **Os 6 commits antigos de 14–15/set continuam
+> invisíveis no GitHub** — e, por §5.1 item 2, não se reescreve o histórico para
+> os reatribuir. Onde os dois ainda discordarem, o GitHub é o número que um
+> investidor ou um auditor vê.
 
 > **Honestidade metodológica.** As entregas de código são do sócio e verificáveis.
 > As **análises/documentos técnicos** do domínio são produzidas pelo **pipeline de
@@ -125,9 +136,24 @@ limitações**. As atribuíveis ao domínio do sócio:
   contributação a **zero** no perfil.
 - **Nenhuma contribuição em testes do remote** — o item 🔴 do cap §4.2.
 
-### 4.5 🔴 A contribuição não aparece no GitHub (verificado 2026-09-28)
+### 4.5 🟢 RESOLVIDO (2026-09-30) — a contribuição já aparece no GitHub
 
-Isto não estava no registo e é o achado mais consequente desta revisão. Verificado
+> **O que se registou a 2026-09-28 estava certo na altura e deixou de estar.** O
+> email foi corrigido e o sócio é agora atribuível. Evidência verificada no
+> repositório, não por impressão:
+>
+> | Verificação | 2026-09-28 | 2026-09-30 |
+> |---|---|---|
+> | Commits do sócio em `origin/main` | 6 (todos com email placeholder) | **27** |
+> | Commits com `josefortunafortuna54@gmail.com` | **0** | **21** (todos de 29/set) |
+> | Commits com `teu-email-do-github` | 6 | 6 (histórico, não se reescreve) |
+> | Atribuível no GitHub | ❌ não | 🟢 **sim**, nos 21 commits novos |
+>
+> Os 6 commits antigos (14–15/set) continuam sem dono no GitHub, por §5.1 item 2.
+> O que se recuperou é o **futuro** da atribuição; para o passado, a atribuição
+> correcta é a tabela de §3, verificável por qualquer pessoa pelo diff.
+
+Isto não estava no registo e foi o achado mais consequente desta revisão. Verificado
 por API, não por impressão:
 
 | Consulta | Resultado |
@@ -199,7 +225,6 @@ reais, mas são **pré-existentes** — foram encontradas pela auditoria, não
 introduzidas pelo sócio, e nenhuma delas o impede de entregar trabalho.
 
 **O que fica a dever, e é real** (§5.2): teste de origem virtual + multi-monitor,
-**O que fica a dever, e é real** (§5.2): teste de origem virtual + multi-monitor,
 testes no mobile, e os gates de pausa/licença. O `pyproject.toml` foi entretanto
 limpo pelo fundador — e o resultado foi `⚪ sem impacto`, não um bug corrigido:
 o projecto não é distribuído por pip. O que apareceu no caminho, e é 🔴 de
@@ -214,18 +239,19 @@ domínio diferente, foi o `cryptography` a faltar aos dois manifestos, com
 
 ### 5.1 Higiene imediata (15 minutos)
 
-1. **Corrigir o `user.email`/`user.name` do git do Fortuna** para
-   `josefortunafortuna54@gmail.com` / `José Fortuna` — 🔴 **é a prioridade
-   máxima desta lista**, porque hoje a contribuição dele é **invisível no
-   GitHub** (§4.5). Sem isto, qualquer leitura externa do repositório atribui ao
-   fundador trabalho que o sócio fez. Na máquina dele:
-
+1. ✅ **FEITO (2026-09-30)** — `user.email` corrigido. Os 21 commits de 29/set já
+   saem com `josefortunafortuna54@gmail.com` e são atribuídos no GitHub (§4.5).
+   Era a **prioridade máxima** desta lista, porque a contribuição dele era
+   **invisível no GitHub** e qualquer leitura externa do repositório atribuía ao
+   fundador trabalho que o sócio fez.
+   *Resta um cosmeticamente menor:* o `user.name` continua a ser o handle
+   `josefortunafortuna54-byte` e não `José Fortuna`. O GitHub associa por **email**,
+   por isso a atribuição está garantida — mas o nome legível no commit é o handle.
+   Para o limpar:
    ```bash
-   git config --global user.name  "José Fortuna"
-   git config --global user.email "josefortunafortuna54@gmail.com"
+   git config --global user.name "José Fortuna"
    ```
-
-   Confirmar com `git log -1 --format='%an <%ae>'` a dar o email certo.
+   Confirmar com `git log -1 --format='%an <%ae>'`.
 2. **Não reescrever o histórico.** Os 6 commits são públicos; `filter-branch` ou
    force-push para os reatribuir destrói o histórico partilhado por um ganho
    estético. A atribuição correcta do passado é a tabela de §3.
@@ -236,13 +262,20 @@ domínio diferente, foi o `cryptography` a faltar aos dois manifestos, com
 
 ### 5.2 Portefólio a cobrar no próximo passo do sócio
 
-Prioridade segundo o plano em `docs/RECONHECIMENTO_REMOTE.md` Parte 3:
+Prioridade segundo o plano em `docs/RECONHECIMENTO_REMOTE.md` Parte 3. **Situação
+verificada a 2026-09-30** contra os 21 commits de 29/set:
 
-1. Teste de origem virtual + correcção do multi-monitor — 🔴, é a falha que o
-   utilizador sente.
-2. Testes mínimos no mobile (o vazio total é inaceitável para um sócio que
-   responde pelo domínio mobile).
-3. Respect dos gates de pausa e licença no canal remoto.
+| # | Item | Estado | Evidência |
+|---|---|---|---|
+| 1 | Teste de origem virtual + correcção do multi-monitor | 🟡 **por entregar** | nenhum commit dedicada; há fixes de *clique a saltar* no remote/desktop (`f77e8d6`, `e16ed49`) mas não o teste de origem virtual |
+| 2 | Testes mínimos no mobile | 🔴 **por entregar** | **zero** ficheiros de teste em `mobile/` — 14 ficheiros de app tocados, 0 testes |
+| 3 | Gates de pausa e licença no canal remoto | ✅ **entregue** | `license-server/tests/` (2 ficheiros), `test_license_gate`, `test_license_recovery`, `test_license_server_url`, `mobile/.../ProGate.tsx`, e os commits `afc375e` (lease divergente) e `cc31736` (URL de produção) |
+
+> **Leitura honesta.** O item 3 é o mais difícil dos três (é o caminho que o
+> utilizador percorre todos os dias) e está feito, com testes. O item 2 é o mais
+> visível num diligence: um sócio que responde pelo domínio mobile sem um único
+> teste no mobile. Não é trabalho que não se possa entregar — é trabalho que não
+> foi entregue.
 
 > ✅ **Feito pelo fundador, não fica a dívida do sócio** (2026-09-28): o
 > `cryptography` acrescentado aos dois manifestos (o 🔴 real), `comtypes`
@@ -254,24 +287,37 @@ Prioridade segundo o plano em `docs/RECONHECIMENTO_REMOTE.md` Parte 3:
 > como bloqueador de build da EAS. A premissa era falsa (§4.6) — não é trabalho
 > que se possa cobrar a ninguém.
 
-### 5.3 Trabalho recente: divergência a esclarecer 🟡
+### 5.3 ✅ Esclarecido (2026-09-30): o trabalho está no `main`
 
-Verificado a 2026-09-28: **o GitHub não regista commits deste sócio desde
-2026-09-15** (14 dias), e o único PR seu (#1, `fix(lint)`) foi **merged hoje**,
-mas é o commit de duas semanas — a branch `feature/touch` continua no mesmo SHA
-de 15/set. O repositório local confirma: zero commits de terceiros desde 16/set.
+A pergunta feita a 2026-09-28 — *"onde exactamente está o trabalho recente?"* —
+tem resposta, e é verificável. **O trabalho está em `origin/main`: 21 commits de
+2026-09-29, +11810 −876 em 79 ficheiros.** Não é branch local não partilhada, nem
+outro repositório, nem trabalho sem commit. É o mais fácil de auditar que pode
+existir.
 
-O sócio refere ter trabalhado recentemente. **Perguntas directas a fazer:**
+> A divergência desapareceu porque o email deixou de ser o placeholder: sem ele
+> os commits *existiam* mas o GitHub não os atribuía, e uma leitura externa
+> concluía que não havia trabalho. A regra de §2 — *"não registar como entrega até
+> haver commit verificável"* — manteve-se firme ao longo do caminho, e foi ela que
+> obrigou a ir procurar o diff em vez de aceitar a palavra. Os commits apareceram.
 
-- Onde exactamente está o trabalho — outro repositório, branch local não
-  partilhada, ou trabalho ainda não commitado?
-- Se for noutro sítio, porque não foi trazido para `Noturno22/Maouse`? Sem isso
-  o domínio do papel não é auditável e, por definição, não conta para vesting.
-- O PR #1, merged hoje, conta como entrega?
+Entregas verificadas no `origin/main` (2026-09-29):
 
-**Não registar como entrega até haver commit verificável.** A regra do projecto
-(§2) só conta artefactos verificáveis; um "fiz trabalho" sem diff não entra no
-cap table.
+| Domínio | Commits |
+|---|---|
+| mobile | `fix(mobile): o toque ia para outra direção por causa do locationX` · `fix(mobile): a tremedeira no toque saltava o cursor e descartava o clique` · `feat(mobile): drag continuo com strokes, aviso de acessibilidade e auth do remote` |
+| remote | `fix(remote): o clique no telefone saltava por causa da ordem e do ganho duplicado` · `fix(desktop): a camara disputava o rato ao telemovel e o clique saltava` |
+| discovery | `feat(discovery): anunciar o PC em _maouse._tcp, com o token fora dos TXT` |
+| licença | `fix(license): recuperar lease divergente com chave persistente e lock` · `fix(license): URL de producao deixa de falhar em silencio e passa a entrar no build` |
+| CI / manifests | `fix(ci): build-android.yml apontava para mobile/airmouse-mobile` · `fix(manifests): requirements-linux.txt nao terminava em newline` · `fix(lint): E501 nas mensagens de licenca do i18n` |
+| env / fusão | `refactor(env): unificar prefixo de env vars em MAOUSE_ apos merge (AIRMOUSE_->MAOUSE_)` · `Merge branch 'instrumentacao-corpus-real'` · `Merge branch 'feature/touch'` |
+
+**21 ficheiros de teste** tocados, incluindo `tests/test_remote.py`,
+`tests/test_license_server_url.py` e `license-server/tests/test_revalidate.py`.
+
+**O PR #1, merged a 2026-09-28, conta como entrega** — mas contava antes: o que
+não contava era o trabalho que ele dizia ter feito e que não aparecia. Agora
+aparece.
 
 ---
 
@@ -280,15 +326,47 @@ cap table.
 | Indicador | Valor |
 |---|---|
 | Equity (plano) | 4% com vesting |
-| Entregas verificáveis | 6 commits (5 substantivos), **todos de 14–15/set** |
-| Commits registados pelo **GitHub** em nome do sócio | **0** 🔴 (§4.5) |
-| Último commit do sócio | **2026-09-15** — há 14 dias |
-| Trabalho recente declarado, não encontrado no repositório | 🟡 por esclarecer (§5.3) |
+| Entregas verificáveis | **27 commits** — 6 de 14–15/set + **21 de 29/set** (+11810 −876, 79 ficheiros) |
+| Commits registados pelo **GitHub** em nome do sócio | **21** 🟢 (§4.5) — os 6 antigos continuam sem dono, por decisão de não reescrever o histórico |
+| Último commit do sócio | **2026-09-29** (ontem) |
+| Trabalho recente declarado, não encontrado no repositório | ✅ **esclarecido** — está no `origin/main` (§5.3) |
 | Documentação de domínio | `docs/RECONHECIMENTO_REMOTE.md` (ca. 1110 linhas, 3 partes) |
-| Domínio no papel vs. na prática | papel: mobile/remote/Linux/CI · prática: core desktop/CI mixes |
+| Domínio no papel vs. na prática | papel: mobile/remote/Linux/CI · **prática: mobile · remote · CI · licença · discovery** — o desvio do papel era *infra* Windows, e foi por isso que o trabalho real foi ignorado |
 | Bloqueadores de build atribuíveis ao domínio | **0** — o alegado foi retractado (§4.6) |
 | Limitações 🔴 reais no domínio (4, todas pré-existentes) | multi-monitor · sem TLS · sem rate limit · bypass Pro |
-| Testes no mobile | **0** |
+| Testes no mobile | **0** 🔴 — 14 ficheiros de app tocados, nenhum teste (§5.2 item 2) |
+| Portefólio §5.2 | 1 de 3 entregue (gates de licença ✅); origem virtual + multi-monitor e testes mobile por entregar |
+| Ficheiros de teste tocados (21 commits) | **21** — incluindo `tests/test_remote.py`, `tests/test_license_server_url.py`, `license-server/tests/test_revalidate.py` |
+| **Risco operacional aberto** | 🔴 o branch `instrumentacao-corpus-real` **divergiu** de `origin/main`: 12 commits à frente, **21 atrás**. O trabalho dos dois existe e nenhum está no `main`. Ver §7 |
+
+---
+
+## 7. 🔴 Risco operacional: o branch divergiu de `origin/main`
+
+Descoberto a 2026-09-30 ao verificar as entregas do sócio. Não é um problema de
+gestão de sócios nem de qualidade do domínio: é o facto de que **nenhum dos dois
+trabalhos está no `main`**, e um lançamento feito a partir do `main` hoje não
+levaria nenhum deles.
+
+| | commits |
+|---|---|
+| `instrumentacao-corpus-real` (branch actual) à frente de `origin/main` | **12** |
+| `instrumentacao-corpus-real` atrás de `origin/main` | **21** |
+
+Os 21 de trás são as entregas do sócio (§5.3). Os 12 da frente incluem os 3
+commits do fundador de 2026-09-30 — `fbff50d` (§1.1 LandmarkFilterBank),
+`b5fae4e` (§1.2 `class_conf`) e `e457c8b` (guarda do `HandLock`) — **nenhum dos
+três está no `main`**.
+
+**Estado de fusão.** O `origin/main` já contém `54df3c5` "Merge branch
+'instrumentacao-corpus-real'" (o sócio fundiu o branch do corpus a 29/set), por
+isso o `main` tem o corpus até esse ponto. O que falta é trazer de volta o que o
+branch ganhou depois, e o que o branch não tem do `main`.
+
+**Decisão do fundador, não acção automática.** Uma fusão de branches com 12 e 21
+commits, em dois blocos de trabalho independentes, pode resolver-se por `merge`,
+por `rebase`, ou por reescrita. Cada uma tem custo diferente em risco e é uma
+decisão de gestão, não um passo de higiene. Fica registado, não executado.
 
 ---
 
@@ -299,9 +377,9 @@ cap table.
 | 1.2 | 2026-09-28 | **Retractada a acusação de 2 bloqueadores 🔴 de build** (nova §4.6, ⚪). Verificado antes de alterar: `websockets.asyncio` existe desde a **13.0** (o floor de `requirements.txt:5` está correcto) e a EAS nunca lê `requirements.txt`. Bloqueadores de build: **zero**. Corrigidos §4.2, §4.4, §5.2, §6, e a versão 1.6 de `ESTRUTURA_DA_EMPRESA.md` | Luar Studio Angola |
 | 1.3 | 2026-09-28 | Ao verificar o ponto anterior, **encontrado um 🔴 real e mais grave**: `cryptography` faltava a `requirements.txt` e `requirements-linux.txt`, sendo importado por `core/licensing.py` ao nível do módulo — logo o `setup.bat` instalava uma aplicação que não arrancava. Corrigido, com `tests/test_manifests.py` (7 testes) a comparar os manifestos com os imports do código. O `pyproject.toml`, que se supunha estar em causa, deu `⚪ sem impacto`: o projecto não é distribuído por pip | Luar Studio Angola |
 | 1.4 | 2026-09-29 | Corrigida a minha própria correcção: ao tentar alinhar o `pyproject.toml` criei uma **segunda** lista de dependências, que é exactamente o mecanismo que escondia o bug do `cryptography`. Secções `[build-system]`/`[project]`/`[tool.setuptools]` apagadas e 5 dos 12 testes cortados por medirem algo que não existe. **Cortar foi a correcção** | Luar Studio Angola |
-| 1.3 | 2026-09-28 | Ao verificar o ponto anterior, **encontrado um 🔴 real e mais grave**: `cryptography` faltava a `requirements.txt` e `requirements-linux.txt`, sendo importado por `core/licensing.py` ao nível do módulo — logo o `setup.bat` instalava uma aplicação que não arrancava. Corrigido, com `pyproject.toml` alinhado e `tests/test_manifests.py` (12 testes) a trancar a divergência entre manifestos. Detalhe em `RECONHECIMENTO_REMOTE.md` §1.14.2 | Luar Studio Angola |
+| 1.5 | 2026-09-30 | **O 🔴 de §4.5 e o 🟡 de §5.3 estão resolvidos** — verificado no repositório: o `user.email` foi corrigido e há **21 commits de 29/set em `origin/main` com `josefortunafortuna54@gmail.com`** (+11810 −876, 79 ficheiros, 21 ficheiros de teste). O sócio passou a ser *atribuível* no GitHub; o "0 contributions" e o "14 dias sem trabalho" eram verdade a 28/set e deixaram de ser. Actualizados §1, §2, §4.5, §5.1, §5.2, §5.3, §6. Corrigida a **contagem do portefólio**: 1 de 3 entregue (gates de licença ✅), **0 testes em `mobile/`** apesar de 14 ficheiros de app tocados, e origem virtual + multi-monitor sem commit — portanto o 🟡 do §5.3 era *onde está o trabalho*, não *se há trabalho*. **Nova §7 🔴**: o branch divergiu de `origin/main` (12 à frente, 21 atrás) e nenhum dos dois trabalhos está no `main` — registado como decisão de gestão, não executado. Apagada a entrada 1.3 duplicada, que contradizia a 1.4 ao dizer que o `pyproject.toml` tinha sido "alinhado" quando foi **removido** | Luar Studio Angola |
 
 ---
 
-*Documento de registo — Luar Studio Angola · 2026-09-28 · Confidencial. Fonte interna para
+*Documento de registo — Luar Studio Angola · 2026-09-30 · Confidencial. Fonte interna para
 cap table, vesting e avaliação de sócio-função, até formalização legal.*

@@ -2,10 +2,25 @@
 
 > **Continuar daqui mais tarde.** Este ficheiro guarda tudo o que foi decidido e feito, e o que falta.
 
-## Estado atual (2026-09-22) — Sprint 2: produto vendável / 1.ª venda
+## Estado atual (2026-09-30) — Sprint 2: produto vendável / 1.ª venda
 
 > Posição no `PLANO_DE_EXECUCAO_90_DIAS.md`: **Sprint 2 (dias 31–60)**. Execução comercial em
 > curso; trabalho em aberto nos 3 bloqueadores da `PRONTIDAO_PARA_VENDA.md` (§4).
+
+> ⚠️ **A secção "Feito recentemente" abaixo está congelada em 22/set** e não foi
+> reconstruída — ler como histórico, não como estado actual. O que aconteceu depois:
+>
+> - **29/set** — o sócio-função Fortuna entregou **21 commits** em `origin/main`
+>   (mobile, remote, discovery, licença, CI Android) e o `user.email` deixou de ser
+>   o placeholder. Ver `BUSSINES/07_ADMINISTRACAO/CONTRIBUICAO_SOCIOS.md`.
+> - **30/set** — Onda 1 §1.1 (`LandmarkFilterBank`, `fbff50d`) e §1.2 (`class_conf`,
+>   `b5fae4e`) fechadas e com baseline comitado; a guarda do `HandLock` foi
+>   corrigida (`e457c8b`). Detalhe em `docs/RECONHECIMENTO_MAOS.md`.
+> - **30/set** — 🔴 o branch `instrumentacao-corpus-real` **divergiu** de
+>   `origin/main` (12 à frente, 21 atrás). Nenhum dos dois trabalhos está no `main`.
+> - **Bloqueio actual da Onda 1:** a §1.5 (ligar o `HandLock`) e a calibração do
+>   `min_class_conf` esperam as **mãos reais** (Onda 3 §3.1). Não é um problema
+>   de código.
 
 ### ✅ Feito recentemente (14–22 set)
 
@@ -20,7 +35,16 @@
    ordem aprovada pela SSL.com (2026-09-23, ticket `#133702727`). Falta **ativar o eSigner**
    e desbloquear o enroll para o `.exe` sair assinado (Passo 4 do `SSLCOM_VALIDACAO.md`).
 5. **Mobile dev** — `conectar.bat` (firewall Metro/Expo) + `@expo/ngrok` para ligação dev.
-6. **Fortuna** registado como **2.º sócio-função** (4% vesting: mobile/remote/Linux).
+6. **Fortuna** registado como **2.º sócio-função** (4% vesting: mobile/remote/Linux/CI).
+   **Actualizado a 2026-09-30:** o `user.email` foi corrigido e o sócio passou a ser
+   *atribuível* no GitHub — **21 commits de 29/set** em `origin/main`
+   (+11810 −876, 79 ficheiros, 21 ficheiros de teste), onde em 28/set a auditoria
+   contava "0 contributions" e "14 dias sem trabalho". Entregas em mobile, remote,
+   discovery, licença, CI Android e manifests. Do portefólio a cobrar, 1 de 3
+   entregue; **zero testes em `mobile/`** apesar de 14 ficheiros de app tocados.
+   🔴 Novo: o branch `instrumentacao-corpus-real` divergiu de `origin/main`
+   (12 à frente, 21 atrás) — nenhum dos dois trabalhos está no `main`.
+   Detalhe em `BUSSINES/07_ADMINISTRACAO/CONTRIBUICAO_SOCIOS.md` §4.5–§7.
 7. **render.yaml movido para a raiz** (Blueprint do Render) + registo SSL.com/domínio.
    *Nota: foi tentada uma subscrição Pro na landing (€4,99/mês) e **removida por decisão** — modelo restante é only lifetime/família/acesso.*
 8. **Design de gestos profissionais Meta Glass/Quest** — especificações detalhadas para 5 novos gestos de produtividade (zoom suave, rotação 3D, menu radial, swipe three fingers, modo anotar) criadas em `.superpawers\specs\2026-09-28-meta-glass-gestos-pro-design.md`.
