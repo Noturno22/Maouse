@@ -41,6 +41,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import sys
 import threading
 
 from core.log import get_logger, trace
@@ -425,6 +426,28 @@ def _build_interfaces(api, server):
     rx = GattCharacteristic(RX_PATH, RX_UUID, SERVICE_PATH, FLAGS_RX, b"", "rx")
     tx = GattCharacteristic(TX_PATH, TX_UUID, SERVICE_PATH, FLAGS_TX, b"", "tx")
     return service, rx, tx
+
+
+def suportado() -> bool:
+    """Se este sistema operativo consegue publicar um peripheral GATT.
+
+    **Só Linux.** A implementação fala com o `bluetoothd` pela **D-Bus de
+    sistema**, que é o que o BlueZ expõe. O Windows não tem BlueZ nem D-Bus de
+    sistema, e o macOS tem um stack BLE próprio que este código não usa — pelo
+    que `dbus-next` está em `LINUX_ONLY` e não em nenhum outro manifesto.
+
+    Existe para a interface poder dizer a verdade. A checkbox aparecia no `.exe`
+    do Windows, onde o botão nunca pode funcionar: o `start()` devolvia `False`,
+    a Maouse escrevia um aviso no log a cada arranque, e o utilizador via um
+    botão que nada acontecia. É a mesma classe do que o item 26 fechou do outro
+    lado — uma afirmação que o código não sustenta — e aqui a afirmação está na
+    interface, que é onde o utilizador a lê.
+
+    Isto **não** diz que o BLE funciona nesta máquina, só que pode. Se o
+    `bluetoothd` estiver parado, o `start()` falha e o aviso vai para o log,
+    como sempre.
+    """
+    return sys.platform.startswith("linux")
 
 
 class _Session:

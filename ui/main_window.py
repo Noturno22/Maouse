@@ -69,7 +69,7 @@ class MainWindow(QMainWindow):
         # `None` aqui, o primeiro `_apply_ble()` (qualquer gravação das
         # definições do remoto) construía um segundo `RemoteBLE` e registava uma
         # segunda aplicação nos mesmos caminhos de objecto — duas threads, duas
-        # ligações ao bus de sistema, e nenhuma knows qual das duas está a servir
+        # ligações ao bus de sistema, e nenhuma sabe qual das duas está a servir
         # o telefone.
         self._ble = ble
 

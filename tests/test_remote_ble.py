@@ -691,3 +691,86 @@ class TestUmSoPeripheral:
             "primeiro _apply_ble, nos mesmos caminhos de objecto"
         )
 
+
+# ── A interface não pode oferecer o que o código não faz ───────────────────
+
+class TestSuportado:
+    """Só Linux — e a interface tem de dizer isso, não escondê-lo.
+
+    A implementação fala com o `bluetoothd` pela D-Bus de sistema. O Windows não
+    tem BlueZ nem D-Bus de sistema, e o `dbus-next` está em `LINUX_ONLY` por isso
+    exacto. A checkbox aparecia no `.exe` do Windows onde o botão nunca pode
+    funcionar: o `start()` devolvia `False`, a Maouse escrevia um aviso no log a
+    cada arranque, e o utilizador via um botão que não fazia nada.
+    """
+
+    def test_so_linux(self, monkeypatch):
+        for plat, esperado in (
+            ("linux", True), ("win32", False), ("darwin", False),
+            ("cygwin", False), ("freebsd13", False),
+        ):
+            monkeypatch.setattr(remote_ble.sys, "platform", plat)
+            assert remote_ble.suportado() is esperado, plat
+
+    def test_a_checkbox_diz_por_que_esta_desligada(self, monkeypatch):
+        """Desligada **e a dizer porquê** — não desligada e calada.
+
+        Desaparecer esconde a funcionalidade a quem compara a Maouse com a
+        documentação; ficar clicável é pior que as duas coisas, porque o
+        `start()` falha em silêncio do ponto de vista de quem está a olhar para
+        o ecrã.
+        """
+        import os as _os
+
+        _os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        from PySide6.QtWidgets import QApplication
+
+        import config
+        import ui.settings_dlg as sd
+        from core.licensing import Tier
+
+        class _Lic:
+            tier = Tier.FREE
+
+        app = QApplication.instance() or QApplication([])
+        assert app is not None
+
+        monkeypatch.setattr(remote_ble.sys, "platform", "win32")
+        dlg = sd.SettingsDialog(config.Config(), "NORMAL", license_mgr=_Lic())
+        try:
+            ch = dlg._remote_ble_ch
+            assert ch.isEnabled() is False, "a checkbox do BLE esta clicavel no Windows"
+            assert ch.isChecked() is False
+            dica = ch.toolTip()
+            assert "Linux" in dica, (
+                f"a checkbox esta desligada sem dizer porque: {dica!r}"
+            )
+        finally:
+            dlg.deleteLater()
+
+    def test_no_linux_a_checkbox_esta_normal(self, monkeypatch):
+        import os as _os
+
+        _os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        from PySide6.QtWidgets import QApplication
+
+        import config
+        import ui.settings_dlg as sd
+        from core.licensing import Tier
+
+        class _Lic:
+            tier = Tier.FREE
+
+        app = QApplication.instance() or QApplication([])
+        assert app is not None
+
+        monkeypatch.setattr(remote_ble.sys, "platform", "linux")
+        dlg = sd.SettingsDialog(config.Config(), "NORMAL", license_mgr=_Lic())
+        try:
+            ch = dlg._remote_ble_ch
+            assert ch.isEnabled() is True
+            assert "Linux" not in ch.toolTip(), (
+                "a dica de Linux ficou no caminho de quem pode usar a opcao"
+            )
+        finally:
+            dlg.deleteLater()

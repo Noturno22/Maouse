@@ -848,6 +848,13 @@ empacotamento Windows continua por verificar: o `installer.iss` e o
 
 ## 1.16 Controlo remoto por Bluetooth (BLE)
 
+> **Só funciona em Linux.** O PC publica-se como peripheral GATT falando com o
+> `bluetoothd` pela **D-Bus de sistema**, que é o que o BlueZ expõe. O Windows
+> não tem BlueZ nem D-Bus de sistema, e o macOS tem um stack BLE próprio que
+> esta secção não usa. Nas definições, a checkbox aparece desliga noutro
+> sistema e diz porquê. Para o telefone encontrar o PC no Windows, use o
+> mDNS (§1.15).
+
 Um segundo transporte para o **mesmo rato**. O telefone controla o PC sem rede
 nenhuma — a via que funciona numa rede de empresa onde o multicast está
 bloqueado, ou com o telemóvel em dados móveis e o PC em Ethernet, que é

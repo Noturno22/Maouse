@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 )
 
 from config import SMOOTH_PRESETS
+from core import remote_ble
 from core.licensing import Tier, is_pro_locked
 from i18n import tr
 from ui.icon_kits import menu_icon
@@ -407,13 +408,35 @@ class SettingsDialog(QDialog):
 
         # O Bluetooth é a via que não depende da rede: é a única que funciona
         # numa rede de empresa onde o mDNS não circule, ou sem rede nenhuma.
+        #
+        # Só em Linux (ver `core.remote_ble.suportado`): a implementação fala
+        # com o `bluetoothd` pela D-Bus de sistema, e o Windows não tem nenhuma
+        # das duas. A checkbox **fica à vista e desligaada**, em vez de
+        # desaparecer — desaparecer esconde a funcionalidade a quem compará a
+        # Maouse com a documentação, e deixá-la clicável é pior: o `start()`
+        # devolvia `False` e o único sintoma era um aviso no log e um botão que
+        # não fazia nada. O texto diz porquê, que é o que a torna honesto em vez
+        # de disabled.
         self._remote_ble_ch = QCheckBox("Controlar também por Bluetooth (BLE)")
-        self._remote_ble_ch.setChecked(self._cfg.remote_ble)
-        self._remote_ble_ch.setToolTip(
-            "Publica este PC como peripheral Bluetooth. Não usa a rede, e o "
-            "token nunca é anunciado — o telefone autentica-se como no WiFi. "
-            "Precisa de bluetoothd a correr; sem isso, o WiFi continua."
-        )
+        self._ble_suportado = remote_ble.suportado()
+        if self._ble_suportado:
+            self._remote_ble_ch.setChecked(self._cfg.remote_ble)
+            self._remote_ble_ch.setToolTip(
+                "Publica este PC como peripheral Bluetooth. Não usa a rede, e o "
+                "token nunca é anunciado — o telefone autentica-se como no WiFi. "
+                "Precisa de bluetoothd a correr; sem isso, o WiFi continua."
+            )
+        else:
+            self._remote_ble_ch.setEnabled(False)
+            # Um `settings.json` copiado de um Linux traria `remote_ble: true`, e
+            # ficaria a tentar arrancar um peripheral em cada arranque, para nada.
+            self._remote_ble_ch.setChecked(False)
+            self._remote_ble_ch.setToolTip(
+                "Só funciona em Linux. A Maouse publica-se como peripheral "
+                "Bluetooth pela D-Bus de sistema, que é o que o bluetoothd "
+                "expõe; o Windows não tem BlueZ. Para o telemóvel encontre o PC "
+                # noutro sistema, use a descoberta mDNS acima."
+            )
         rl.addWidget(self._remote_ble_ch)
 
         self._remote_bind_cb = QComboBox()
@@ -568,7 +591,9 @@ class SettingsDialog(QDialog):
         self._remote_port_spin.setValue(defaults.remote_port)
         self._remote_gain_sl.setValue(int(defaults.remote_move_gain * 10))
         self._remote_discovery_ch.setChecked(defaults.remote_discovery)
-        self._remote_ble_ch.setChecked(defaults.remote_ble)
+        # O mesmo `and` do construtor: repôr os omissões de fábrica não pode
+        # reanimar um `remote_ble: true` num sistema onde o BLE não existe.
+        self._remote_ble_ch.setChecked(defaults.remote_ble and self._ble_suportado)
         self._tv_btn_ch.setChecked(defaults.tv_button_enabled)
 
     def _save(self):

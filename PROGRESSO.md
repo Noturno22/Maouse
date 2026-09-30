@@ -697,9 +697,9 @@
       não foi compilado; o `NsdManager` não viu um PC. §1.16 do
       `RECONHECIMENTO_REMOTE.md` diz o mesmo com mais detalhe.
 
-28. **O BLE ficou com dois dono e a thread não saía — e há mais quatro coisas
-    deste commit que ficam por corrigir, de propósito.** As duas primeiras
-    corriam-se neste commit; as outras quatro não, e ficam aqui porque são a
+28. **O BLE ficou com dois donos e a thread não saía — e há mais três coisas
+    deste caminho que ficam por corrigir, de propósito.** Duas foram corrigidas
+    no commit do BLE e uma neste commit. As outras três ficam aqui porque são a
     diferença entre "isto não funciona" e "isto funciona mal", e nenhuma delas
     se resolve sem uma decisão ou sem um aparelho.
 
@@ -734,16 +734,21 @@
       adaptador ligado numa sala partilhada, é crescimento sem fundo. Precisa de
       um `disconnect` por sessão, e o BlueZ só o dá se aCharacteristic for
       removido.
-    * **Em aberto, e é a mais grave das quatro: o BLE é só-Linux e nada o diz.**
+    * **Corrigido neste commit: o BLE é só-Linux e a interface dizia que não.**
       O `dbus-next` está em `LINUX_ONLY` (`tools/check_deps.py`) e a
       implementação é BlueZ/D-Bus pura — no Windows **não há** como publicar um
-      peripheral GATT por este caminho. Mas `ui/settings_dlg.py` mostra a
+      peripheral GATT por este caminho. Mas `ui/settings_dlg.py` mostrava a
       checkbox a toda a gente, incluindo ao `.exe`, onde ela nunca pode
-      funcionar. É exactamente a classe que o item 26 fechou no outro lado: uma
-      **afirmação que o código não sustenta**, aqui na interface e no produto.
-      Nem o item 27 nem o §1.16 do `RECONHECIMENTO_REMOTE.md` dizem "Linux
-      only", e há `tests/test_help_truthfulness.py` para isto. Corrigir é
-      decidível em uma linha (esconder a checkbox fora do Linux) e honesto.
+      funcionar: o `start()` devolvia `False` e o único sintoma era um aviso no
+      log a cada arranque. Era exactamente a classe que o item 26 fechou no
+      outro lado — uma **afirmação que o código não sustenta**, aqui na
+      interface. `core/remote_ble.py::suportado()` diz agora o que a
+      implementação consegue fazer, e a checkbox fica **desligada e a dizer
+      porque** fora do Linux. Desligada-e-dita, e não escondida: desaparecer
+      tirava a funcionalidade de vista a quem compara a Maouse com a
+      documentação, e o §1.16 passou a abrir com o aviso. Um `settings.json`
+      copiado de um Linux trazia `remote_ble: true` para o Windows, por isso o
+      construtor e o "repor omissões de fábrica" o ignoram lá.
     * **Em aberto, e do lado do telefone, que não foi provado com um:** o
       `App.tsx:25` continua a importar o `remoteClient` antigo em vez da
       fachada `remoteTransport` — o reencaminhamento da câmara para o PC está
