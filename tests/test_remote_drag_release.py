@@ -6,10 +6,15 @@ perde a rede durante um arrasto fica com o rato «cola» até carregar em algo e
 ver que aquilo fica a ser arrastado. O `_combo` já fazia a limpeza das teclas
 nos dois caminhos; os botões é que não tinham estado.
 """
+import pytest
+
 from core.remote import Button
+from tests.lease_test_keys import VALID_LEASE
 from tests.test_remote_protocol_contract import _run, _server
 
-AUTH = {"cmd": "auth", "token": "segredo123"}
+pytestmark = pytest.mark.usefixtures("patched_public_key")
+
+AUTH = {"cmd": "auth", "token": "segredo123", "lease": VALID_LEASE}
 
 
 def _held_calls(mouse):

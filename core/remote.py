@@ -5,8 +5,14 @@ teclado do PC via WiFi (rede local) ou Internet (IP público + porta).
 
 Protocolo (JSON por mensagem):
 
-  -> {"cmd": "auth", "token": "..."}              # primeira mensagem obrigatória
+  -> {"cmd": "auth", "token": "...", "lease": "..."}   # 1ª msg obrigatória
   <- {"cmd": "auth", "ok": true, "w": 1920, "h": 1080}
+
+  O `token` é o segredo de emparelhamento definido no PC. O `lease` é o JWT
+  ES256 que o license-server emite para o telemóvel (tier `mobile_pro`). O
+  gate exige os dois: token errado dá `auth_required`, lease ausente,
+  expirada ou de tier não pago dá `pro_required` — em qualquer caso a ligação
+  é fechada. Ver `core.licensing.verify_remote_entitlement`.
   -> {"cmd": "ping"}
   <- {"ok": true, "pong": true}
   -> {"cmd": "move", "dx": 12, "dy": -4}          # relativo, com remote_move_gain
@@ -46,6 +52,7 @@ except Exception:
     Button = None
 
 from config import Config
+from core.licensing import verify_remote_entitlement
 from core.log import get_logger, trace
 from core.mouse_ctl import MouseCtl
 
@@ -395,6 +402,19 @@ class RemoteServer:
                 if authed is False:
                     data = self._decode(raw)
                     if data.get("cmd") == "auth" and data.get("token") == self._cfg.remote_token:
+                        ok, motivo = verify_remote_entitlement(data.get("lease"))
+                        if not ok:
+                            await self._send(
+                                connection,
+                                {"cmd": "auth", "ok": False,
+                                 "error": "pro_required", "reason": motivo},
+                            )
+                            log.warning(
+                                "Telemóvel autenticado mas sem entitlement (%s).",
+                                motivo,
+                            )
+                            await connection.close()
+                            return
                         authed = True
                         await self._send(
                             connection,

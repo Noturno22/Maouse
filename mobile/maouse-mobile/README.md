@@ -13,7 +13,7 @@ Controla também o rato e o teclado do PC a partir do telemóvel.
 - **Volta/Início** - Atalhos de sistema
 - **Acessibilidade** - Navegação por foco
 - **Controlo remoto do PC** - Rato, clique, arrasto, scroll, teclado e media via
-  WebSocket com token (ver "Controlo remoto do PC")
+  WebSocket com token + lease (ver "Controlo remoto do PC")
 
 ## Pré-requisitos
 
@@ -110,12 +110,14 @@ npx tsc --noEmit  # tipos
 ```
 
 Coberto: `buildWsUrl` (normalização de host, porta por omissão, token fora do
-URL), o `auth` como primeira e única mensagem antes do servidor confirmar, o
-cliente a ignorar comandos que chegam antes da hora, o token recusado, lixo JSON, e
-a distinção entre «o PC não está alcançável» e «a ligação caiu». O preset é o
-`jest-expo` do Expo SDK 57, com `@react-native/jest-preset` à parte desde o RN
-0.86. Do lado do PC, `tests/test_remote_protocol_contract.py` prende o mesmo
-contrato em Python — 28 testes que não precisam de toolchain TS.
+URL), o `auth` como primeira e única mensagem antes do servidor confirmar, a
+recusa a ligar sem lease, o envio da lease no `auth`, a tradução de
+`pro_required` para uma mensagem de compra, o cliente a ignorar comandos que
+chegam antes da hora, o token recusado, lixo JSON, e a distinção entre «o PC não
+está alcançável» e «a ligação caiu». O preset é o `jest-expo` do Expo SDK 57,
+com `@react-native/jest-preset` à parte desde o RN 0.86. Do lado do PC,
+`tests/test_remote_protocol_contract.py` prende o mesmo contrato em Python —
+34 testes que não precisam de toolchain TS.
 
 > **`npm audit` — não corras `--force`.** O `audit` reporta ~16 avisos herdados do
 > toolchain do Expo. O único *high* que tinha correção sem partir nada
@@ -134,10 +136,22 @@ nas definições do PC, com o token que o PC apresenta.
 - **Transporte** — WebSocket em texto claro (`ws://`). O PC arranca o servidor
   sem TLS (`core/remote.py`, `websockets.serve(...)` sem `ssl=`), por isso só
   existe `ws://`. Ver a nota de limitação no teste `buildWsUrl`.
-- **Autenticação** — a primeira mensagem é sempre `{"cmd":"auth","token":"…"}`.
-  Token errado → `{"cmd":"auth","ok":false,"error":"auth_required"}` e a ligação
-  é fechada. Nenhum comando é aceite antes do servidor confirmar.
+- **Autenticação** — a primeira mensagem é sempre `{"cmd":"auth","token":"…","lease":"…"}`.
+  São **dois** segredos: o `token` é o segredo de emparelhamento definido no PC, e a
+  `lease` é o JWT ES256 que o license-server emite para este telemóvel
+  (`tier=mobile_pro`). Token errado → `{"cmd":"auth","ok":false,"error":"auth_required"}`.
+  Lease ausente, expirada ou de tier não pago → `{"ok":false,"error":"pro_required"}`.
+  Em ambos os casos a ligação é fechada; nenhum comando é aceite antes de o servidor
+  confirmar. **A lease é o que impede um telemóvel free de controlar o PC**, porque o
+  PC valida a assinatura ES256 com a sua chave pública (`core/licensing.py`
+  → `verify_remote_entitlement`) e o token sozinho não chega.
 - **O token não viaja no URL**, só no corpo da primeira mensagem.
+
+> **O que este gate não resolve.** A lease fica em `AsyncStorage`, que num
+> dispositivo rooted é legível, e o `ws://` continua em texto claro. Quem tem o
+> telemóvel desbloqueado pode extrair a lease e usá-la noutro sítio durante a
+> validade. É defense-in-depth contra o bypass acidental, não DRM inviolável. O
+> `SecureStore` e o TLS continuam pendentes (ver "Próximos Passos").
 
 > O `ws://` em claro significa que o token e os comandos são legíveis por
 > qualquer pessoa na mesma rede. É aceitável em LAN doméstica e é a razão pela

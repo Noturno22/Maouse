@@ -6,6 +6,7 @@ import pytest
 
 from config import Config
 from core.remote import RemoteArbiter, RemoteServer, generate_token, lan_ips
+from tests.lease_test_keys import VALID_LEASE
 
 
 class FakePointer:
@@ -413,7 +414,7 @@ class TestToqueAbsoluto:
 
 
 @pytest.mark.websocket
-def test_auth_and_commands_over_websocket():
+def test_auth_and_commands_over_websocket(patched_public_key):
     cfg = Config()
     cfg.remote_bind = "127.0.0.1"
     cfg.remote_port = 0
@@ -445,8 +446,10 @@ def test_auth_and_commands_over_websocket():
         async def good_flow():
             from websockets.asyncio.client import connect
 
+            auth = {"cmd": "auth", "token": "segredo123", "lease": VALID_LEASE}
+
             async with connect(f"ws://127.0.0.1:{port}") as ws:
-                await ws.send(json.dumps({"cmd": "auth", "token": "segredo123"}))
+                await ws.send(json.dumps(auth))
                 reply = json.loads(await asyncio.wait_for(ws.recv(), 3))
                 assert reply.get("ok") is True
                 assert reply.get("w") == 1920
@@ -556,7 +559,7 @@ class TestRemoteArbiter:
         srv.on_activity = boom
         srv._note_activity()  # a excepção é engolida e registada em debug
 
-    def test_arbitro_cala_a_camara_durante_o_clique(self, monkeypatch):
+    def test_arbitro_cala_a_camara_durante_o_clique(self, monkeypatch, patched_public_key):
         """Regressão: um comando atrasado não pode clicar com a câmara livre.
 
         A inferência da câmara segura a GIL e o comando pode ficar à espera
@@ -590,7 +593,7 @@ class TestRemoteArbiter:
 
         conn = _FakeConnection(
             [
-                {"cmd": "auth", "token": srv._cfg.remote_token},
+                {"cmd": "auth", "token": srv._cfg.remote_token, "lease": VALID_LEASE},
                 {"cmd": "gesture", "event": "tap", "x": 0.5, "y": 0.5},
             ]
         )

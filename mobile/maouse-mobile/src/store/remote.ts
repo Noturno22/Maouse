@@ -6,6 +6,7 @@ import {
   buildWsUrl,
   remote,
 } from '../services/remoteClient';
+import { useLicenseStore } from './license';
 
 export { remote } from '../services/remoteClient';
 
@@ -76,6 +77,7 @@ export const useRemoteStore = create<RemoteState>((set, get) => ({
 
   connect: () => {
     const { host, port, token } = get();
+    const { lease } = useLicenseStore.getState();
     const h = String(host || '').trim();
     if (!h) {
       set({
@@ -86,7 +88,7 @@ export const useRemoteStore = create<RemoteState>((set, get) => ({
     }
     const url = buildWsUrl(h, port);
     set({ status: 'connecting', error: '', screen: null });
-    remote.connect(url, token, {
+    remote.connect(url, token, lease, {
       onOpen: (screen) => set({ status: 'connected', screen, error: '' }),
       onClose: (message) =>
         set((s) => ({
