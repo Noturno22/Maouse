@@ -240,6 +240,7 @@ class RemoteServer:
         self._key_ctl = None
         self._key_mods = None
         self._drag = False
+        self._held: set[str] = set()
         # Resto fraccionário do movimento relativo (ver ``_move_rel``).
         self._mfx = 0.0
         self._mfy = 0.0
@@ -443,6 +444,10 @@ class RemoteServer:
         except Exception as e:
             log.debug("Ligação remota terminada: %s", e)
         finally:
+            # Uma ligacao que morre a meio de um arrasto nao pode deixar o
+            # botao premido: o utilizador so descobre quando clica e fica a
+            # arrastar. `_release_held` trata do `press` e do `left_down`.
+            self._release_held()
             self._clients.discard(connection)
 
     @staticmethod
@@ -574,25 +579,58 @@ class RemoteServer:
         else:
             raise ValueError(f"botao_desconhecido:{button}")
 
+    # Aliases aceite no `press`. Canonicalizar evita que `lmb` e `left` fiquem
+    # dois botoes Held distintos quando sao o mesmo botao.
+    _BUTTONS = {
+        "left": "left", "lmb": "left",
+        "right": "right", "rmb": "right",
+        "middle": "middle", "mmb": "middle",
+    }
+
     def _press(self, button, hold):
+        canon = self._BUTTONS.get(button)
+        if canon is None:
+            raise ValueError(f"botao_desconhecido:{button}")
+        if hold:
+            self._held.add(canon)
+        else:
+            self._held.discard(canon)
         mouse = self._mouse
-        if button in ("left", "lmb"):
+        if canon == "left":
             if hold:
                 mouse.press_left()
             else:
                 mouse.release_left()
-        elif button in ("right", "rmb"):
+        elif canon == "right":
             if hold:
                 self._mouse.mouse.press(Button.right)
             else:
                 self._mouse.mouse.release(Button.right)
-        elif button in ("middle", "mmb"):
+        else:
             if hold:
                 self._mouse.mouse.press(Button.middle)
             else:
                 self._mouse.mouse.release(Button.middle)
-        else:
-            raise ValueError(f"botao_desconhecido:{button}")
+
+    def _release_held(self):
+        """Solta o que a ligacao morreu com premido.
+
+        Sem isto, um telefone que perde a ligacao a meio de um arrasto deixa o
+        botao do rato premido no PC, e so se descobre quando se clica em algo e
+        esse algo fica a arrastar. O `_combo` ja faz isto para as teclas; os
+        botoes nao tinham o mesmo cuidado.
+        """
+        for button in sorted(self._held):
+            try:
+                self._press(button, hold=False)
+            except Exception as e:
+                log.debug("Falha ao soltar o botao %s: %s", button, e)
+        self._held.clear()
+        # `_drag` e um guarda de gesto, nao um segundo registo: o `left_down` ja
+        # passou por `_press`, logo "left" esta em `_held` se e quando `_drag` e
+        # True. So falta limpar a bandeira para o proximo `left_down` nao
+        # achar que o botao ja esta premido.
+        self._drag = False
 
     def _scroll(self, data):
         dx = self._int(data, "dx")
@@ -725,12 +763,12 @@ class RemoteServer:
             return "RIGHT"
         if event == "left_down":
             if not getattr(self, "_drag", False):
-                mouse.press_left()
+                self._press("left", hold=True)
                 self._drag = True
             return "DRAG ON"
         if event == "left_up":
             if getattr(self, "_drag", False):
-                mouse.release_left()
+                self._press("left", hold=False)
                 self._drag = False
             return "DRAG OFF"
         if event == "scroll":
