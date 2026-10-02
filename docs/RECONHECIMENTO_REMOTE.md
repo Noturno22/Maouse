@@ -300,19 +300,20 @@ alongamento anisotrópico.
 
 ### 🟢 Bug crítico: multi-monitor sem origem — **corrigido a 2026-10-02**
 
-`core/mouse_ctl.py:127-143` lia o **tamanho** do desktop virtual mas **nunca a origem**:
+`core/mouse_ctl.py:120-161` lia o **tamanho** do desktop virtual mas **nunca a origem**:
 
 ```python
-# core/mouse_ctl.py:130-131
+# core/mouse_ctl.py:131-132
 w = int(user32.GetSystemMetrics(78))  # SM_CXVIRTUALSCREEN
 h = int(user32.GetSystemMetrics(79))  # SM_CYVIRTUALSCREEN
 ```
 
-`SM_XVIRTUALSCREEN` (76) e `SM_YVIRTUALSCREEN` (77) **não aparecem em lado nenhum do
-código** (verificado em `core/`, `ui/`, `main.py`). Entretanto o pynput posiciona via
-`SetCursorPos`, que usa coordenadas de desktop virtual e **aceita valores negativos**.
+`SM_XVIRTUALSCREEN` (76) e `SM_YVIRTUALSCREEN` (77) **não apareciam em lado nenhum
+do código** (verificado em `core/`, `ui/`, `main.py`). Entretanto o pynput posiciona
+via `SetCursorPos`, que usa coordenadas de desktop virtual e **aceita valores
+negativos**.
 
-| Configuração | Origem virtual | Resultado |
+| Configuração | Origem virtual | Resultado (antes da correcção) |
 |---|---|---|
 | 2 monitores lado a lado, principal à esquerda | `(0, 0)` | ✅ correcto |
 | Qualquer monitor **à esquerda ou acima** do principal | `(−W₂, 0)` | 🔴 faixa inalcançável; `move_by` encurrala o cursor no monitor principal |
