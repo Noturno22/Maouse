@@ -321,10 +321,9 @@ class LicenseDialog(QDialog):
         needs_key = (err == "reativacao_necessaria"
                      or getattr(self._lm, "needs_reactivation", False))
         if needs_key:
-            QMessageBox.warning(self, "Licença",
-                                tr("license.reactivation_needed"))
+            show_warning(self, "Licença", tr("license.reactivation_needed"))
         elif err == "servidor_nao_configurado":
-            QMessageBox.warning(self, "Chave", tr("license.server_not_configured"))
+            show_warning(self, "Chave", tr("license.server_not_configured"))
         else:
             show_warning(self, "Chave", tr("license.activate_failed"))
 
