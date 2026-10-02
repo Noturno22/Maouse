@@ -18,6 +18,17 @@
 >   corrigida (`e457c8b`). Detalhe em `docs/RECONHECIMENTO_MAOS.md`.
 > - **30/set** — 🔴 o branch `instrumentacao-corpus-real` **divergiu** de
 >   `origin/main` (12 à frente, 21 atrás). Nenhum dos dois trabalhos está no `main`.
+> - **01/out** — 🟢 essa divergência **está resolvida**: merge local `--no-ff`
+>   `8a24d0d` (0 atrás, 14 à frente; `origin/main` é ancestral; backup do
+>   pré-merge em `backup/pre-merge-76c32a0`). No mesmo dia o mobile ganhou
+>   **18 testes Jest** do protocolo remoto, o desktop ganhou **28 testes de
+>   contrato** do mesmo protocolo (`tests/test_remote_protocol_contract.py`, que
+>   travam a simetria PC↔mobile sem precisar de toolchain TS), e foi corrigido um
+>   bug real de lock
+>   da licença no Windows (`core/license_store_lock.py` lia o byte do lock antes
+>   de o trancar; o segundo processo rebentava com `PermissionError`, deixando
+>   o anti-replay por proteger). ⚠️ **Ainda não foi dado push**: o `origin/main`
+>   remoto continua em `e4da026`.
 > - **Bloqueio actual da Onda 1:** a §1.5 (ligar o `HandLock`) e a calibração do
 >   `min_class_conf` esperam as **mãos reais** (Onda 3 §3.1). Não é um problema
 >   de código.
@@ -41,10 +52,14 @@
    (+11810 −876, 79 ficheiros, 21 ficheiros de teste), onde em 28/set a auditoria
    contava "0 contributions" e "14 dias sem trabalho". Entregas em mobile, remote,
    discovery, licença, CI Android e manifests. Do portefólio a cobrar, 1 de 3
-   entregue; **zero testes em `mobile/`** apesar de 14 ficheiros de app tocados.
-   🔴 Novo: o branch `instrumentacao-corpus-real` divergiu de `origin/main`
-   (12 à frente, 21 atrás) — nenhum dos dois trabalhos está no `main`.
-   Detalhe em `BUSSINES/07_ADMINISTRACAO/CONTRIBUICAO_SOCIOS.md` §4.5–§7.
+    entregue.
+🟢 **2026-10-01:** a divergência do branch **foi fundida** (merge `8a24d0d`,
+     0 atrás / 14 à frente de `origin/main`), o mobile **ganhou 18 testes** Jest do
+     protocolo remoto e o desktop **ganhou 28 testes de contrato** do mesmo
+     protocolo (`tests/test_remote_protocol_contract.py`), que travam a simetria
+     PC↔mobile sem toolchain TS. A integração é local e **ainda não foi enviada** — o
+     `origin/main` remoto continua em `e4da026`.
+    Detalhe em `BUSSINES/07_ADMINISTRACAO/CONTRIBUICAO_SOCIOS.md` §4.5–§7.
 7. **render.yaml movido para a raiz** (Blueprint do Render) + registo SSL.com/domínio.
    *Nota: foi tentada uma subscrição Pro na landing (€4,99/mês) e **removida por decisão** — modelo restante é only lifetime/família/acesso.*
 8. **Design de gestos profissionais Meta Glass/Quest** — especificações detalhadas para 5 novos gestos de produtividade (zoom suave, rotação 3D, menu radial, swipe three fingers, modo anotar) criadas em `.superpawers\specs\2026-09-28-meta-glass-gestos-pro-design.md`.

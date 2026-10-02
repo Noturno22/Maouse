@@ -454,8 +454,11 @@ iteração usa `for (const ch of added)`, consciente de code points.
    sessões RDP, prompts UAC, a UI de credenciais do Windows, e jogos que lêem input
    bruto vão ignorar ou distorcer. Um caminho por clipboard com `Ctrl+V` seria mais
    robusto para campos de texto.
-3. **Zero testes.** A afirmação mais importante para o mercado **não tem um único
-   teste** que a proteja.
+3. ~~**Zero testes.**~~ **Parcialmente esbarrado a 2026-10-01:** o caminho do
+   protocolo (`_type_text` é chamado, aceita texto vazio e não vazio) está coberto
+   pelos testes de contrato, mas contra um **teclado falso**. A afirmação que importa
+   para o mercado — que os caracteres acentuados chegam mesmo ao Windows —
+   **continua sem um único teste**.
 
 ## 1.9 Segurança e modelo de ameaça actual
 
@@ -502,28 +505,41 @@ Free obtém rato + teclado remotos completos, grátis.
 
 ## 1.10 Cobertura de testes
 
-### Mobile: **zero**
+### Mobile: `src/__tests__/remoteClient.test.ts` (18 testes)
 
-Sem ficheiros `*.test.*` / `*.spec.*`, sem directório `__tests__/`, sem `jest` ou
-`vitest` configurado, e **sem `test` script** no `package.json`.
+🟢 **Corrigido a 2026-10-01.** A auditoria encontrou zero cobertura; hoje há `jest-expo`
+configurado, `test` script no `package.json` e 18 testes do `RemoteClient`:
+`buildWsUrl` (host, porta, omissões, esquemas, limpeza, token fora do URL, `wss`→`ws`),
+`auth` como primeira mensagem, comandos bloqueados antes de `auth.ok`, token recusado e
+ausente, dimensões inválidas, JSON inválido e fechos.
 
-Consequência: a matemática de coordenadas, os filtros, o diff do teclado e todo o
-caminho de mensagens do `RemoteClient` estão **completamente por cobrir** — apesar de
-serem funções puras e trivialmente testáveis.
+### Contrato dos dois lados: `tests/test_remote_protocol_contract.py` (28 testes)
+
+🟢 **Novo a 2026-10-01.** Os dois directórios nunca são compilados juntos, por isso
+jogar só do lado TS deixaria passar uma renomeação de comando no PC. Estes testes
+prendem o contrato **no lado do servidor**, sem toolchain TS: os 11 comandos que o
+`remoteClient.ts` manda são aceites, as formas das respostas (`{cmd,ok,w,h}`,
+`{ok,note}`, `bad_command`, `auth_required`) são as que o parser do TS consome,
+`auth`/`ping` são inline e não passam por `_handle`, e um comando antes do `auth` é
+recusado sem mover o rato um píxel. A simetria é testada nos dois sentidos — um
+comando novo no PC que o app não manda também falha.
 
 ### Desktop: `tests/test_remote.py` existe, mas é fino
 
 | Teste | O que realmente afirma |
 |---|---|
 | `test_dispatch_move_to_clamps` | Aritmética contra `FakeMouse` (`screen_w=1920`). **Não modela origem** — estruturalmente incapaz de detectar o bug multi-monitor. Fixa o truncamento como se fosse intenção. |
-| `test_auth_and_commands_over_websocket` | Servidor real em `127.0.0.1:0`. ⚠️ **A asserção de bad-auth é um no-op** — está dentro de `try/except Exception: pass` (linhas 167-169), portanto um cliente que nem consiga ligar-se passa. |
+| `test_auth_and_commands_over_websocket` | Servidor real em `127.0.0.1:0`. ⚠️ **A asserção de bad-auth é um no-op** — está dentro de `try/except Exception: pass` (linhas 167-169), portanto um cliente que nem consiga ligar-se passa. **Esbarrado a 2026-10-01:** `test_resposta_de_auth_falhado_tem_error_auth_required` e `test_comando_antes_do_auth_nunca_parte` em `tests/test_remote_protocol_contract.py` afirmam o auth falhado sem `try/except`. |
 | `test_generate_token_is_unique` | Não-vazio, `len >= 8`, distinto. **Não** afirma a força real de 64 bits. |
 | `test_key_aliases_arrow_keys` | Único teste que toca pynput real. |
 | `test_dispatch_move_click_scroll_press` | Despacho contra `FakeMouse`. |
 
-**Não testado de todo:** injecção de texto, `_type_text`, `_combo`, `_tap_key,
-**caracteres acentuados**, media keys, a tabela de gestos, simetria de arrasto,
-coordenadas multi-monitor, rejeição de auth ou replay, clientes concorrentes.
+**Continua por testar:** injecção de texto contra o teclado real, **caracteres
+acentuados** de facto, simetria de arrasto quando o socket cai a meio (achado #10),
+coordenadas multi-monitor (achado #2), replay, e clientes concorrentes. Nota: os
+testes de contrato exercitam `_type_text`, `_combo`, `_tap_key`, media keys e a
+tabela de gestos, mas contra um teclado **falso** — provam que o comando é aceite e
+despachado, não que o evento chega ao Windows.
 
 ⚠️ **A CI não executa o caminho crítico.** `.github/workflows/ci.yml` corre
 `QT_QPA_PLATFORM=offscreen xvfb-run -a pytest tests -q` em Linux. Como
@@ -548,7 +564,7 @@ Consolidadas e verificadas no repositório em 2026-09-28.
 | 9 | 🟠 Alto | **`_combo` bloqueia o event loop** 40 ms com `time.sleep`. | `core/remote.py:475` |
 | 10 | 🟠 Alto | **`press`/`release` sem estado de arrasto** — sem `finally` de limpeza, um socket que cai a meio de um arrasto deixa o botão logicamente premido. | `core/remote.py:379-397` |
 | 11 | 🟠 Alto | **Sem auto-reconnect, sem AppState, sem fila.** Input perdido em silêncio. | `src/services/remoteClient.ts` |
-| 12 | 🟡 Médio | **Zero testes no mobile**; suite desktop não cobre auth nem texto. | `tests/test_remote.py` |
+| 12 | 🟢 **Resolvido** | ~~**Zero testes no mobile**; suite desktop não cobre auth nem texto.~~ **Corrigido a 2026-10-01:** 18 testes Jest em `mobile/maouse-mobile/src/__tests__/remoteClient.test.ts` e 28 testes de contrato em `tests/test_remote_protocol_contract.py`, que cobrem o handshake, a rejeição de auth, o texto e a simetria dos 11 comandos. Ver §1.10. | `src/__tests__/remoteClient.test.ts`, `tests/test_remote_protocol_contract.py` |
 | 13 | 🟡 Médio | **Double-Enter** no teclado. | `RemoteScreen.tsx:95-96,113` |
 | 14 | 🟡 Médio | **Corrupção em edições não-append** (diff por índice). | `RemoteScreen.tsx:91` |
 | 15 | 🟡 Médio | **Sem filtro, aceleração ou escala no touchpad** — sensação dependente do telemóvel. | `remoteClient.ts:31` |
