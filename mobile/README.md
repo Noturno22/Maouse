@@ -45,36 +45,61 @@ mobile/maouse-mobile/
 │   │   ├── filters.ts               # One Euro Filter + AccelCurve
 │   │   └── gestures.ts              # Deteção de 12+ gestos
 │   ├── hooks/
-│   │   ├── useGestures.ts           # Hook de processamento
-│   │   └── useHandDetection.ts      # Hook MediaPipe
+│   │   ├── useProEntitlement.ts          # IAP + validação server-side + restore
+│   │   └── useAccessibilityStatus.ts     # Estado do serviço de acessibilidade
 │   ├── store/
-│   │   └── index.ts                 # Zustand store
+│   │   ├── index.ts                 # Zustand store
+│   │   ├── license.ts               # Zustand store de licença (free/mobile_pro)
+│   │   └── remote.ts                # Zustand store do controlo remoto do PC
+│   ├── components/
+│   │   ├── ProGate.tsx              # Paywall Pro
+│   │   └── RemoteScreen.tsx         # Ecrã de controlo remoto do PC
+│   ├── services/
+│   │   ├── licenseApi.ts            # Cliente do license-server
+│   │   └── remoteClient.ts          # Cliente WebSocket do PC (handshake auth)
+│   ├── utils/
+│   │   └── deviceId.ts              # UUID persistente do dispositivo
 │   ├── types/
 │   │   └── gesture.ts               # Tipos TypeScript
+│   ├── __tests__/
+│   │   └── remoteClient.test.ts     # Contrato do protocolo remoto (Jest)
 │   └── constants/
 │       └── index.ts                 # Cores, labels, presets
-├── android/                         # Módulos nativos Android (Kotlin)
-│   ├── MaouseAccessibilityService.kt   # Injeção de gestos/teclado (sem root)
-│   ├── TouchControllerModule.kt     # tap, longPress, swipe, drag, moveCursor
-│   ├── KeyboardControllerModule.kt  # typeText, pressKey, pressCombo, toggleKeyboard
-│   ├── SystemControllerModule.kt    # back/home/recents/notif, volume, brilho
-│   └── MaousePackage.kt           # Regista os 3 módulos no RN
-├── ios/                             # Módulos nativos iOS (Swift)
-│   ├── TouchController.swift
-│   ├── SystemController.swift
-│   └── KeyboardController.swift
+├── android/                         # Gerado no prebuild (ver plugins/ abaixo)
+├── ios/                             # Gerado no prebuild (ver plugins/ abaixo)
 ├── app.json                         # Config Expo
+├── plugins/
+│   └── with-maouse-native/
+│       ├── index.js                 # Config plugin (copia os templates no prebuild)
+│       └── templates/
+│           ├── android/             # MaouseAccessibilityService + 3 módulos (Kotlin)
+│           │   ├── MaouseAccessibilityService.kt  # Injeção de gestos/teclado (sem root)
+│           │   ├── MaousePackage.kt                # Regista os 3 módulos no RN
+│           │   ├── TouchControllerModule.kt        # tap, longPress, swipe, drag, moveCursor
+│           │   ├── KeyboardControllerModule.kt     # typeText, pressKey, pressCombo
+│           │   ├── SystemControllerModule.kt       # back/home/recents/notif, volume, brilho
+│           │   └── accessibility_service_config.xml
+│           └── ios/
+│               └── KeyboardController.swift        # (só este: touch/system iOS não implementado)
 ├── eas.json                         # Config EAS Build
 └── package.json                     # Dependências
 ```
+
+> Este ficheiro é um resumo. A referência completa e correcta está em
+> `maouse-mobile/README.md` — a estrutura acima é a real, mas evolve depressa.
+
+> **O código nativo vive nos templates do plugin**, não em `android/`/`ios/` no
+> repositório: essas pastas são geradas no prebuild. Editar o que o prebuild
+> escreveu não sobrevive a `prebuild --clean`; tem de ser editado em
+> `plugins/with-maouse-native/templates/`.
 
 ---
 
 ## Pré-requisitos
 
-- **Node.js** 18+
-- **Expo CLI** (`npm install -g expo-cli`)
-- **EAS CLI** (`npm install -g eas-cli`)
+- **Node.js** 20+ (testado em 26; o Expo SDK 57 exige LTS moderno)
+- **Expo CLI** — já vem no projecto: `npx expo`, sem instalação global
+- **EAS CLI** (`npm install -g eas-cli`), só para builds na nuvem
 - **Conta Expo** (para build)
 - **Telemóvel** com Android 7+ ou iOS 14+
 
@@ -89,22 +114,18 @@ cd mobile/maouse-mobile
 
 ### 2. Instalar dependências
 ```bash
-npm install --legacy-peer-deps
+npm install
 ```
 
-### 3. Baixar modelo MediaPipe
+### 3. Verificar instalação
 ```bash
-# Criar pasta assets se não existir
-mkdir -p assets
-
-# Descarregar modelo
-curl -o assets/hand_landmarker.task https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task
+npx tsc --noEmit   # tipos
+npm test           # protocolo remoto
 ```
 
-### 4. Verificar instalação
-```bash
-npx tsc --noEmit
-```
+> O `npm install --legacy-peer-deps` que constava antes aqui não é necessário —
+> o `package.json` tem `allowScripts` e o lockfile resolve as peers. Se ainda
+> precisares dele, é sinal de que o lockfile ficou dessincronizado.
 
 ---
 

@@ -1,6 +1,7 @@
 # Mãouse — Mobile
 
 Controle total do telemóvel usando gestos de mão detetados pela câmara frontal.
+Controla também o rato e o teclado do PC a partir do telemóvel.
 
 ## Funcionalidades
 
@@ -11,6 +12,8 @@ Controle total do telemóvel usando gestos de mão detetados pela câmara fronta
 - **Scroll** - Dois dedos (peace sign)
 - **Volta/Início** - Atalhos de sistema
 - **Acessibilidade** - Navegação por foco
+- **Controlo remoto do PC** - Rato, clique, arrasto, scroll, teclado e media via
+  WebSocket com token (ver "Controlo remoto do PC")
 
 ## Pré-requisitos
 
@@ -43,46 +46,97 @@ npx expo start --ios
 ```
 maouse-mobile/
 ├── App.tsx                    # Componente principal + gate de gestos Pro
+├── index.ts                   # Entry point registado no app.json
 ├── src/
 │   ├── engine/
 │   │   ├── filters.ts         # One Euro Filter + AccelCurve
 │   │   └── gestures.ts        # Deteção de gestos
 │   ├── hooks/
-│   │   ├── useGestures.ts     # Hook de processamento
-│   │   └── useProEntitlement.ts  # IAP (expo-iap) + validação server-side + restore
+│   │   ├── useProEntitlement.ts     # IAP (expo-iap) + validação server-side + restore
+│   │   └── useAccessibilityStatus.ts  # Estado do serviço de acessibilidade
 │   ├── store/
 │   │   ├── index.ts           # Zustand store
-│   │   └── license.ts         # Zustand store de licença (tier free/mobile_pro)
+│   │   ├── license.ts         # Zustand store de licença (tier free/mobile_pro)
+│   │   └── remote.ts          # Zustand store do controlo remoto (host/port/token)
 │   ├── components/
-│   │   └── ProGate.tsx        # Paywall Pro (comprar/restaurar/continuar gratis)
+│   │   ├── ProGate.tsx        # Paywall Pro (comprar/restaurar/continuar gratis)
+│   │   └── RemoteScreen.tsx   # Ecrã de controlo remoto do PC (rato + teclado)
 │   ├── services/
-│   │   └── licenseApi.ts      # Cliente do license-server (/api/v1/mobile/entitle)
+│   │   ├── licenseApi.ts      # Cliente do license-server (/api/v1/mobile/entitle)
+│   │   └── remoteClient.ts    # Cliente WebSocket do PC (handshake auth)
 │   ├── utils/
 │   │   └── deviceId.ts        # UUID persistente do dispositivo
 │   ├── types/
 │   │   └── gesture.ts         # Tipos TypeScript
-│   └── constants/
-│       └── index.ts           # Constantes
-└── app.json                   # Configuração Expo (+ plugin expo-iap, extra license)
+│   ├── constants/
+│   │   └── index.ts           # Constantes
+│   └── __tests__/
+│       └── remoteClient.test.ts  # Contrato do protocolo remoto (Jest)
+├── plugins/
+│   └── with-maouse-native/    # Config plugin: injecta o código nativo no prebuild
+│       ├── index.js
+│       └── templates/
+│           ├── android/       # MaouseAccessibilityService + 3 módulos (Kotlin)
+│           │   ├── MaouseAccessibilityService.kt
+│           │   ├── MaousePackage.kt
+│           │   ├── TouchControllerModule.kt
+│           │   ├── KeyboardControllerModule.kt
+│           │   ├── SystemControllerModule.kt
+│           │   └── accessibility_service_config.xml
+│           └── ios/
+│               └── KeyboardController.swift
+├── conectar.bat               # Atalho de arranque em Windows
+├── app.json                   # Configuração Expo (+ plugin with-maouse-native + expo-iap)
+├── eas.json                   # Perfis de build EAS
+└── AGENTS.md                  # Notas obrigatórias para agentes neste directório
 ```
 
-## Configuração
+> **Onde vive o código nativo.** Não existe `android/` nem `ios/` no repositório
+> porque são gerados no prebuild. O código Kotlin/Swift é real, versionado, e
+> vive em `plugins/with-maouse-native/templates/` — o config plugin copia-o para
+> o projecto gerado durante `expo prebuild`. Editar `android/` local não
+> sobrevive a um prebuild limpo: tem de ser editado no template.
 
-Parâmetros ajustáveis no `src/store/index.ts`:
+## Testes
 
-| Parâmetro | Default | Descrição |
-|-----------|---------|-----------|
-| `moveGain` | 2.0 | Velocidade do cursor |
-| `filterMinCutoff` | 1.4 | Filtro One Euro (suavidade) |
-| `filterBeta` | 0.028 | Aceleração do filtro |
-| `pinchOnRatio` | 0.38 | Sensibilidade pinça |
-| `pinchOffRatio` | 0.55 | Histerese pinça |
+O único alvo com testes é o **protocolo remoto**, porque é a fronteira de
+segurança entre o telemóvel e o PC: o `core/remote.py` do PC executa comandos que
+mexem no rato e no teclado de quem está a usar a máquina, e o único coisa entre um
+host qualquer da mesma rede e esse rato é o handshake `auth` da primeira mensagem.
+
+```bash
+npm test          # jest, uma passageira
+npx tsc --noEmit  # tipos
+```
+
+Coberto: `buildWsUrl` (normalização de host, porta por omissão, token fora do
+URL), o `auth` como primeira e única mensagem antes do servidor confirmar, o
+cliente a ignorar comandos premature, o token recusado, lixo JSON, e a distinção
+entre «o PC não está alcançável» e «a ligação caiu». O preset é o `jest-expo` do
+Expo SDK 57, com `@react-native/jest-preset` à parte desde o RN 0.86.
+
+## Controlo remoto do PC
+
+O telemóvel pode substituir o rato e o teclado do PC. Ligar-se pelo IP mostrado
+nas definições do PC, com o token que o PC apresenta.
+
+- **Transporte** — WebSocket em texto claro (`ws://`). O PC arranca o servidor
+  sem TLS (`core/remote.py`, `websockets.serve(...)` sem `ssl=`), por isso só
+  existe `ws://`. Ver a nota de limitação no teste `buildWsUrl`.
+- **Autenticação** — a primeira mensagem é sempre `{"cmd":"auth","token":"…"}`.
+  Token errado → `{"cmd":"auth","ok":false,"error":"auth_required"}` e a ligação
+  é fechada. Nenhum comando é aceite antes do servidor confirmar.
+- **O token não viaja no URL**, só no corpo da primeira mensagem.
+
+> O `ws://` em claro significa que o token e os comandos são legíveis por
+> qualquer pessoa na mesma rede. É aceitável em LAN doméstica e é a razão pela
+> qual o token é guardado no dispositivo e não interpolado no endereço.
 
 ## Próximos Passos
 
-1. Integrar MediaPipe Hand Landmarker
-2. Criar módulos nativos (Android/iOS)
-3. Implementar ações de sistema
+1. TLS no servidor remoto (e então `wss://` no `buildWsUrl`)
+2. Testes de componentes com `@testing-library/react-native`
+3. Testar o serviço de acessibilidade em telemóveis reais
 4. Adicionar controlo de voz
 5. Calibração automática
 
