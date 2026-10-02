@@ -27,8 +27,32 @@
 >   bug real de lock
 >   da licença no Windows (`core/license_store_lock.py` lia o byte do lock antes
 >   de o trancar; o segundo processo rebentava com `PermissionError`, deixando
->   o anti-replay por proteger). ⚠️ **Ainda não foi dado push**: o `origin/main`
->   remoto continua em `e4da026`.
+>   o anti-replay por proteger). Publicado no branch e no `origin/main` no dia
+>   seguinte.
+> - **02/out** — 🟢 os dois achados 🔴/🟠 que o `docs/RECONHECIMENTO_REMOTE.md`
+>   dava por abertos no remoto foram **corrigidos e publicados**
+>   (`origin/main` em `514335e`). O **achado #2 (multi-monitor sem origem)**: o
+>   clamp do rato e o `move_to` do servidor assumiam que o desktop virtual
+>   começava em 0, mas o Windows põe a origem negativa quando há um ecrã à
+>   esquerda ou acima do principal — metade do desktop ficava fora do clamp e o
+>   cursor saltava para o monitor principal (`69b15fe`, 17 testes, 8 deles falham
+>   sem a correcção). O **achado #10 (`press`/`release` sem estado de arrasto)**:
+>   o `press` não guardava estado e o `left_down` punha `_drag` a `True` sem nada
+>   a limpar, pelo que perder a rede a meio de um arrasto deixava o botão
+>   premido no PC — o `_combo` já fazia esta limpeza para as teclas
+>   (`10b3b5c`, 14 testes, 6 falham sem a correcção). Ficou também
+>   hermético o `_ctl()` de `tests/test_move_gesture.py`, que passou a herdar a
+>   origem do ecrã real de quem corresse a suite (`51f7012`).
+> - **02/out** — 🟡 `npm audit fix` no mobile: saiu o único aviso **alto** com
+>   correcção limpa (`brace-expansion`, `1f7553c`). O que resta é dívida
+>   upstream sem versão corrigida — a advisory do `node-forge` afecta **todas** as
+>   versões, e a "solução" que o npm propõe é um downgrade a `expo@44.0.6`, três
+>   majors atrás. Está escrito no `mobile/maouse-mobile/README.md` para ninguém
+>   correr `--force` e partir o Expo (`b7efe06`).
+> - **Bloqueios que continuam abertos:** os achados #3 (sem TLS), #4 (sem rate
+>   limit), #5 (bypass do gate Pro) e #8 (bypass do toggle de pausa) do mesmo
+>   documento. TLS e o URL real do license-server dependem de certificado e de
+>   decisão do dono; o gate Pro é política de produto.
 > - **Bloqueio actual da Onda 1:** a §1.5 (ligar o `HandLock`) e a calibração do
 >   `min_class_conf` esperam as **mãos reais** (Onda 3 §3.1). Não é um problema
 >   de código.
