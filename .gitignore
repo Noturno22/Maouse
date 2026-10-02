@@ -41,6 +41,10 @@ logs/
 license-server/*.pem
 license-server/private.pem
 license-server/private_key.pem
+# A publica NAO e segredo: e o que o PC embute para validar as leases.
+# Versiona-la para o CI poder detectar uma rotacao feita so de um lado
+# (foi assim que o desktop passou a rejeitar todas as leases do servidor).
+!license-server/public.pem
 license-server/*.db
 license_server.db
 !license-server/keys.py
