@@ -80,6 +80,14 @@
 >   com default `device`, por isso o fluxo de gestos não mudou. Guarda de `loading`
 >   evita um frame do ecrã errado. Sem teste de componente — exigiria
 >   `@testing-library/react-native`, que o repositório não tem; verificado por `tsc`.
+> - **02/out** — 🔴 **os testes jest do mobile nunca correram na CI** (`2ef9045`): o job
+>   `mobile` fazia `typecheck` e `expo config`, e nada mais. O script `test` passava
+>   21/21 localmente mas nenhum workflow o invocava — nem `ci.yml` nem
+>   `build-android.yml`, sem husky. Era pior do que a limitação do `SendInput` que o
+>   doc registava: não era o runner não exercitar um caminho, era o próprio guard não
+>   correr. O `pro_required` não tinha garantia automática nenhuma, e o paywall do
+>   `RemoteScreen` continua sem teste de componente, logo estes 21 testes eram o único
+>   guard automático do caminho de monetização. Corrigido com um passo `Test (mobile)`.
 > - **Bloqueios que continuam abertos:** os achados #3 (sem TLS), #4 (sem rate
 >   limit) e #8 (bypass do toggle de pausa) do mesmo documento. TLS e o URL real do
 >   license-server dependem de certificado e de decisão do dono.

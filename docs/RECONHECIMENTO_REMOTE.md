@@ -571,6 +571,20 @@ despachado, não que o evento chega ao Windows.
 `QT_QPA_PLATFORM=offscreen xvfb-run -a pytest tests -q` em Linux. Como
 `sendinput_available()` devolve `False` em Linux (`core/mouse_ctl.py:69-75`), **todo
 o fast path `SendInput` do Windows nunca corre na CI** — só o fallback do pynput.
+Isto continua aberto e é uma limitação de plataforma do runner, não um bug.
+
+~~🔴 **Os testes do mobile não corriam na CI.**~~ **Corrigido a 2026-10-02**
+(`2ef9045`): o job `mobile` fazia `typecheck` e `expo config`, e nada mais. O script
+`test` existia no `package.json` e passava 21/21 localmente, mas **nenhum workflow o
+invocava** — nem a `ci.yml` nem a `build-android.yml`, e não há husky. Isto tornava
+enganosa a linha do achado #12 ("18 testes Jest"): os testes existiam e protegiam o
+contrato de `auth`, mas nada os corria no GitHub, e portanto o `pro_required` não
+tinha garantia automática nenhuma. Passou a haver um passo `Test (mobile)` com
+`npm test -- --ci`.
+
+Isto é distinto da limitação acima e mais grave: aqui não é o runner não exercitar um
+caminho, era o próprio guard não correr. Corrigido sem depender de hardware — os testes
+são unitários e só importam `remoteClient`.
 
 ## 1.11 Limitações conhecidas
 
