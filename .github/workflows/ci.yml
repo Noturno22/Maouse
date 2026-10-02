@@ -84,6 +84,18 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      # `npm test` (jest) NAO corria na CI. O job mobile so fazia typecheck e
+      # `expo config`, portanto a suite do protocolo remoto nunca foi executada
+      # em runner nenhum - os 21 testes passavam localmente e nada os corria no
+      # GitHub. E o mais grave: o contrato de `auth` que exige a lease Pro
+      # (`pro_required`) so e' garantido por estes testes, e foi escrito
+      # exactamente para travar uma regressao silenciosa. Um typecheck verde
+      # nao prova que o cliente ainda recusa um Free.
+      # Os testes sao unitarios (importam so `remoteClient`), sem hardware nem
+      # rede, por isso correm em qualquer runner.
+      - name: Test (mobile)
+        run: npm test -- --ci
+
       # `tsc` so olha para o TypeScript. O `app.json` e o config plugin local
       # sao lidos pelo Expo, nao pelo compilador: se o directorio do plugin for
       # movido e o `plugins` do app.json nao for, o typecheck continua verde e
