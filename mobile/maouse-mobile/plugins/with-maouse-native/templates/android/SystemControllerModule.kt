@@ -4,6 +4,7 @@ import android.accessibilityservice.AccessibilityService
 import android.content.Context
 import android.content.Intent
 import android.media.AudioManager
+import android.os.Build
 import android.provider.Settings
 import android.view.WindowManager
 import com.facebook.react.bridge.Arguments
@@ -60,8 +61,13 @@ class SystemControllerModule(reactContext: ReactApplicationContext) :
         )
     }
 
+    // `GLOBAL_ACTION_TAKE_SCREENSHOT` e API 28 (Android 9). `performGlobalAction`
+    // devolve `false` em vez de rebentar, mas o `lintVitalRelease` bloqueia o
+    // `assembleRelease` com NewApi quando o `minSdk` e 24. Abaixo do API 28
+    // nao ha captura de ecrã por acessibilidade: o toque e descartado.
     @ReactMethod
     fun takeScreenshot() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return
         service?.performGlobalActionCompat(
             AccessibilityService.GLOBAL_ACTION_TAKE_SCREENSHOT
         )

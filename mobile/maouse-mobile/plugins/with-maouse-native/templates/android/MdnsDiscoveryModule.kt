@@ -88,10 +88,16 @@ class MdnsDiscoveryModule(reactContext: ReactApplicationContext) :
                 // não inclui o endereço. Pedi-lo aqui daria `null`; é preciso
                 // `resolveService`, e o resultado volta em
                 // `onServiceResolved`.
-                if (mgr.resolveService(info, resolveListener(mgr))) {
-                    // pedido de resolução aceite; o resultado vem no callback
-                } else {
-                    emit("error", null, "Nao foi possivel resolver ${info.serviceName}")
+                //
+                // `resolveService` devolve `void` (nao `boolean`): o Android
+                // so recusa lancando `IllegalArgumentException` - a falha de
+                // rede chega em `onResolveFailed`. O `if (mgr.resolveService
+                // (...))` que aqui estava nao compilava, e para alem disso
+                // tratava `Unit` como se fosse a confirmacao do pedido.
+                try {
+                    mgr.resolveService(info, resolveListener(mgr))
+                } catch (e: IllegalArgumentException) {
+                    emit("error", null, "Nao foi possivel resolver ${info.serviceName}", null)
                 }
             }
 
@@ -112,18 +118,23 @@ class MdnsDiscoveryModule(reactContext: ReactApplicationContext) :
                 // `FAILURE_ALREADY_ACTIVE` (3) é o `stop` anterior a ainda não
                 // ter terminado. Não é um erro: o `stop` novo vai resolver.
                 if (errorCode != 3) {
-                    emit("error", null, "Descoberta nao arrancou (codigo $errorCode)")
+                    emit("error", null, "Descoberta nao arrancou (codigo $errorCode)", null)
                 }
             }
 
             override fun onStopDiscoveryFailed(serviceType: String?, errorCode: Int) {
-                emit("error", null, "Descoberta nao parou (codigo $errorCode)")
+                emit("error", null, "Descoberta nao parou (codigo $errorCode)", null)
             }
         }
         listener = l
-        if (mgr.discoverServices(SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, l)) {
+        // `discoverServices` tambem devolve `void`: nao ha boolean de
+        // "aceite". O `promise.resolve(true)` aqui significa so "o pedido foi
+        // entregue"; se o Android recusar vem `onStartDiscoveryFailed`, e se
+        // ele outright lanca `IllegalArgumentException` apanha-se a seguir.
+        try {
+            mgr.discoverServices(SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, l)
             promise.resolve(true)
-        } else {
+        } catch (e: IllegalArgumentException) {
             active.set(false)
             listener = null
             promise.reject("NO_START", "O Android recusou comecar a descoberta")
@@ -133,7 +144,7 @@ class MdnsDiscoveryModule(reactContext: ReactApplicationContext) :
     private fun resolveListener(mgr: NsdManager): NsdManager.ResolveListener {
         return object : NsdManager.ResolveListener {
             override fun onResolveFailed(info: NsdServiceInfo?, errorCode: Int) {
-                emit("error", null, "Resolucao falhou (codigo $errorCode)")
+                emit("error", null, "Resolucao falhou (codigo $errorCode)", null)
             }
 
             override fun onServiceResolved(info: NsdServiceInfo?) {
@@ -208,12 +219,16 @@ class MdnsDiscoveryModule(reactContext: ReactApplicationContext) :
         }
     }
 
-    override fun addListener(eventName: String) {
-        // Requerido pelo RN. Sem este override, o `NativeEventEmitter` nunca
-        // regista o módulo e os eventos não chegam — sem erro nenhum.
+    // NAO sao `override`: em RN 0.86 `BaseJavaModule`/`NativeModule` nao
+    // declaram `addListener`/`removeListeners`. Sao exportados por
+    // `@ReactMethod`; sem eles o `NativeEventEmitter` do JS nao regista o
+    // modulo e os eventos nao chegam - sem erro nenhum.
+    @ReactMethod
+    fun addListener(eventName: String) {
     }
 
-    override fun removeListeners(count: Int) {
+    @ReactMethod
+    fun removeListeners(count: Int) {
     }
 
     private fun emit(event: String, payload: Any?, error: String?, state: String?) {

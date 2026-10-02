@@ -9,6 +9,8 @@ import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
+import android.bluetooth.BluetoothStatusCodes
+import android.bluetooth.le.BluetoothLeScanner
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanFilter
 import android.bluetooth.le.ScanResult
@@ -420,7 +422,11 @@ class BleRemoteModule(reactContext: ReactApplicationContext) :
         type: Int
     ): Boolean =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            g.writeCharacteristic(ch, data, type)
+            // A sobrecarga de API 33 devolve um `int` de estado, nao um
+            // `boolean` como a antiga. Sem esta comparacao os dois ramos do
+            // `if` tinham tipos diferentes e o `if/else` inteiro nao
+            // inferia `Boolean` - o compilador Kotlin chumbava a funcao.
+            g.writeCharacteristic(ch, data, type) == BluetoothStatusCodes.SUCCESS
         } else {
             @Suppress("DEPRECATION")
             run {
@@ -677,14 +683,20 @@ class BleRemoteModule(reactContext: ReactApplicationContext) :
 
     // ── Sobrevivência a eventos ───────────────────────────────────────
 
-    override fun addListener(eventName: String) {
-        // Os eventos sao enviados por `emit`; este metodo existe porque o RN o
-        // exige. Sem o override, o `DeviceEventManagerModule` nunca recebe o
-        // `addListener` e o JS nem se queixa — a falha aparece como "os
-        // eventos nunca chegam".
+    // NAO sao `override`: em RN 0.86 `BaseJavaModule`/`NativeModule` nao
+    // declaram `addListener`/`removeListeners` (o `NativeEventEmitter` do JS
+    // limita-se a chamar `this._nativeModule?.addListener(...)` por nome). Sao
+    // exportados por `@ReactMethod` como os restantes. Com `override` o
+    // compilador Kotlin chumbava com "'addListener' overrides nothing".
+    @ReactMethod
+    fun addListener(eventName: String) {
+        // Os eventos sao enviados por `emit`; este metodo existe porque o
+        // `NativeEventEmitter` do JS o exige. Sem ele o JS nao se queixa - a
+        // falha aparece como "os eventos nunca chegam".
     }
 
-    override fun removeListeners(count: Int) {
+    @ReactMethod
+    fun removeListeners(count: Int) {
     }
 
     private fun emit(event: String, payload: Any?, error: String?) {
