@@ -180,6 +180,11 @@ class TestMouseCtlMoveBy:
         ctl.mouse = _FakeMouse()  # injeta rato determinístico
         ctl.mouse.position = (100, 100)
         ctl.screen_w, ctl.screen_h = 2000, 1200
+        # A origem tem de ser fixada à mão: `MouseCtl()` lê a origem real do
+        # desktop virtual da máquina, e num ecrã à esquerda do principal ela é
+        # negativa. Sem isto, estes limites dependeriam da máquina de quem corre
+        # a suite — que é o bug que `test_multi_monitor_origin.py` cobre.
+        ctl.screen_x, ctl.screen_y = 0, 0
         ctl._frac_x = 0.0
         ctl._frac_y = 0.0
         return ctl
