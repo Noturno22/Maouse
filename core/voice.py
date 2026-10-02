@@ -167,6 +167,24 @@ class VoiceEngine:
         except ImportError as exc:
             print(f"Aviso: voz desativada ({exc}). Instala com: pip install vosk sounddevice")
             return False
+        except OSError as exc:
+            # `sounddevice` levanta `OSError`, e nao `ImportError`, quando o
+            # pacote esta instalado mas a biblioteca de PortAudio nao — que e o
+            # caso de uma maquina Linux com o `pip install` feito e o
+            # `portaudio19-dev` (ou `libportaudio2`) nao.apanhado pelo
+            # `ImportError` de cima, isto subia a`OSError` para quem chamou
+            # `start()` e a voz rebentava a aplicacao em vez de se desactivar.
+            # Os outros tres sitios que importam `sounddevice` ja apanham
+            # largo; este era o unico que nao.
+            print(
+                f"Aviso: voz desativada ({exc}). "
+                "O PortAudio falta: instala a biblioteca do sistema "
+                "(Debian/Ubuntu: sudo apt install portaudio19-dev; "
+                "Fedora: sudo dnf install portaudio-devel)."
+            )
+            self.status = "error"
+            self.mic_error = str(exc)
+            return False
 
         try:
             from core.audio_devices import select_device
