@@ -1,6 +1,6 @@
 """Testes da descoberta mDNS do PC (core.discovery).
 
-O teste que realmente importa aqui e `test_token_nunca_vai_nos_txt`: os TXT de
+O teste que realmente importa aqui e `test_codigo_nunca_vai_nos_txt`: os TXT de
 mDNS sao lidos em claro por tudo o que esteja na rede, sem autenticacao nem
 permissao. Se o token acabar la, qualquer vizinho do WiFi entra no PC. Os
 restes existem porque a alternativa a mDNS funcionar e a Maouse nao arrancar, e
@@ -21,7 +21,7 @@ from core.discovery import (
     device_id,
 )
 
-TOKEN = "e7f3a9c1b2d40856"
+TOKEN = "428193"
 ENDERECO = "192.168.0.10"
 
 
@@ -59,7 +59,7 @@ class ZCQueFalhaNoRegister(FakeZC):
 def _cfg(**kw):
     cfg = Config()
     cfg.remote_port = 8765
-    cfg.remote_token = TOKEN
+    cfg.remote_code = TOKEN
     for k, v in kw.items():
         setattr(cfg, k, v)
     return cfg
@@ -310,12 +310,12 @@ class TestAnuncioSegueOPortao:
 
 # ── O teste que segura a porta ─────────────────────────────────────────────
 
-def test_token_nunca_vai_nos_txt():
+def test_codigo_nunca_vai_nos_txt():
     # mDNS nao tem autenticacao: os TXT sao lidos em claro por qualquer
-    # coisa na rede, sempre que quiser. Um token aqui e o mesmo que pregar a
+    # coisa na rede, sempre que quiser. O codigo aqui e o mesmo que pregar a
     # senha a porta da rua. Se este teste falhar, alguem met um campo novo no
     # `_txt_properties` e nao pensou nisto.
-    adv = _adv(cfg=_cfg(remote_token=TOKEN))
+    adv = _adv(cfg=_cfg(remote_code=TOKEN))
     info = adv.build_info()
     assert TOKEN.encode() not in info.text
     assert TOKEN not in info.name

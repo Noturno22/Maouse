@@ -16,6 +16,7 @@ import {
   remote,
   scanForPeers,
 } from '../services/remoteTransport';
+import { CODE_LEN, codeCompleto, normalizeCode } from '../services/pairingCode';
 
 // O `remote` que o resto da app usa é a **fachada** de
 // `remoteTransport`, não o `RemoteClient` do WebSocket: são os dois que
@@ -28,11 +29,51 @@ export type { DiscoveredPeer } from '../services/mdnsDiscovery';
 
 const STORAGE_KEY = '@maouse/remote';
 
+// O auto-connect por descoberta não pode disparar a cada re-anúncio do mDNS
+// (o PC re-anuncia de 30 em 30 s) nem a cada anúncio BLE repetido. Um único
+// temporizador, reiniciado a cada evento correspondente, decide quando a lista
+// sossegou e vale a pena ligar — e é a única coisa que impede uma tempestade
+// de `connect` quando há dois alvos na mesma rede.
+let autoConnectTimer: ReturnType<typeof setTimeout> | null = null;
+
+// Reconexão: quando a ligação cai a meio do uso (não quando o utilizador
+// carrega em "desligar"), tenta-se voltar ao último alvo com um atraso que
+// cresce. Sem isto, uma oscilação de WiFi deixava o telemóvel parado num ecrã
+// de erro e o utilizador tinha de voltar a escolher o PC à mão.
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let reconnectAttempts = 0;
+const RECONNECT_BASE_MS = 1000;
+const RECONNECT_MAX_MS = 30000;
+const RECONNECT_MAX_ATTEMPTS = 10;
+
+function clearAutoConnectTimer() {
+  if (autoConnectTimer) {
+    clearTimeout(autoConnectTimer);
+    autoConnectTimer = null;
+  }
+}
+
 interface RemoteConfig {
   host: string;
   port: string;
-  token: string;
+  /**
+   * O código de 6 dígitos do PC. Antes era `token` (16 caracteres hex) e a
+   * leitura do `@maouse/remote` é feita por baixo: um valor guardado que não
+   * tenha 6 dígitos é deitado fora, para o campo começar vazio em vez de
+   * mostrar meio token antigo que nunca seria aceite.
+   */
+  code: string;
   forwardGestures: boolean;
+  /** Último transporte utilizado */
+  lastTransport?: 'wifi' | 'ble';
+  /** Último peer WiFi */
+  lastPeerHost?: string;
+  lastPeerPort?: string;
+  /** Último peer BLE */
+  lastBleAddress?: string;
+  lastBleName?: string;
+  /** Tentar ligar automaticamente ao último alvo */
+  autoConnect?: boolean;
 }
 
 /** Um PC encontrado por BLE, à espera de o utilizador escolher. */
@@ -55,6 +96,7 @@ interface RemoteState extends RemoteConfig {
   discovering: boolean;
   /** A procura mDNS está a correr? Distingue "nunca foi pedida" de "activa". */
   mdnsRunning: boolean;
+  autoConnecting: boolean;
   hydrate: () => Promise<void>;
   saveConfig: (cfg: Partial<RemoteConfig>) => Promise<void>;
   setForwardGestures: (value: boolean) => Promise<void>;
@@ -66,15 +108,66 @@ interface RemoteState extends RemoteConfig {
   /** Procura PCs por BLE e preenche `blePeers`. */
   scanBle: (seconds?: number) => Promise<void>;
   /** Liga por BLE a um dos endereços de `blePeers`. */
-  connectBle: (address: string) => Promise<void>;
+  connectBle: (address: string, name?: string) => Promise<void>;
   /** Liga ao PC escolhido na lista de mDNS. */
   connectPeer: (peer: DiscoveredPeer) => void;
 }
 
-export const useRemoteStore = create<RemoteState>((set, get) => ({
+export const useRemoteStore = create<RemoteState>((set, get) => {
+  /**
+   * Tenta voltar ao último alvo conhecido, com atraso crescente.
+   *
+   * Só é chamada quando a ligação caiu **estando estabelecida**: uma falha de
+   * autenticação ou um endereço errado não se resolvem sozinhos, e insistir
+   * neles seria uma tempestade de ligações a um código que o PC recusa.
+   */
+  const scheduleReconnect = () => {
+    if (reconnectTimer) return;
+    if (reconnectAttempts >= RECONNECT_MAX_ATTEMPTS) return;
+    const delay = Math.min(
+      RECONNECT_BASE_MS * 2 ** reconnectAttempts,
+      RECONNECT_MAX_MS
+    );
+    reconnectAttempts += 1;
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null;
+      const st = get();
+      if (st.status === 'connected' || st.status === 'connecting') return;
+      if (st.autoConnect === false) return;
+      if (!codeCompleto(st.code)) return;
+      if (st.lastTransport === 'ble' && st.lastBleAddress) {
+        set({ autoConnecting: true });
+        st.connectBle(st.lastBleAddress, st.lastBleName).catch(() => {});
+        return;
+      }
+      if (st.lastPeerHost && st.lastPeerPort) {
+        set({ autoConnecting: true });
+        st.connectPeer({
+          name: '',
+          host: st.lastPeerHost,
+          port: Number(st.lastPeerPort),
+        } as any);
+        return;
+      }
+      if (st.host && st.port) {
+        set({ autoConnecting: true });
+        st.connect();
+      }
+    }, delay);
+  };
+
+  const resetReconnect = () => {
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
+    reconnectAttempts = 0;
+  };
+
+  return {
   host: '',
   port: '8765',
-  token: '',
+  code: '',
   forwardGestures: false,
   status: 'disconnected',
   screen: null,
@@ -84,18 +177,79 @@ export const useRemoteStore = create<RemoteState>((set, get) => ({
   peers: [],
   discovering: false,
   mdnsRunning: false,
+  autoConnecting: false,
 
   hydrate: async () => {
+    resetReconnect();
     try {
       const raw = await AsyncStorage.getItem(STORAGE_KEY);
       if (!raw) return;
       const cfg = JSON.parse(raw);
+      // `code` é o nome actual; `token` é o de antes dos 6 dígitos. Um valor
+      // guardado que não seja um código de 6 dígitos é deitado fora: mostrá-lo
+      // num campo de 6 dígitos dava um código truncado, e o utilizador via
+      // "código inválido" num código que ele tinha copiado e colado bem.
+      const guardado = normalizeCode(cfg.code ?? cfg.token);
       set({
         host: typeof cfg.host === 'string' ? cfg.host : '',
         port: typeof cfg.port === 'string' ? cfg.port : '8765',
-        token: typeof cfg.token === 'string' ? cfg.token : '',
+        code: codeCompleto(guardado) ? guardado : '',
         forwardGestures: cfg.forwardGestures === true,
+        lastTransport:
+          cfg.lastTransport === 'wifi' || cfg.lastTransport === 'ble'
+            ? cfg.lastTransport
+            : undefined,
+        lastPeerHost:
+          typeof cfg.lastPeerHost === 'string' ? cfg.lastPeerHost : undefined,
+        lastPeerPort:
+          typeof cfg.lastPeerPort === 'string' ? cfg.lastPeerPort : undefined,
+        lastBleAddress:
+          typeof cfg.lastBleAddress === 'string' ? cfg.lastBleAddress : undefined,
+        lastBleName:
+          typeof cfg.lastBleName === 'string' ? cfg.lastBleName : undefined,
+        autoConnect: cfg.autoConnect !== false,
       });
+
+      // Tenta ligação automática após hidratar a configuração
+      setTimeout(async () => {
+        const st = get();
+        if (st.status !== 'disconnected' || st.autoConnecting) return;
+        if (st.autoConnect === false) return;
+        if (!codeCompleto(st.code)) return;
+
+        // Tentar por último transporte, com fallback
+        if (st.lastTransport === 'ble' && st.lastBleAddress) {
+          set({ autoConnecting: true });
+          ble.requestPermissions().catch(() => {});
+          await st.connectBle(st.lastBleAddress, st.lastBleName).catch(() => {});
+          return;
+        }
+        if (st.lastTransport === 'wifi' && st.lastPeerHost && st.lastPeerPort) {
+          set({ autoConnecting: true });
+          st.connectPeer({
+            name: '',
+            host: st.lastPeerHost,
+            port: Number(st.lastPeerPort),
+          } as any);
+          return;
+        }
+        if (st.lastTransport === 'wifi' && st.host && st.port) {
+          set({ autoConnecting: true });
+          st.connect();
+          return;
+        }
+        if (st.lastBleAddress) {
+          set({ autoConnecting: true });
+          ble.requestPermissions().catch(() => {});
+          await st.connectBle(st.lastBleAddress, st.lastBleName).catch(() => {});
+          return;
+        }
+        if (st.host && st.port) {
+          set({ autoConnecting: true });
+          st.connect();
+          return;
+        }
+      }, 300);
     } catch {
       // config não persistida — seguimos com os valores atuais
     }
@@ -122,31 +276,52 @@ export const useRemoteStore = create<RemoteState>((set, get) => ({
   },
 
   connect: () => {
-    const { host, port, token } = get();
+    const { host, port, code } = get();
     const h = String(host || '').trim();
     if (!h) {
       set({
-        status: 'error',
-        error: 'Introduz o IP do PC (mostrado nas definições no PC).',
+        status: 'disconnected',
+        error: 'Introduz o IP do PC.',
+        autoConnecting: false,
+      });
+      return;
+    }
+    if (!codeCompleto(code)) {
+      set({
+        status: 'disconnected',
+        error: `O código são ${CODE_LEN} dígitos.`,
+        autoConnecting: false,
       });
       return;
     }
     const url = buildWsUrl(h, port);
-    set({ status: 'connecting', error: '', screen: null });
-    remote.connect(url, token, {
-      onOpen: (screen) => set({ status: 'connected', screen, error: '' }),
-      onClose: (message) =>
-        set((s) => ({
-          status: message ? 'disconnected' : s.status,
-          error: message || s.error,
-        })),
-      onError: (message) => set({ status: 'error', error: message }),
+    set({ status: 'connecting', error: '', autoConnecting: false });
+    remote.connect(url, code, {
+      onOpen: (screen) => {
+        resetReconnect();
+        set({ status: 'connected', screen, error: '', autoConnecting: false });
+        const st = get();
+        get().saveConfig({
+          lastTransport: 'wifi',
+          lastPeerHost: st.host,
+          lastPeerPort: st.port,
+        });
+      },
+      onError: (msg) => set({ status: 'disconnected', error: msg, autoConnecting: false }),
+      onClose: (msg) => {
+        const wasConnected = get().status === 'connected';
+        if (msg) set({ status: 'disconnected', error: msg, autoConnecting: false });
+        else set({ status: 'disconnected', error: '', autoConnecting: false });
+        if (msg && wasConnected) scheduleReconnect();
+      },
     });
   },
 
   disconnect: () => {
     remote.close();
-    set({ status: 'disconnected', screen: null, error: '' });
+    clearAutoConnectTimer();
+    resetReconnect();
+    set({ status: 'disconnected', screen: null, error: '', autoConnecting: false });
   },
 
   discover: async () => {
@@ -156,7 +331,7 @@ export const useRemoteStore = create<RemoteState>((set, get) => ({
     }
     set({ discovering: true, peers: [], error: '' });
     await mdns.start({
-      onFound: (peer) =>
+      onFound: (peer) => {
         set((s) => {
           // O mDNS re-anuncia o mesmo PC de 30 em 30 segundos. Sem esta
           // deduplicação, a lista cresce com cópias do mesmo endereço e o
@@ -165,7 +340,35 @@ export const useRemoteStore = create<RemoteState>((set, get) => ({
             (p) => !(p.host === peer.host && p.port === peer.port)
           );
           return { peers: [...others, peer] };
-        }),
+        });
+
+        const stNow = get();
+        if (
+          stNow.status === 'disconnected' &&
+          !stNow.autoConnecting &&
+          stNow.autoConnect !== false &&
+          codeCompleto(stNow.code) &&
+          stNow.lastPeerHost &&
+          stNow.lastPeerPort &&
+          peer.host === stNow.lastPeerHost &&
+          peer.port === Number(stNow.lastPeerPort)
+        ) {
+          clearAutoConnectTimer();
+          autoConnectTimer = setTimeout(() => {
+            autoConnectTimer = null;
+            const st = get();
+            if (
+              st.status === 'disconnected' &&
+              !st.autoConnecting &&
+              st.autoConnect !== false &&
+              codeCompleto(st.code)
+            ) {
+              set({ autoConnecting: true });
+              st.connectPeer(peer);
+            }
+          }, 700);
+        }
+      },
       onLost: (name) =>
         set((s) => ({ peers: s.peers.filter((p) => p.name !== name) })),
       onError: (message) => set({ error: message }),
@@ -198,6 +401,31 @@ export const useRemoteStore = create<RemoteState>((set, get) => ({
         if (seen.some((p) => p.address === address)) return;
         seen.push({ address, name });
         set({ blePeers: [...seen] });
+
+        const stNow = get();
+        if (
+          stNow.status === 'disconnected' &&
+          !stNow.autoConnecting &&
+          stNow.autoConnect !== false &&
+          codeCompleto(stNow.code) &&
+          stNow.lastTransport === 'ble' &&
+          stNow.lastBleAddress === address
+        ) {
+          clearAutoConnectTimer();
+          autoConnectTimer = setTimeout(() => {
+            autoConnectTimer = null;
+            const st = get();
+            if (
+              st.status === 'disconnected' &&
+              !st.autoConnecting &&
+              st.autoConnect !== false &&
+              codeCompleto(st.code)
+            ) {
+              set({ autoConnecting: true });
+              st.connectBle(address, name);
+            }
+          }, 700);
+        }
       });
     } catch (e: any) {
       set({ error: e?.message || 'A procura por Bluetooth falhou.' });
@@ -206,16 +434,16 @@ export const useRemoteStore = create<RemoteState>((set, get) => ({
     }
   },
 
-  connectBle: async (address) => {
-    const { token } = get();
-    if (!token) {
+  connectBle: async (address, name) => {
+    const { code } = get();
+    if (!codeCompleto(code)) {
       set({
         status: 'error',
-        error: 'Falta o token — vê-lo em Definições no PC.',
+        error: 'O código são 6 dígitos — escreve-os antes de ligar.',
       });
       return;
     }
-    set({ status: 'connecting', error: '', screen: null });
+    set({ status: 'connecting', error: '', screen: null, autoConnecting: false });
     // A permissão de Bluetooth é de runtime do Android 12 em diante, e o
     // pedido tem de acontecer **antes** do `connectBle`: o `connect` nativo
     // não pode abrir um diálogo a meio de uma ligação, e sem isto o que se
@@ -227,17 +455,29 @@ export const useRemoteStore = create<RemoteState>((set, get) => ({
         );
       }
     } catch (e: any) {
-      set({ status: 'error', error: e?.message || 'Falta a permissão de Bluetooth.' });
+      set({ status: 'error', error: e?.message || 'Falta a permissão de Bluetooth.', autoConnecting: false });
       return;
     }
-    remote.connectBle(address, token, {
-      onOpen: (screen) => set({ status: 'connected', screen, error: '' }),
-      onClose: (message) =>
+    remote.connectBle(address, code, {
+      onOpen: (screen) => {
+        resetReconnect();
+        set({ status: 'connected', screen, error: '', autoConnecting: false });
+        get().saveConfig({
+          lastTransport: 'ble',
+          lastBleAddress: address,
+          lastBleName: name,
+        });
+      },
+      onClose: (message) => {
+        const wasConnected = get().status === 'connected';
         set((s) => ({
           status: message ? 'disconnected' : s.status,
           error: message || s.error,
-        })),
-      onError: (message) => set({ status: 'error', error: message }),
+          autoConnecting: false,
+        }));
+        if (message && wasConnected) scheduleReconnect();
+      },
+      onError: (message) => set({ status: 'error', error: message, autoConnecting: false }),
     });
   },
 
@@ -245,7 +485,38 @@ export const useRemoteStore = create<RemoteState>((set, get) => ({
     // Guardar o host e a porta é o que faz a ligação sobreviver a um restart
     // da app: da próxima vez, o botão "ligar" já sabe para onde ir, e o
     // utilizador não reescreve o IP.
+    const { code } = get();
+    if (!codeCompleto(code)) {
+      set({
+        status: 'error',
+        error: 'O código são 6 dígitos — escreve-os antes de ligar.',
+      });
+      return;
+    }
+    const url = buildWsUrl(peer.host, String(peer.port));
+    set({ status: 'connecting', error: '', autoConnecting: false });
     void get().saveConfig({ host: peer.host, port: String(peer.port) });
-    get().connect();
+    remote.connect(url, code, {
+      onOpen: (screen) => {
+        resetReconnect();
+        set({ status: 'connected', screen, error: '', autoConnecting: false });
+        get().saveConfig({
+          lastTransport: 'wifi',
+          lastPeerHost: peer.host,
+          lastPeerPort: String(peer.port),
+        });
+      },
+      onError: (msg) => set({ status: 'error', error: msg, autoConnecting: false }),
+      onClose: (msg) => {
+        const wasConnected = get().status === 'connected';
+        set((s) => ({
+          status: msg ? 'disconnected' : s.status,
+          error: msg || s.error,
+          autoConnecting: false,
+        }));
+        if (msg && wasConnected) scheduleReconnect();
+      },
+    });
   },
-}));
+  };
+});

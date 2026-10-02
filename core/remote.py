@@ -5,8 +5,10 @@ teclado do PC via WiFi (rede local) ou Internet (IP público + porta).
 
 Protocolo (JSON por mensagem):
 
-  -> {"cmd": "auth", "token": "..."}              # primeira mensagem obrigatória
+  -> {"cmd": "auth", "code": "123456"}            # primeira mensagem obrigatória
   <- {"cmd": "auth", "ok": true, "w": 1920, "h": 1080}
+  <- {"cmd": "auth", "ok": false, "error": "auth_required"}   # código errado
+  <- {"cmd": "auth", "ok": false, "error": "auth_locked"}     # muitas tentativas
   -> {"cmd": "ping"}
   <- {"ok": true, "pong": true}
   -> {"cmd": "move", "dx": 12, "dy": -4}          # relativo, com remote_move_gain
@@ -30,11 +32,25 @@ ganho, e qualquer erro ai aparece ao utilizador como "o clique salta".
 ``x``/``y`` num ``gesture`` são opcionais; sem eles o gesto clica onde o cursor
 está, que é o que os clientes que enviam só o evento preferem.
 
+A credencial é um **código de 6 dígitos** que o utilizador lê nas definições do
+PC e escreve no telemóvel, em vez dos 16 caracteres hexadecimais que eram
+copiados. Trocar 64 bits por 6 dígitos é trocar força por memória de escrever à
+mão, e traz três obrigações que o token longo não tinha — porque um segredo curto
+que se pode adivinhar é um segredo curto a adivinhar:
+
+* comparar em **tempo constante** (:func:`hmac.compare_digest`), não com ``==``;
+* **contar tentativas** por origem e bloquear quem insiste (:class:`AuthLimiter`),
+  porque 10^6 tentativas sem limite são um número, não uma barreira;
+* e **não escrever dígitos no log** — o arranque já registava os primeiros 4
+  caracteres do token, que num código de 6 são dois terços do segredo.
+
 Toda a execução corre numa thread própria com o seu event loop asyncio, de
 forma a funcionar com a janela PySide6 (modo GUI) e com o preview OpenCV.
 """
 import asyncio
+import hmac
 import json
+import re
 import secrets
 import socket
 import threading
@@ -53,10 +69,152 @@ log = get_logger("remote")
 
 MAX_MSG_BYTES = 2**20
 
+# O código de emparelhamento: 6 dígitos, sempre, com zeros à esquerda. São
+# 10^6 ≈ 19,9 bits — de propósito, porque é o que cabe em seis teclas e num
+# ecrã que o utilizador lê de relance. O que segura a troca está em
+# `AuthLimiter`, não na entropia.
+CODE_LEN = 6
+CODE_RE = re.compile(rf"\d{{{CODE_LEN}}}")
 
-def generate_token(nbytes=8):
-    """Token de autenticação aleatório (seguro)."""
-    return secrets.token_hex(nbytes)
+# Tentativas de `auth` erradas por origem, e o que acontece a quem passa
+# disto. A janela conta as tentativas que se acercam: um atacante que espaça
+# as tentativas não ganha nada, porque a janela é contígua.
+AUTH_MAX_FAILURES = 5
+AUTH_WINDOW_S = 60.0
+AUTH_LOCK_S = 300.0
+# Tecto de origens lembradas. Sem isto, um scanner a abrir ligações de
+# milhares de IPs deixava o dicionário crescer sem limite — e um dicionário
+# que cresce é uma porta aberta, não uma proteção.
+AUTH_MAX_SOURCES = 256
+
+
+def generate_code() -> str:
+    """Código de emparelhamento de 6 dígitos (aleatório e seguro)."""
+    return f"{secrets.randbelow(10 ** CODE_LEN):0{CODE_LEN}d}"
+
+
+def normalise_code(value) -> str:
+    """O código como o utilizador o escreve, já normalizado.
+
+    Tira espaços e traços, porque o código é lido de um ecrã e copiado com o
+    dedo para o teclado — e `"123 456"` tem de ser o mesmo código que
+    `"123456"`. Tudo o resto fica como está: um código com uma letra dentro é
+    inválido, e limpá-lo para o transformar em válido seria aceitar um valor
+    que o utilizador não introduziu.
+    """
+    text = str(value if value is not None else "").strip()
+    return "".join(ch for ch in text if ch not in " -")
+
+
+def valid_code(value) -> bool:
+    """True se ``value`` é um código de emparelhamento bem formado."""
+    return bool(CODE_RE.fullmatch(normalise_code(value)))
+
+
+def _source_of(connection) -> str:
+    """A chave de contagem de tentativas de uma ligação.
+
+    Só o **IP**, nunca o par ``(ip, porta)``: a porta de origem muda a cada
+    ligação, e um limitador com a porta na chave contaria cada tentativa como
+    se fosse a primeira — que é exactamente o que um script que abre uma
+    ligação por tentativa precisa.
+    """
+    addr = getattr(connection, "remote_address", None)
+    if isinstance(addr, (tuple, list)) and addr:
+        return str(addr[0])
+    return str(addr or "?")
+
+
+class AuthLimiter:
+    """Conta ``auth`` errados por origem e bloqueia quem insiste.
+
+    Sem isto, um código de 6 dígitos é um alvo de 10^6 tentativas e nada mais:
+    a barra não é o segredo, é o número de vezes que se pode chutar. O
+    bloqueio é por origem e temporário — o telemóvel do próprio utilizador que
+    wrote o código três vezes seguidas fica de fora cinco minutos, que é o
+    custo honesto de um limite que existe para ser sentido.
+
+    **Uma instância é partilhada pelos dois transportes.** O `RemoteServer`
+    é-o dono, e o BLE vai buscá-la: um atacante não ganha por trocar de
+    caminho, e um utilizador que se enganou três vezes no WiFi não fica de
+    repente com outra chance no Bluetooth. Isso obriga a um `Lock` — o
+    WebSocket vive no loop asyncio e o BLE no loop do BlueZ, que são duas
+    threads diferentes.
+
+    O tempo vem de ``now``, injetável, para os testes não terem de esperar
+    cinco minutos para provar que o bloqueio expira.
+    """
+
+    def __init__(
+        self,
+        max_failures: int = AUTH_MAX_FAILURES,
+        window_s: float = AUTH_WINDOW_S,
+        lock_s: float = AUTH_LOCK_S,
+        now=None,
+    ):
+        self._max = int(max_failures)
+        self._window = float(window_s)
+        self._lock_s = float(lock_s)
+        self._now = now or time.monotonic
+        self._fails: dict[str, list[float]] = {}
+        self._locked: dict[str, float] = {}
+        self._guard = threading.Lock()
+
+    def locked_for(self, source: str) -> float:
+        """Segundos que faltam para esta origem desbloquear (0 se não está)."""
+        with self._guard:
+            self._prune()
+            until = self._locked.get(source)
+            if until is None:
+                return 0.0
+            restante = until - self._now()
+            if restante <= 0:
+                self._locked.pop(source, None)
+                return 0.0
+            return restante
+
+    def allow(self, source: str) -> bool:
+        """Esta origem pode tentar agora?"""
+        return self.locked_for(source) <= 0.0
+
+    def fail(self, source: str) -> bool:
+        """Conta uma falha. Devolve True se foi esta que fechou a porta."""
+        with self._guard:
+            agora = self._now()
+            self._prune()
+            vezes = [t for t in self._fails.get(source, ()) if agora - t < self._window]
+            vezes.append(agora)
+            self._fails[source] = vezes
+            if len(vezes) >= self._max:
+                self._locked[source] = agora + self._lock_s
+                self._fails.pop(source, None)
+                return True
+            return False
+
+    def success(self, source: str) -> None:
+        """Autenticou: as falhas desta origem deixam de contar."""
+        with self._guard:
+            self._fails.pop(source, None)
+
+    def _prune(self) -> None:
+        """Deita fora o que já não pode bloquear ninguém."""
+        agora = self._now()
+        for origem in [k for k, v in self._locked.items() if v <= agora]:
+            self._locked.pop(origem, None)
+        for origem in list(self._fails):
+            if agora - self._fails[origem][-1] >= self._window:
+                self._fails.pop(origem, None)
+        # Tecto duro, para um scanner não transformar a proteção em dívida de
+        # memória. Limpar tudo é preferível a manter entradas inúteis: quem
+        # estava a tentar chutar recomeça a contar, que é o que a proteção já
+        # não conseguia travar.
+        if len(self._fails) + len(self._locked) > AUTH_MAX_SOURCES:
+            log.warning(
+                "Limite de tentativas: mais de %d origens em memória, "
+                "contadores esquecidos.", AUTH_MAX_SOURCES,
+            )
+            self._fails.clear()
+            self._locked.clear()
 
 
 def _usable_ip(ip):
@@ -243,6 +401,74 @@ class RemoteServer:
         # Resto fraccionário do movimento relativo (ver ``_move_rel``).
         self._mfx = 0.0
         self._mfy = 0.0
+        # O código de emparelhamento e o limitador de tentativas. O limitador é
+        # o mesmo objecto que o BLE vai usar (ver ``core/remote_ble.py``), e é
+        # por isso que existe um atributo com nome: trocar de transporte não
+        # pode dar ao utilizador mais tentativas do que as que já gastou.
+        self._code = ""
+        self._limiter = AuthLimiter()
+
+    @property
+    def code(self) -> str:
+        """O código de 6 dígitos activo (gerado no primeiro uso, se falta)."""
+        if not self._code:
+            self._ensure_code()
+        return self._code
+
+    @property
+    def limiter(self) -> AuthLimiter:
+        """O limitador de tentativas partilhado com o BLE."""
+        return self._limiter
+
+    def _ensure_code(self) -> str:
+        """Garante que há um código válido; cria um se não houver.
+
+        Um ``settings.json`` copiado de antes do código de 6 dígitos traz um
+        ``remote_token`` de 16 hex, que deixa de autenticar. Gerar um novo é a
+        única coisa honesta a fazer: aceitar o antigo seria manter duas
+        credenciais para o utilizador gerir, e recusar a ligação sem dizer
+        nada seria o pior dos dois.
+        """
+        actual = normalise_code(getattr(self._cfg, "remote_code", ""))
+        if valid_code(actual):
+            self._code = actual
+            return self._code
+        self._code = generate_code()
+        try:
+            self._cfg.remote_code = self._code
+        except Exception as e:
+            log.debug("Não foi possível guardar o código novo: %s", e)
+        log.info(
+            "Código de emparelhamento de %d dígitos pronto "
+            "(nas definições do PC, em «Controlo remoto»).",
+            CODE_LEN,
+        )
+        return self._code
+
+    def _code_ok(self, candidate) -> bool:
+        """Compara o código em tempo constante.
+
+        ``==`` devolve logo que os primeiros caracteres diferem, e o tempo que
+        demora a responder passa a dizer quanto do segredo já acertou. Com 6
+        dígitos isso é meio segredo por tentativa.
+        """
+        return hmac.compare_digest(normalise_code(candidate), self.code)
+
+    def _auth_state(self, candidate, source: str) -> str:
+        """``"ok"``, ``"locked"`` ou ``"bad"`` para uma tentativa de `auth`.
+
+        O limitador é consultado **antes** da comparação, e não depois: um
+        bloqueio tem de ser um bloqueio, mesmo que o código venha certo — e
+        verificar primeiro o limite é o que impede um atacante de gastar
+        tentativas durante os cinco minutos de bloqueio.
+        """
+        if not self._limiter.allow(source):
+            return "locked"
+        if self._code_ok(candidate):
+            self._limiter.success(source)
+            return "ok"
+        self._limiter.fail(source)
+        return "bad"
 
     def _note_activity(self):
         cb = self.on_activity
@@ -281,11 +507,7 @@ class RemoteServer:
         if self._thread and self._thread.is_alive():
             log.info("Servidor remoto já está a correr.")
             return False
-        token = (self._cfg.remote_token or "").strip()
-        if not token:
-            token = generate_token()
-            self._cfg.remote_token = token
-            log.info("Token de controlo remoto gerado (visível nas definições).")
+        self._ensure_code()
         self._thread = threading.Thread(
             target=self._thread_main, name="maouse-remote", daemon=True
         )
@@ -377,23 +599,36 @@ class RemoteServer:
             max_size=MAX_MSG_BYTES,
         )
         log.info(
-            "Controlo remoto ativo em %s:%d (IPs de rede: %s; token: %s)",
+            "Controlo remoto ativo em %s:%d (IPs de rede: %s; "
+            "emparelhamento por código de %d dígitos)",
             host,
             self.bound_port,
             ", ".join(lan_ips()) or "-",
-            self._cfg.remote_token[:4] + "…",
+            CODE_LEN,
         )
 
     # ── Ligação WebSocket ─────────────────────────────────────────────
     async def _on_connect(self, connection):
         authed = False
         self._clients.add(connection)
+        source = _source_of(connection)
         try:
-            log.info("Telemóvel a ligar... (%s)", connection.remote_address)
+            log.info("Telemóvel a ligar... (%s)", source)
             async for raw in connection:
                 if authed is False:
                     data = self._decode(raw)
-                    if data.get("cmd") == "auth" and data.get("token") == self._cfg.remote_token:
+                    # `code` é o nome actual; `token` é o nome de antes do
+                    # código de 6 dígitos. Aceitar os dois é uma linha e
+                    # poupa a reinstalar a app num telemóvel com um build de
+                    # desenvolvimento já instalado — o `auth` é a única
+                    # mensagem em que o nome da chave decide se o rato mexe.
+                    candidate = data.get("code", data.get("token"))
+                    estado = (
+                        self._auth_state(candidate, source)
+                        if data.get("cmd") == "auth"
+                        else "bad"
+                    )
+                    if estado == "ok":
                         authed = True
                         await self._send(
                             connection,
@@ -401,12 +636,31 @@ class RemoteServer:
                              "w": getattr(self._mouse, "screen_w", 1920),
                              "h": getattr(self._mouse, "screen_h", 1080)},
                         )
-                        log.info("Telemóvel autenticado (%s).", connection.remote_address)
+                        log.info("Telemóvel autenticado (%s).", source)
                         self._note_activity()
                     else:
-                        await self._send(
-                            connection, {"cmd": "auth", "ok": False, "error": "auth_required"}
+                        # O que se responde diz apenas o que o telemóvel pode
+                        # fazer a seguir: recuar e tentar mais tarde. Não diz
+                        # quantos dígitos acertou, nem se o código existe.
+                        espera = int(self._limiter.locked_for(source)) + 1
+                        log.warning(
+                            "Auth falhada de %s (%s).",
+                            source,
+                            "bloqueado" if estado == "locked" else "codigo errado",
                         )
+                        await self._send(
+                            connection,
+                            {
+                                "cmd": "auth",
+                                "ok": False,
+                                "error": "auth_locked" if estado == "locked"
+                                else "auth_required",
+                                "retry_after": espera if estado == "locked" else 0,
+                            },
+                        )
+                        # A ligação morre com a tentativa. Uma sessão que fica
+                        # à espera de uma segunda tentativa é o que faz do
+                        # código curto um alvo, mesmo com o limitador.
                         await connection.close()
                         return
                     continue

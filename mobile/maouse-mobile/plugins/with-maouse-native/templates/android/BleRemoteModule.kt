@@ -203,8 +203,18 @@ class BleRemoteModule(reactContext: ReactApplicationContext) :
                 // A fila anda uma escrita de cada vez: o GATT aceita uma
                 // operação pendente. Chamar `writeCharacteristic` a seguir sem
                 // esperar por este callback devolve `false` e o segundo
-                // fragmento nunca sai.
-                drainWriteQueue(g)
+                // fragmento nunca sai. O `pump` destrava e escreve o
+                // seguinte; se a escrita anterior foi sem resposta, o
+                // `postDelayed` do `pump` já tinha destrancado o trinco e
+                // este `pump` não faz nada.
+                //
+                // O timeout de segurança pendente é cancelado aqui: se
+                // disparasse depois, destrancava a escrita **seguinte** a meio
+                // e o `pump` escrevia por cima dela.
+                noRespRunnable?.let { mainHandler.removeCallbacks(it) }
+                noRespRunnable = null
+                writeInFlight = false
+                pump()
             }
         }
     }
@@ -261,8 +271,10 @@ class BleRemoteModule(reactContext: ReactApplicationContext) :
      */
     @SuppressLint("MissingPermission")
     private fun send(json: String, withResponse: Boolean): Boolean {
-        val g = gatt ?: return false
-        val ch = g.getService(serviceUuid)?.getCharacteristic(rxUuid) ?: return false
+        // A característica vem do `gatt` dentro do `pump`, e não aqui: com a
+        // fila em curso, quem escreve é o `pump`, e duplicar a escrita aqui
+        // seria o mesmo bug outra vez.
+        if (gatt == null) return false
         val bytes = json.toByteArray(Charsets.UTF_8)
         val total = bytes.size
         if (total > 0xFFFF) return false
@@ -282,7 +294,8 @@ class BleRemoteModule(reactContext: ReactApplicationContext) :
             off += n
             enqueue(frame.array(), type)
         }
-        return writeNext(g, ch)
+        pump()
+        return true
     }
 
     /**
@@ -301,8 +314,6 @@ class BleRemoteModule(reactContext: ReactApplicationContext) :
     private class QueuedWrite(val data: ByteArray, val type: Int)
 
     /**
-     * Põe um fragmento na fila e escreve-o se a ligação estiver livre.
-     *
      * A fila tem tecto porque é a memória que cresce sem limite se a ligação
      * cair a meio de um texto e ninguém drainar: cada `move` a 60 Hz durante
      * 30 s são ~1800 fragmentos de 7 bytes, e a app fica a comer heap sem
@@ -316,26 +327,84 @@ class BleRemoteModule(reactContext: ReactApplicationContext) :
         }
     }
 
-    /** Escreve o próximo fragmento, se a ligação estiver livre. */
+    /**
+     * Escreve o próximo fragmento, **um de cada vez**, e só o próximo quando
+     * o anterior saiu.
+     *
+     * Isto reescreve a versão anterior, que tinha dois defeitos que só
+     * apareciam com um aparelho real:
+     *
+     * * `writeNext` lia `writeQueue.firstOrNull()` e **não o removia**. O
+     *   único código que removia era `drainWriteQueue`, chamado só do
+     *   `onCharacteristicWrite`. Os gestos vão com `WRITE_TYPE_NO_RESPONSE`,
+     *   para o qual o Android **não garante** esse callback — num ROM que não
+     *   o entregue, o fragmento #1 era reenviado a cada gesto, nunca saía da
+     *   fila, e o PC repetia o primeiro gesto indefinidamente sem o segundo
+     *   chegar. Nos ROMs que entregam, funcionava por acidente.
+     *
+     * * e mesmo nos ROMs que entregam o callback, cada fragmento era escrito
+     *   duas ou três vezes: uma pelo `writeNext` que reenviava a cabeça e
+     *   outra pelo `drainWriteQueue` a seguir. Um clique escrito três vezes é
+     *   um clique duplo e um `key` escrito três vezes é uma letra repetida —
+     *   e o rato vai sempre atrasado, porque a fila só anda quando alguém
+     *   avisa que acabou.
+     *
+     * `writeInFlight` é o trinco que resolve os dois: só há uma escrita
+     * pendente, o que sai da fila **sai**, e `pump()` é o único caminho que
+     * escreve.
+     */
     @SuppressLint("MissingPermission")
-    private fun writeNext(g: BluetoothGatt, ch: BluetoothGattCharacteristic): Boolean {
-        val next = writeQueue.firstOrNull() ?: return true
-        ch.writeType = next.type
-        return writeValue(g, ch, next.data, next.type)
-    }
-
-    @SuppressLint("MissingPermission")
-    private fun drainWriteQueue(g: BluetoothGatt) {
+    private fun pump() {
+        if (writeInFlight) return
         if (writeQueue.isEmpty()) return
+        val g = gatt ?: run {
+            writeQueue.clear()
+            return
+        }
         val ch = g.getService(serviceUuid)?.getCharacteristic(rxUuid) ?: run {
             writeQueue.clear()
             return
         }
         val next = writeQueue.removeFirst()
+        writeInFlight = true
         if (!writeValue(g, ch, next.data, next.type)) {
+            writeInFlight = false
             emit("error", null, "a fila de escrita bloqueou")
+            return
+        }
+        // Com resposta, o `onCharacteristicWrite` avisa. Sem resposta, **não há
+        // garantia de que venha** — e esperar por um callback que pode não
+        // chegar é o que fazia a fila encravar. O `postDelayed` é a rede de
+        // segurança: se o callback vier, `pump` já foi chamado e este é um
+        // no-op; se não vier, este é o que destranca.
+        if (next.type == BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE) {
+            val r = Runnable {
+                noRespRunnable = null
+                writeInFlight = false
+                pump()
+            }
+            noRespRunnable = r
+            mainHandler.postDelayed(r, WRITE_NO_RESPONSE_TIMEOUT_MS)
         }
     }
+
+    /** Há uma escrita pendente de resposta (ou à espera do seu tempo). */
+    private var writeInFlight = false
+
+    /** Handler do looper principal, partilhado pelo timeout de segurança. */
+    private val mainHandler = android.os.Handler(context.mainLooper)
+
+    /**
+     * O `postDelayed` de segurança da escrita sem resposta, guardado para
+     * poder ser cancelado.
+     *
+     * Sem o guardar, o timeout ficava agendado depois de a escrita já ter
+     * concluído e disparava mais tarde: destrancava o `writeInFlight` de uma
+     * escrita seguinte — que ainda estava em curso — e o `pump` escrevia por
+     * cima dela. Guardar a referência é o que permite cancelá-lo quando o
+     * callback chega (ou quando a ligação cai, em `cleanup`).
+     */
+    private var noRespRunnable: Runnable? = null
 
     /**
      * `writeCharacteristic` com `ByteArray` só existe do API 33 em diante. Abaixo
@@ -500,6 +569,15 @@ class BleRemoteModule(reactContext: ReactApplicationContext) :
         gatt = null
         resetRx()
         writeQueue.clear()
+        // Um `postDelayed` de segurança ainda pendente chamaria `pump()` já
+        // depois de o GATT fechado; cancelá-lo é o que evita esse pump tardio.
+        noRespRunnable?.let { mainHandler.removeCallbacks(it) }
+        noRespRunnable = null
+        // O trinco também se abre: deixar `writeInFlight` a `true` era a
+        // segunda forma do mesmo encravamento, e desta vez de forma
+        // permanente — nenhuma escrita nova sairia enquanto a ligação não
+        // morresse.
+        writeInFlight = false
         if (g != null) {
             try {
                 g.close()
@@ -565,14 +643,8 @@ class BleRemoteModule(reactContext: ReactApplicationContext) :
      */
     @ReactMethod
     fun sendMove(dxTenths: Int, dyTenths: Int, promise: Promise) {
-        val g = gatt
-        if (g == null) {
+        if (gatt == null) {
             promise.reject("SEND_FAILED", "Sem ligacao GATT")
-            return
-        }
-        val ch = g.getService(serviceUuid)?.getCharacteristic(rxUuid)
-        if (ch == null) {
-            promise.reject("SEND_FAILED", "Sem caracteristica de escrita")
             return
         }
         val buf = ByteBuffer.allocate(5)
@@ -588,7 +660,12 @@ class BleRemoteModule(reactContext: ReactApplicationContext) :
         // sobrepunha-se — ou perdia-se o gesto. A fila drena uma escrita de
         // cada vez, cada uma no tipo com que foi pedida.
         enqueue(frame.array(), BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE)
-        promise.resolve(writeNext(g, ch))
+        pump()
+        // `true` quer dizer "entrou na fila", que é tudo o que o `move` pode
+        // prometer: um gesto que ainda está à espera é um gesto que vai sair.
+        // Devolver `false` aqui tirava do JS a confiança de que o gesto
+        // entrou, e o `bleRemoteClient.ts` tratava isso como falha.
+        promise.resolve(true)
     }
 
     private fun clamp16(v: Int): Short = v.coerceIn(-32768, 32767).toShort()
@@ -646,5 +723,16 @@ class BleRemoteModule(reactContext: ReactApplicationContext) :
 
         /** Tecto da fila de escritas. Ver `enqueue`. */
         const val MAX_QUEUED_WRITES = 64
+
+        /**
+         * Quanto tempo se espera por um `onCharacteristicWrite` de uma escrita
+         * **sem resposta**, antes de assumir que não vem.
+         *
+         * A MTU e a ligação de um telemóvel real dão para uma escrita em
+         * poucos milissegundos; 60 ms é folga para um aparelho lento sem ser
+         * uma pausa que se note a cada gesto. O caminho **com** resposta não
+         * usa isto: espera pelo callback, como deve ser.
+         */
+        const val WRITE_NO_RESPONSE_TIMEOUT_MS = 60L
     }
 }

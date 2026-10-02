@@ -71,8 +71,8 @@ class RemotoFalso:
         return cmd.upper()
 
 
-def _srv(remoto=None, token="tok-abc"):
-    return RemoteBLE(type("C", (), {"remote_token": token})(),
+def _srv(remoto=None, codigo="123456"):
+    return RemoteBLE(type("C", (), {"remote_code": codigo})(),
                     remoto if remoto is not None else RemotoFalso())
 
 
@@ -212,7 +212,7 @@ class TestCodificacao:
 
 
 class TestAuth:
-    """O token é a única coisa entre um telemóvel qualquer e o rato."""
+    """O código de 6 dígitos é a única coisa entre um telemóvel e o rato."""
 
     def _correr(self, srv, frames):
         sessao = remote_ble._Session("AA:BB")
@@ -222,28 +222,28 @@ class TestAuth:
         asyncio.run(cena())
         return sessao
 
-    def test_token_errado_nao_chega_ao_rato(self):
+    def test_codigo_errado_nao_chega_ao_rato(self):
         remoto = RemotoFalso()
-        srv = _srv(remoto, token="certo")
+        srv = _srv(remoto, codigo="123456")
         sessao = self._correr(srv, [encode_command(
-            {"cmd": "auth", "token": "errado"})])
-        assert remoto.comandos == [], "um token errado moveu o rato"
+            {"cmd": "auth", "code": "654321"})])
+        assert remoto.comandos == [], "um código errado moveu o rato"
         assert sessao.authed is False
 
-    def test_sem_token_nada_mais_passa(self):
+    def test_sem_codigo_nada_mais_passa(self):
         remoto = RemotoFalso()
-        srv = _srv(remoto, token="certo")
-        # A resposta existe mas é recusada: um `ok` aqui seria o token errado
+        srv = _srv(remoto, codigo="123456")
+        # A resposta existe mas é recusada: um `ok` aqui seria o código errado
         # a ser aceite em vez de recusado.
         resposta = self._correr(srv, [encode_command({"cmd": "move", "dx": 9, "dy": 9})])
         assert remoto.comandos == []
         assert resposta != b"ok"
 
-    def test_token_certo_autentica_e_depois_passa(self):
+    def test_codigo_certo_autentica_e_depois_passa(self):
         remoto = RemotoFalso()
-        srv = _srv(remoto, token="certo")
+        srv = _srv(remoto, codigo="123456")
         sessao = self._correr(srv, [
-            encode_command({"cmd": "auth", "token": "certo"}),
+            encode_command({"cmd": "auth", "code": "123456"}),
             encode_command({"cmd": "move", "dx": 5, "dy": -2}),
         ])
         assert sessao.authed is True
@@ -251,14 +251,14 @@ class TestAuth:
         assert remoto.ganos >= 1
 
     def test_sessao_nao_autenticada_e_removida(self):
-        srv = _srv(token="certo")
+        srv = _srv(codigo="123456")
         asyncio.run(srv._on_frame(remote_ble._Session("AA:BB"),
-                                  encode_command({"cmd": "auth", "token": "x"})))
+                                  encode_command({"cmd": "auth", "code": "000000"})))
         assert srv.connected_count == 0
 
     def test_o_ping_antes_do_auth_nao_e_respondido_com_pong(self):
         remoto = RemotoFalso()
-        srv = _srv(remoto, token="certo")
+        srv = _srv(remoto, codigo="123456")
         self._correr(srv, [encode_command({"cmd": "ping"})])
         assert remoto.comandos == []
 

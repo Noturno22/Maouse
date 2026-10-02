@@ -2,12 +2,20 @@
 //
 // Protocolo (PC: core/remote.py):
 //   1. Primeira mensagem é sempre o auth:
-//       {"cmd":"auth","token":"..."}  ->  {"cmd":"auth","ok":true,"w":1920,"h":1080}
-//      Token errado -> {"cmd":"auth","ok":false,"error":"auth_required"} + ligação fechada.
+//       {"cmd":"auth","code":"123456"} -> {"cmd":"auth","ok":true,"w":1920,"h":1080}
+//      Código errado -> {"cmd":"auth","ok":false,"error":"auth_required"} + ligação fechada.
+//      Muitas tentativas -> {"cmd":"auth","ok":false,"error":"auth_locked"} + ligação fechada.
 //   2. Depois, comandos JSON; todos respondem {"ok":true,...}:
 //       ping | move{dx,dy} | move_to{x,y} | click{button,count}
 //       press{button} | release{button} | scroll{dx,dy} | key{key}
 //       combo{mods,key} | text{text} | media{action} | gesture{event,x,y,value}
+
+import {
+  CODE_LEN,
+  authErrorMessage,
+  codeCompleto,
+  normalizeCode,
+} from './pairingCode';
 
 export type RemoteStatus =
   | 'disconnected'
@@ -54,7 +62,7 @@ export function buildWsUrl(host: string, port: string | number): string {
 
 export class RemoteClient {
   private ws: WebSocket | null = null;
-  private token = '';
+  private code = '';
   private ready = false;
   private cbs: RemoteClientCallbacks | null = null;
   private intentionalClose = false;
@@ -68,7 +76,7 @@ export class RemoteClient {
     return this.ready;
   }
 
-  connect(url: string, token: string, cbs: RemoteClientCallbacks): void {
+  connect(url: string, code: string, cbs: RemoteClientCallbacks): void {
     this.close();
     this.ready = false;
     this.intentionalClose = false;
@@ -76,10 +84,12 @@ export class RemoteClient {
     this.pendingDx = 0;
     this.pendingDy = 0;
     this.cbs = cbs;
-    this.token = (token || '').trim();
+    this.code = normalizeCode(code);
 
-    if (!this.token) {
-      this.emitError('Falta o token — vê-o em Definições no PC.');
+    if (!codeCompleto(this.code)) {
+      this.emitError(
+        `O código são ${CODE_LEN} dígitos — vê-os em Definições no PC.`
+      );
       return;
     }
 
@@ -94,7 +104,7 @@ export class RemoteClient {
     this.ws = ws;
     // Nota: o auth é enviado diretamente (rawSend) porque só passa a poder usar
     // sendRaw depois de ready=true, que depende do ok do servidor a esta mensagem.
-    ws.onopen = () => this.rawSend({ cmd: 'auth', token: this.token });
+    ws.onopen = () => this.rawSend({ cmd: 'auth', code: this.code });
     ws.onmessage = (ev) => this.handleMessage(String(ev.data));
     ws.onerror = () => {
       this.lastError = 'Falha de ligação (rede inacessível?).';
@@ -224,10 +234,7 @@ export class RemoteClient {
         this.startTimers();
         this.cbs?.onOpen(screen);
       } else {
-        this.lastError =
-          msg.error === 'auth_required'
-            ? 'Token recusado. Confirma o token nas definições do PC.'
-            : String(msg.error || 'Auth falhou.');
+        this.lastError = authErrorMessage(msg.error, msg.retry_after);
         this.emitError(this.lastError);
         this.close();
       }

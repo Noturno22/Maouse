@@ -16,12 +16,15 @@ Quatro decisões que não são óbvias:
   módulo, e um `ImportError` aqui seria a Maouse a não arrancar. Bluetooth é um
   extra — quem não o tem fica com o WiFi, que é o que já existia.
 
-* **O token de autenticação vai por BLE como vai por WiFi.** Uma ligação BLE é
-  mais difícil de escutar do que uma ligação TCP (é pareada, e oAdvertising exige
-  consentimento), mas não é uma ligação autenticada: o token é a única coisa
-  entre um telemóvel qualquer e o rato de alguém. Reusar `remote_token` e
-  `auth` como primeira mensagem mantém uma só credencial para o utilizador
-  gerir, e uma só política para a auditoria ler.
+* **O código de autenticação vai por BLE como vai por WiFi, e o limite de
+  tentativas também.** Uma ligação BLE é mais difícil de escutar do que uma
+  ligação TCP (é pareada, e o advertising exige consentimento), mas não é uma
+  ligação autenticada: o código de 6 dígitos é a única coisa entre um telemóvel
+  qualquer e o rato de alguém. E o código é curto — o que o segura não é o
+  segredo, é o `AuthLimiter`, que é **o mesmo objecto** que o WebSocket usa (vai
+  buscá-lo ao `RemoteServer`), com um `Lock` por dentro porque estes dois
+  transportes correm em threads diferentes. Sem partilhar, trocar de caminho
+  seria um jeito de dobrar as tentativas.
 
 * **O caminho quente (`move`) é binário, o resto é o mesmo JSON do WebSocket.**
   Não por elegância: a MTU por omissão do BLE são 23 bytes, o que deixa 20
@@ -40,13 +43,30 @@ Quatro decisões que não são óbvias:
 from __future__ import annotations
 
 import asyncio
+import hmac
 import json
 import sys
 import threading
 
 from core.log import get_logger, trace
+from core.remote import AuthLimiter, normalise_code, valid_code
 
 log = get_logger("remote-ble")
+
+
+def _code_de(cfg) -> str:
+    """O código de emparelhamento de um `Config`, ou `""` se não houver.
+
+    `remote_code` é o nome actual; `remote_token` é o de antes dos 6 dígitos e
+    só sobrevive aqui porque uma Maouse a correr sem `RemoteServer` (os testes)
+    não tem outro sítio de onde ir buscar o código. Com um servidor vivo, quem
+    manda é `RemoteServer.code`.
+    """
+    for nome in ("remote_code", "remote_token"):
+        valor = normalise_code(getattr(cfg, nome, ""))
+        if valid_code(valor):
+            return valor
+    return ""
 
 # UUIDs 128 bits gerados para isto; não são de nenhum perfil adotado. O telefone
 # tem de trazer estes valores à letra — estão em `plugins/with-maouse-native`.
@@ -476,12 +496,52 @@ class RemoteBLE:
     correcção ao rato pelo WiFi aparece no Bluetooth sem tocar em nada aqui.
     """
 
-    def __init__(self, cfg, remote, token=None):
+    def __init__(self, cfg, remote, code=None):
         self._cfg = cfg
         self._remote = remote
-        self._token = token if token is not None else (
-            getattr(cfg, "remote_token", "") or ""
-        )
+        # O `code` explícito existe para os testes; normalmente é o do
+        # `RemoteServer`, que é quem o garante válido (e o gera se o
+        # `settings.json` trouxer o `remote_token` antigo). O `getattr` em
+        # `remote_code` e depois em `remote_token` é a rede de segurança para
+        # um `RemoteBLE` construído sem servidor — que é o caso dos testes.
+        self._code = code if code is not None else _code_de(cfg)
+        # O limitador de tentativas é **o do `RemoteServer`**, não um novo: os
+        # dois transportes autenticam contra o mesmo código de 6 dígitos, e um
+        # atacante que vaia a WiFi passar a Bluetooth não pode ficar com um
+        # contador limpo. O `getattr` com alternativa é o que faz isto
+        # funcionar com um dublê de servidor (os testes) — sem servidor não há
+        # de onde tirar o limitador, e um próprio é melhor do que nenhum.
+        self._limiter = getattr(remote, "limiter", None) or AuthLimiter()
+        self._api = None
+        self._bus = None
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._thread: threading.Thread | None = None
+        self._app_path = None
+        self._service = None
+        self._rx = None
+        self._tx = None
+        self._sessions: dict[str, _Session] = {}
+        self._ready = threading.Event()
+        # O caminho do adaptador, guardado para o `stop()` voltar a pôr o
+        # `Discoverable` como estava, e o valor que lá estava antes de nós.
+        self._adapter_caminho = None
+        self._discoverable_antes = None
+
+    @property
+    def codigo_ativo(self) -> str:
+        """O código com que o `auth` é comparado.
+
+        Quem manda é o `RemoteServer`: é lá que o código é garantido válido e
+        gerado se o `settings.json` trouxer o `remote_token` antigo. O BLE
+        comparar contra uma cópia sua seria o caminho para o WiFi aceitar e
+        o Bluetooth recusar com o mesmo código — e essa falha só aparece a
+        quem liga por Bluetooth, que é o que o utilizador foi fazer de
+        propósito.
+        """
+        codigo = getattr(self._remote, "code", None)
+        if isinstance(codigo, str) and valid_code(codigo):
+            return codigo
+        return self._code
         self._api = None
         self._bus = None
         self._loop: asyncio.AbstractEventLoop | None = None
@@ -907,9 +967,31 @@ class RemoteBLE:
             return
         cmd = data.get("cmd")
         if not session.authed:
-            if cmd == "auth" and data.get("token") == self._token:
+            # A chave do limite é o endereço do telefone, que vem do BlueZ nas
+            # opções da escrita. É o mesmo endereço que a sessão usa, e por
+            # isso que uma sessão nova do mesmo aparelho **não** recomeça a
+            # contar: sem isto, fechar e voltar a ligar era o gesto mais
+            # barato para o atacante.
+            fonte = session.device
+            if not self._limiter.allow(fonte):
+                log.warning("BLE: %s esta bloqueado por tentativas.", fonte)
+                await self._reply(session, {"cmd": "auth", "ok": False,
+                                           "error": "auth_locked",
+                                           "retry_after":
+                                               int(self._limiter.locked_for(fonte)) + 1})
+                self._sessions.pop(session.device, None)
+                return
+            # `code` é o nome actual; `token` é o nome de antes do código de
+            # 6 dígitos, e um build de desenvolvimento já instalado no
+            # telemóvel ainda o manda. Uma linha, e não volta a ser preciso
+            # reinstalar a app para experimentar.
+            candidate = data.get("code", data.get("token"))
+            if cmd == "auth" and hmac.compare_digest(
+                normalise_code(candidate), self.codigo_ativo
+            ):
+                self._limiter.success(fonte)
                 session.authed = True
-                log.info("Telemovel autenticado por BLE.")
+                log.info("Telemovel autenticado por BLE (%s).", fonte)
                 if self._remote is not None:
                     self._remote._note_activity()
                 await self._reply(session, {
@@ -918,6 +1000,9 @@ class RemoteBLE:
                     "h": getattr(self._remote._mouse, "screen_h", 1080) if self._remote else 1080,
                 })
             else:
+                if cmd == "auth":
+                    self._limiter.fail(fonte)
+                    log.warning("BLE: codigo errado de %s.", fonte)
                 await self._reply(session, {"cmd": "auth", "ok": False,
                                            "error": "auth_required"})
                 self._sessions.pop(session.device, None)

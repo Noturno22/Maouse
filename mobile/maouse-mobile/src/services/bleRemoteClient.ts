@@ -30,6 +30,12 @@ import {
   RemoteClientCallbacks,
   RemoteScreenInfo,
 } from './remoteClient';
+import {
+  CODE_LEN,
+  authErrorMessage,
+  codeCompleto,
+  normalizeCode,
+} from './pairingCode';
 
 const MOVE_INTERVAL_MS = 24;
 const PING_INTERVAL_MS = 15000;
@@ -56,7 +62,7 @@ interface NativeBle {
 export class BleRemoteClient {
   private native: NativeBle | null;
   private emitter: NativeEventEmitter | null = null;
-  private token = '';
+  private code = '';
   private ready = false;
   private cbs: RemoteClientCallbacks | null = null;
   private intentionalClose = false;
@@ -81,7 +87,7 @@ export class BleRemoteClient {
 
   connect(
     address: string,
-    token: string,
+    code: string,
     cbs: RemoteClientCallbacks
   ): void {
     const n = this.native;
@@ -91,15 +97,17 @@ export class BleRemoteClient {
     }
     this.close();
     this.cbs = cbs;
-    this.token = (token || '').trim();
+    this.code = normalizeCode(code);
     this.ready = false;
     this.intentionalClose = false;
     this.lastError = '';
     this.pendingDx = 0;
     this.pendingDy = 0;
 
-    if (!this.token) {
-      cbs.onError('Falta o token — vê-o em Definições no PC.');
+    if (!codeCompleto(this.code)) {
+      cbs.onError(
+        `O código são ${CODE_LEN} dígitos — escreve-os antes de ligar por Bluetooth.`
+      );
       return;
     }
 
@@ -108,7 +116,7 @@ export class BleRemoteClient {
       // A notificação é o que torna a ligação utilizável: o PC só responde a
       // quem tem `Notifying` ligado, e por isso o `auth` só é enviado depois
       // disto. Enviar antes chegava a um PC mudo.
-      this.rawSend({ cmd: 'auth', token: this.token }, true);
+      this.rawSend({ cmd: 'auth', code: this.code }, true);
     });
     this.emitter.addListener('disconnected', (ev: { error?: string }) => {
       this.handleClose(ev?.error || 'Ligação Bluetooth terminada.');
@@ -267,10 +275,7 @@ export class BleRemoteClient {
         this.startTimers();
         this.cbs?.onOpen(screen);
       } else {
-        this.lastError =
-          msg.error === 'auth_required'
-            ? 'Token recusado. Confirma o token nas definições do PC.'
-            : String(msg.error || 'Auth falhou.');
+        this.lastError = authErrorMessage(msg.error, msg.retry_after);
         this.cbs?.onError(this.lastError);
         this.close();
       }

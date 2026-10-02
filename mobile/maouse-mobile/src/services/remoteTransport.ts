@@ -66,14 +66,14 @@ export const remote = {
     return transport === 'ble' ? ble.isConnected : ws.isConnected;
   },
 
-  /** Liga por Bluetooth a um endereço MAC já descoberto. */
+  /** Liga por Bluetooth a um endereço MAC já descoberto, com o código de 6 dígitos. */
   connectBle(
     address: string,
-    token: string,
+    code: string,
     cbs: RemoteClientCallbacks
   ): void {
     transport = 'ble';
-    ble.connect(address, token, cbs);
+    ble.connect(address, code, cbs);
   },
 
   closeBle(): void {
@@ -85,11 +85,11 @@ export const remote = {
 
   connect(
     url: string,
-    token: string,
+    code: string,
     cbs: RemoteClientCallbacks
   ): void {
     transport = 'wifi';
-    ws.connect(url, token, cbs);
+    ws.connect(url, code, cbs);
   },
 
   close(): void {
