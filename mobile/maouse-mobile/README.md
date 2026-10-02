@@ -99,10 +99,12 @@ maouse-mobile/
 
 ## Testes
 
-O único alvo com testes é o **protocolo remoto**, porque é a fronteira de
-segurança entre o telemóvel e o PC: o `core/remote.py` do PC executa comandos que
-mexem no rato e no teclado de quem está a usar a máquina, e a única coisa entre um
-host qualquer da mesma rede e esse rato é o handshake `auth` da primeira mensagem.
+Há dois alvos, e ambos são fronteiras de segurança. O primeiro é o **protocolo
+remoto**: o `core/remote.py` do PC executa comandos que mexem no rato e no teclado
+de quem está a usar a máquina, e a única coisa entre um host qualquer da mesma rede
+e esse rato é o handshake `auth` da primeira mensagem. O segundo é o **gate Pro do
+ecrã remoto** (`RemoteScreen.test.tsx`), a única coisa que impede um telemóvel free
+de sequer ver o formulário de ligação.
 
 ```bash
 npm test          # jest, uma passagem
@@ -118,6 +120,15 @@ está alcançável» e «a ligação caiu». O preset é o `jest-expo` do Expo S
 com `@react-native/jest-preset` à parte desde o RN 0.86. Do lado do PC,
 `tests/test_remote_protocol_contract.py` prende o mesmo contrato em Python —
 34 testes que não precisam de toolchain TS.
+
+O gate de UI é testado com `@testing-library/react-native`, e os testes affirmam
+sobre o que está *visível*, não sobre implementação: a ordem dos ramos de
+`renderBody` é o contrato, e `loading` tem de vir antes de `!isPro`. Um `Free` tem
+de ver zero controlos de ligação, um `Pro` tem de ver zero paywall, e enquanto a
+licença hidrata não se vê nenhum dos dois. O `ProGate` fica real de propósito —
+simulá-lo tiraria ao teste a única forma de distinguir a cópia do paywall do PC
+remoto da cópia do controlo de gestos, que é o erro que um `feature` mal passado
+produz.
 
 > **`npm audit` — não corras `--force`.** O `audit` reporta ~16 avisos herdados do
 > toolchain do Expo. O único *high* que tinha correção sem partir nada
@@ -160,10 +171,9 @@ nas definições do PC, com o token que o PC apresenta.
 ## Próximos Passos
 
 1. TLS no servidor remoto (e então `wss://` no `buildWsUrl`)
-2. Testes de componentes com `@testing-library/react-native`
-3. Testar o serviço de acessibilidade em telemóveis reais
-4. Adicionar controlo de voz
-5. Calibração automática
+2. Testar o serviço de acessibilidade em telemóveis reais
+3. Adicionar controlo de voz
+4. Calibração automática
 
 ## Compras Pro (IAP)
 

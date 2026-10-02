@@ -54,8 +54,8 @@ export default function RemoteScreen({ onBack, entitlement }: Props) {
     blePeers,
     peers,
     discovering,
-  mdnsRunning,
-  stopDiscover,
+    mdnsRunning,
+    stopDiscover,
     saveConfig,
     setForwardGestures,
     connect,
@@ -599,7 +599,7 @@ export default function RemoteScreen({ onBack, entitlement }: Props) {
     if (licenseStatus === 'loading') {
       return (
         <View style={styles.form}>
-          <ActivityIndicator color={ACCENT} />
+          <ActivityIndicator testID="remote-license-loading" color={ACCENT} />
         </View>
       );
     }
