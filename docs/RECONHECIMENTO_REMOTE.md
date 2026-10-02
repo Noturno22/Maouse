@@ -507,9 +507,16 @@ Free obtém rato + teclado remotos completos, grátis.~~ **Corrigido a 2026-10-0
 o `auth` do `core/remote.py` passou a exigir, além do token, uma lease ES256
 assinada de tier pago, verificada com a chave pública embebida — sem ela a ligação
 é recusada com `pro_required` e nenhum comando é despachado. `remote_enabled`
-continua a arrancar o servidor para todos (para o telemóvel poder *tentar* ligar e
-ouvir o `pro_required`), mas o que fica para trás do gate são agora os comandos, não
-a ligação.
+continua a arrancar o servidor para todos — é o que permite a um Pro já comprado
+ligar, e o que dá a um Free o `pro_required` caso contorne a UI.
+
+**Complemento a 2026-10-02** (`b2abad0`): o bypass também está fechado do lado do
+cliente. O `RemoteScreen` mostra o `ProGate` (`feature="remote"`) em vez do
+formulário de ligação, por isso um Free já não precisa de tentar para descobrir que
+não comprou. A defence passa a ser dupla — o paywall evita a tentativa, o `auth`
+recusa-a na mesma se chegar lá. O `entitlement` é passado por prop a partir de
+`App.tsx`, e não por um segundo `useProEntitlement()`: o hook chama `useIAP()` e
+`hydrate()` no mount, logo uma segunda instância duplicava os listeners de compra.
 
 ### Dois pontos positivos
 

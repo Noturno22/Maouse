@@ -70,6 +70,16 @@
 >   do desktop, porque o lease mobile é emitido com o `device_id` do telemóvel e
 >   exigir o do PC rejeitaria uma compra legítima. 6 testes novos no contrato Python
 >   e 3 no Jest. O telemóvel guarda a lease em `AsyncStorage` e recusa ligar sem ela.
+> - **02/out** — 🟢 **gate de UI no ecrã do PC remoto** (`b2abad0`): com o `auth` já
+>   recusado, um utilizador Free ainda preenchia IP/porta/token, tentava ligar, e só
+>   depois via o erro traduzido. O `RemoteScreen` passou a receber o `entitlement` por
+>   prop e a mostrar o `ProGate` (`feature="remote"`, copy própria) em vez do
+>   formulário. O `entitlement` entra por prop **a propósito**: `useProEntitlement()`
+>   chama `useIAP()` e `hydrate()` no mount, e uma segunda instância registaria dois
+>   listeners de compra. O `ProGate` ficou sensível ao `feature` (`device` | `remote`),
+>   com default `device`, por isso o fluxo de gestos não mudou. Guarda de `loading`
+>   evita um frame do ecrã errado. Sem teste de componente — exigiria
+>   `@testing-library/react-native`, que o repositório não tem; verificado por `tsc`.
 > - **Bloqueios que continuam abertos:** os achados #3 (sem TLS), #4 (sem rate
 >   limit) e #8 (bypass do toggle de pausa) do mesmo documento. TLS e o URL real do
 >   license-server dependem de certificado e de decisão do dono.
