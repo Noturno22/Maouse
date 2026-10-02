@@ -495,15 +495,21 @@ materialmente pior do que um túnel: sem TLS, sem obscuridade, sem rotação de 
 
 ### Bypass de pausa e de licença
 
-Verificado por pesquisa em `core/remote.py`: **zero ocorrências** de `paused`,
-`licens`, `is_pro`. `state["paused"]` é verificado por todos os caminhos de comando
-locais (`core/commands.py:115,125,133`), mas **um telemóvel ligado mantém controlo
+Verificado por pesquisa em `core/remote.py`: **zero ocorrências** de `paused`.
+`state["paused"]` é verificado por todos os caminhos de comando locais
+(`core/commands.py:115,125,133`), mas **um telemóvel ligado mantém controlo
 total enquanto a app está "pausada"**. E `cfg.remote_enabled` não é subjecto a
-`is_pro_locked` (`main.py:247-259`).
+`is_pro_locked` (`main.py:247-259`). Este achado (#8) continua aberto.
 
-🔴 **Bypass de monetização:** o touchpad e o teclado remotos **não** estão atrás do
+~~🔴 **Bypass de monetização:** o touchpad e o teclado remotos **não** estão atrás do
 gate Pro. Só o encaminhamento por gestos de câmara está (`App.tsx:153`). Um utilizador
-Free obtém rato + teclado remotos completos, grátis.
+Free obtém rato + teclado remotos completos, grátis.~~ **Corrigido a 2026-10-02:**
+o `auth` do `core/remote.py` passou a exigir, além do token, uma lease ES256
+assinada de tier pago, verificada com a chave pública embebida — sem ela a ligação
+é recusada com `pro_required` e nenhum comando é despachado. `remote_enabled`
+continua a arrancar o servidor para todos (para o telemóvel poder *tentar* ligar e
+ouvir o `pro_required`), mas o que fica para trás do gate são agora os comandos, não
+a ligação.
 
 ### Dois pontos positivos
 
@@ -570,7 +576,7 @@ Consolidadas e verificadas no repositório em 2026-09-28.
 | 2 | 🟢 **Resolvido** | ~~**Multi-monitor sem origem** — cursor encurralado no monitor principal se algum ecrã estiver à esquerda/acima.~~ **Corrigido a 2026-10-02:** `_screen_size` lia a largura e a altura do desktop virtual mas descartava a origem (`SM_XVIRTUALSCREEN`/`SM_YVIRTUALSCREEN`, métricas 76/77), logo o clamp de `move_by` assumia que o ecrã começava em 0 e atirava metade do desktop para a origem; `move_to` convertia normalizado→píxeis sem a mesma origem. Passa a existir `MouseCtl.screen_bounds()`, usada pelos dois caminhos, com 17 testes em `tests/test_multi_monitor_origin.py` — 8 deles falham sem a correcção. Ver §1.5. | `core/mouse_ctl.py`, `core/remote.py`, `tests/test_multi_monitor_origin.py` |
 | 3 | 🔴 Crítico | **Sem TLS**, e o cliente impede usar `wss://`. | `core/remote.py:227-231`, `remoteClient.ts:36` |
 | 4 | 🔴 Crítico | **Sem rate limit / lockout / allowlist** numa porta aberta à Internet. | `core/remote.py:250` |
-| 5 | 🔴 Crítico | **Bypass do gate Pro** — rato e teclado remotos são grátis. | `App.tsx:153` vs ausência em `remote.py` |
+| 5 | 🟢 **Resolvido** | ~~**Bypass do gate Pro** — rato e teclado remotos são grátis.~~ **Corrigido a 2026-10-02:** o `auth` do `RemoteServer` exigia apenas o token de emparelhamento, que é o mesmo para toda a gente — qualquer telemóvel na mesma rede mexia no rato e no teclado sem comprar. O `token` foi mantido (é o segredo de emparelhamento) e passou a exigir-se também a `lease` que o license-server emite para o telemóvel: o PC valida a assinatura ES256 com a chave pública embebida (`core/licensing.py::verify_remote_entitlement`), aceita só os tiers pagos e recusa a ligação com `pro_required` se a lease faltar, estiver expirada ou for de tier inválido. 6 testes novos em `tests/test_remote_protocol_contract.py` (todos falham sem a correcção) e 3 no Jest do cliente remoto. | `core/remote.py`, `core/licensing.py`, `tests/test_remote_protocol_contract.py`, `mobile/maouse-mobile/src/services/remoteClient.ts` |
 | 6 | 🟠 Alto | **Condição de corrida no `MouseCtl` partilhado** — thread asyncio remota e thread Qt/escala mutam `_frac_x/_frac_y` e `mouse.position` sem lock. | `main.py:310-313` |
 | 7 | ⚪ **Sem impacto** | **`pyproject.toml` não declarava as dependências** — só `cryptography>=42`, e não empacotava `config.py`/`i18n.py`. Premissa errada: o projecto não é distribuído por pip (`git grep "pip install \."` vazio; o produto sai por PyInstaller e as dependências vêm do `setup.bat` → `requirements.txt`). As secções mortas foram apagadas a 2026-09-28. Ver [§1.14.3](#1143-o-pyprojecttoml-não-era-o-problema--e-a-primeira-correcção-estava-errada). | `pyproject.toml:1-44` (removido) |
 | 8 | 🟠 Alto | **Bypass do toggle de pausa** — controlo total com a app "pausada". | ausência em `remote.py` |
@@ -830,9 +836,9 @@ Propriedades que definem o padrão de qualidade:
 | **Transporte** | `ws://` plaintext | TLS obrigatório | 🔴 |
 | **Exposição** | port forwarding manual | túnel com URL rotativa | 🔴 |
 | **TLS** | impossível (cliente remove `wss://`) | sempre | 🔴 |
-| **Auth** | token 64 bits, sem limite de tentativas | 2FA / desafio | 🔴 |
+| **Auth** | token 64 bits + lease ES256 assinada, sem limite de tentativas | 2FA / desafio | 🟠 |
 | **Rate limit / lockout** | nenhum | explícito | 🔴 |
-| **Gate Pro** | **ausente** — remoto é grátis | monetizado | 🔴 |
+| **Gate Pro** | lease ES256 verificada no PC | monetizado | 🟢 |
 | **Pausa** | **ignorada** pelo canal remoto | respeitada | 🔴 |
 | **Clientes simultâneos** | ilimitado, `connected_count` morto | 1 sessão ou lista visível | 🔴 |
 | **Métrica de latência** | ausente | visível ao utilizador | 🟠 |
@@ -908,14 +914,26 @@ em que se pode confiar". A combinação de *sem fila* + *sem reconnect* signific
 qualquer queda de rede produz perda silenciosa de input, e o utilizador não tem como
 saber o que chegou ao PC.
 
-### 5. A monetização não cobre o canal mais valioso 🔴
+### 5. A monetização não cobre o canal mais valioso 🟢 *(resolvido 2026-10-02)*
 
-O engine de gestos por câmara está correctamente atrás do gate Pro. O rato e o
+~~O engine de gestos por câmara está correctamente atrás do gate Pro. O rato e o
 teclado remotos **não estão** — e são o que produz trabalho real (alguém a controlar
-o PC de outro lado está a usar o produto, não a toy).
+o PC de outro lado está a usar o produto, não a toy).~~
 
-Isto é simultaneamente um problema de **segurança** e de **negócio**: o feature
-mais perigoso é também o único que dá controlo total sem pagamento.
+**Corrigido a 2026-10-02:** o rato e o teclado remotos passaram a exigir uma lease
+ES256 de tier pago, verificada no PC com a chave pública embebida, para além do token
+de emparelhamento. O engine de gestos por câmara continua atrás do gate do `App.tsx`;
+os dois canais estão agora cobertos pelo mesmo critério de pagamento.
+
+Isto era simultaneamente um problema de **segurança** e de **negócio**: o feature
+mais perigoso era também o único que dava controlo total sem pagamento. O que
+sobra como risco residual é o que a assinatura não resolve. O verificador do PC
+checa **assinatura, tier e `exp`** — e nada mais: o lease traz `revocation_nonce` e
+`use_seq`, mas o PC não consulta nenhum estado de revogação, logo uma lease já emitida
+não pode ser revogada antes de expirar. E, como é um bearer token guardado em
+`AsyncStorage`, pode ser copiada e reaplicada noutro dispositivo durante a validade.
+A `ws://` em claro deixa ainda a assinatura e o token legíveis na rede. Ver os
+achados #3 (TLS) e #4 (rate limit), ambos ainda abertos.
 
 ### 6. Convenções de coordenadas delegadas ao acaso 🟠
 
@@ -1200,9 +1218,13 @@ O item de maior impacto e maior custo. Por ordem de custo/benefício:
 
 ### 4.2 Fechar os bypasses
 
-- **`press`/gate Pro:** decidir se o rato/teclado remoto é Pro ou Free, e **aplicar o
+- ~~**`press`/gate Pro:** decidir se o rato/teclado remoto é Pro ou Free, e **aplicar o
   gate em `core/remote.py`** — hoje não existe lá nenhum. Recomenda-se Pro: é o feature
-  controlo real, e é simultaneamente o mais perigoso.
+  controlo real, e é simultaneamente o mais perigoso.~~ **Feito a 2026-10-02:**
+  é Pro, e o gate está no `auth` do `core/remote.py` — a ligação só é aceite com o
+  token de emparelhamento **e** uma lease ES256 válida (`mobile_pro`/`pro`, não
+  expirada) que o PC verifica com a sua chave pública. `press` deixou de ser o caso
+  especial: o gate está à entrada do canal, antes de qualquer comando ser despachado.
 - **Respeitar `state["paused"]`** no canal remoto, com excepção para `left_up` (como
   já acontece no engine local) para o botão nunca ficar premido.
 

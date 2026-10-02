@@ -49,10 +49,36 @@
 >   versões, e a "solução" que o npm propõe é um downgrade a `expo@44.0.6`, três
 >   majors atrás. Está escrito no `mobile/maouse-mobile/README.md` para ninguém
 >   correr `--force` e partir o Expo (`b7efe06`).
+> - **02/out** — 🔴 **P0 de licenciamento, encontrado e corrigido** (`5a8a936`): a
+>   chave pública embebida no PC (`core/licensing_public_key.pem`) e a privada do
+>   license-server (`license-server/private.pem`) **não eram o mesmo par**. Um lease
+>   comprado e assinado pelo servidor era rejeitado pelo PC com
+>   `InvalidSignatureError`, ou seja, a venda estava impossível e o e2e não o apanhava:
+>   cada lado testava contra a sua própria chave. Gerou-se um par novo, a pública
+>   passou a ser versionada (`license-server/public.pem`, com excepção no `.gitignore`
+>   para não a ignorar) e a privada continuou de fora. O guard está em
+>   `tests/test_license_signature_e2e.py` — 5 testes, um dos quais falha exactamente
+>   no estado anterior.
+> - **02/out** — 🟢 **achado #5 (bypass do gate Pro) corrigido e publicado**
+>   (`a590d81`): o `auth` do `RemoteServer` só exigia o token de emparelhamento, que é
+>   igual para toda a gente, por isso qualquer telemóvel na mesma rede controlava o
+>   rato e o teclado do PC sem comprar. O token foi mantido (é o segredo de
+>   emparelhamento) e passou a exigir-se também a **lease** que o license-server emite
+>   para o telemóvel: o PC verifica a assinatura ES256 com a chave pública embebida
+>   (`core/licensing.py::verify_remote_entitlement`), só aceita os tiers pagos e
+>   recusa a ligação com `pro_required`. Deliberadamente **não** amarra ao machine id
+>   do desktop, porque o lease mobile é emitido com o `device_id` do telemóvel e
+>   exigir o do PC rejeitaria uma compra legítima. 6 testes novos no contrato Python
+>   e 3 no Jest. O telemóvel guarda a lease em `AsyncStorage` e recusa ligar sem ela.
 > - **Bloqueios que continuam abertos:** os achados #3 (sem TLS), #4 (sem rate
->   limit), #5 (bypass do gate Pro) e #8 (bypass do toggle de pausa) do mesmo
->   documento. TLS e o URL real do license-server dependem de certificado e de
->   decisão do dono; o gate Pro é política de produto.
+>   limit) e #8 (bypass do toggle de pausa) do mesmo documento. TLS e o URL real do
+>   license-server dependem de certificado e de decisão do dono.
+> - **O que a assinatura não resolve (registado para não dar falsa confiança):** o
+>   verificador do PC checa assinatura, tier e `exp` — e nada mais. O lease traz
+>   `revocation_nonce` e `use_seq`, mas o PC não consulta estado de revogação, logo
+>   uma lease emitida não pode ser revogada antes de expirar; e sendo um bearer token
+>   em `AsyncStorage`, pode ser copiada para outro dispositivo durante a validade.
+>   `expo-secure-store` fica pendente, tal como o TLS.
 > - **Bloqueio actual da Onda 1:** a §1.5 (ligar o `HandLock`) e a calibração do
 >   `min_class_conf` esperam as **mãos reais** (Onda 3 §3.1). Não é um problema
 >   de código.
