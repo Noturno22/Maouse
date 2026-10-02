@@ -12,11 +12,14 @@ import {
   View,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import type { ProEntitlement } from '../hooks/useProEntitlement';
 import { remote } from '../services/remoteClient';
 import { useRemoteStore } from '../store/remote';
+import ProGate from './ProGate';
 
 interface Props {
   onBack: () => void;
+  entitlement: ProEntitlement;
 }
 
 interface Size {
@@ -49,7 +52,7 @@ const DRAG_HOLD_MS = 380;
 // disto, portanto não desloca o cursor nem descarta o clique.
 const TAP_SLOP_PX = 12;
 
-export default function RemoteScreen({ onBack }: Props) {
+export default function RemoteScreen({ onBack, entitlement }: Props) {
   const {
     host,
     port,
@@ -72,6 +75,11 @@ export default function RemoteScreen({ onBack }: Props) {
 
   const connected = status === 'connected';
   const busy = status === 'connecting';
+
+  // 'loading' é o estado entre o mount e o `hydrate()` ler o AsyncStorage. Sem
+  // esta guarda vê-se um frame do ecrã errado: paywall a um Pro, formulário a um Free.
+  const licenseStatus = entitlement.status;
+  const isPro = entitlement.isPro;
 
   useEffect(() => {
     setHostDraft((v) => v || host);
@@ -507,6 +515,20 @@ export default function RemoteScreen({ onBack }: Props) {
     </View>
   );
 
+  const renderBody = () => {
+    if (licenseStatus === 'loading') {
+      return (
+        <View style={styles.form}>
+          <ActivityIndicator color={ACCENT} />
+        </View>
+      );
+    }
+    if (!isPro) {
+      return <ProGate feature="remote" entitlement={entitlement} onClose={onBack} />;
+    }
+    return connected ? renderConnected() : renderConnectForm();
+  };
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -540,7 +562,7 @@ export default function RemoteScreen({ onBack }: Props) {
         </View>
       </View>
 
-      {connected ? renderConnected() : renderConnectForm()}
+      {renderBody()}
     </KeyboardAvoidingView>
   );
 }

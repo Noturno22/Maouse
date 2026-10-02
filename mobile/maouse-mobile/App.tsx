@@ -572,7 +572,10 @@ const [landmarks, setLandmarks] = useState<HandLandmarks | null>(null);
     return (
       <View style={styles.container}>
         <StatusBar barStyle="light-content" />
-        <RemoteScreen onBack={() => setMode('camera')} />
+        <RemoteScreen
+          onBack={() => setMode('camera')}
+          entitlement={proEntitlement}
+        />
       </View>
     );
   }
