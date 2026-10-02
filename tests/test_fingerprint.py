@@ -280,25 +280,18 @@ def test_o_sal_nunca_vai_para_o_directorio_do_pacote(sem_hardware, monkeypatch, 
     fallback entra, e o sal é gravado ao lado do código. Em dev, isso é a raiz
     do repositório; num produto congelado, é a pasta do `.exe`.
 
-    E o caminho é montado com a **caixa trocada** de propósito. No Windows os
-    caminhos não distinguem maiúsculas, e a primeira versão desta guarda
-    comparava strings: `...\\DEV\\maouse` e `...\\DEV\\Maouse` são o mesmo
-    sítio e duas strings diferentes, e a guarda passava a nunca disparar. Um
-    guard que não pode falhar não é um guard — e este só foi visto porque o
-    teste traz a caixa do disco, não a que estava no código.
+    Aqui o caminho de teste é o do pacote tal e qual, que é o caso que vale em
+    todas as plataformas. A variante com a caixa trocada — que é o queovies a
+    comparação sem distinção de caixa — está no teste seguinte, e só corre onde
+    essa distinção existe: em POSIX `os.path.normcase` é a identidade, e
+    `/HOME/FORTUNA` é mesmo outro sítio do que `/home/fortuna`, pelo que ali o
+    caminho trocado tem de ser aceite.
     """
     pacote_dir = str(pathlib.Path(fp.config.__file__).resolve().parent)
-    trocada = pacote_dir.swapcase()
-    assert trocada != pacote_dir, (
-        "sanity: a caixa trocada ficou igual a original, o teste nao esta a "
-        "exercitar a comparacao sem distincao de caixa"
+    assert os.path.isabs(pacote_dir), (
+        f"sanity: o caminho de teste deixou de ser absoluto: {pacote_dir!r}."
     )
-    assert os.path.isabs(trocada), (
-        f"sanity: o caminho de teste deixou de ser absoluto: {trocada!r}. "
-        f"Um caminho como 'C:Users' e relativo ao drive, e o teste passaria "
-        f"por uma razao errada."
-    )
-    monkeypatch.setattr(fp, "user_data_dir", lambda: trocada)
+    monkeypatch.setattr(fp, "user_data_dir", lambda: pacote_dir)
 
     assert fp._salt_dir() == "", (
         f"_salt_dir() aceitou o directorio do pacote ({pacote_dir}) como sitio "
@@ -317,6 +310,75 @@ def test_o_sal_nunca_vai_para_o_directorio_do_pacote(sem_hardware, monkeypatch, 
         "Hostname nao e identidade, e o par tem de dizer isso."
     )
     assert len(mid) == 64, "a identidade de recurso tem de continuar a ser um id"
+
+
+# `os.path.normcase` só dobra a caixa onde o disco também a dobra. Em POSIX é a
+# identidade, e é por isso que o mesmo caminho trocado de caixa é outro sítio
+# — e por isso que o teste seguinte não pode correr lá.
+DOBRA_CAIXA = os.path.normcase("A") == os.path.normcase("a")
+
+
+@pytest.mark.skipif(
+    not DOBRA_CAIXA,
+    reason="nesta plataforma os caminhos distinguem maiusculas: um caminho com "
+           "a caixa trocada e mesmo outro sitio, e nao o directorio do pacote",
+)
+def test_a_caixa_trocada_do_pacote_tambem_e_recusada(sem_hardware, monkeypatch):
+    """A guarda tem de ver `...\\DEV\\maouse` e `...\\DEV\\Maouse` como o mesmo.
+
+    No Windows os caminhos não distinguem maiúsculas, e a primeira versão desta
+    guarda comparava strings: as duas acima são o mesmo sítio e duas strings
+    diferentes, e a guarda passava a nunca disparar. Um guard que não pode
+    falhar não é um guard — e este só foi visto porque o teste traz a caixa do
+    disco, não a que estava no código.
+
+    É o `os.path.normcase` na comparação que resolve, e é por isso que este
+    teste não pode ser simply "o mesmo caminho com outra caixa" em qualquer
+    plataforma: em POSIX o `normcase` não dobra nada, o caminho trocado é outro
+    sítio, e recusá-lo seria um bug — o sal ficaria sem sítio nenhum.
+    """
+    pacote_dir = str(pathlib.Path(fp.config.__file__).resolve().parent)
+    trocada = pacote_dir.swapcase()
+    assert trocada != pacote_dir, (
+        "sanity: a caixa trocada ficou igual a original, o teste nao esta a "
+        "exercitar a comparacao sem distincao de caixa"
+    )
+    assert os.path.isabs(trocada), (
+        f"sanity: o caminho de teste deixou de ser absoluto: {trocada!r}. "
+        f"Um caminho como 'C:Users' e relativo ao drive, e o teste passaria "
+        f"por uma razao errada."
+    )
+    monkeypatch.setattr(fp, "user_data_dir", lambda: trocada)
+
+    assert fp._salt_dir() == "", (
+        f"_salt_dir() aceitou o directorio do pacote escrito com outra caixa "
+        f"({trocada}) como sitio para o sal. Onde os caminhos nao distinguem "
+        f"maiusculas, e' o mesmo directorio."
+    )
+
+
+@pytest.mark.skipif(
+    DOBRA_CAIXA,
+    reason="a caixa e' distinguivel nesta plataforma: o caminho trocado e' outro "
+           "sitio e tem de ser aceite, o que o teste de baixo verifica",
+)
+def test_em_posix_a_caixa_trocada_e_um_sitio_diferente_e_valido(sem_hardware, monkeypatch):
+    """O contrário do teste de cima, e pelo mesmo motivo.
+
+    `/HOME/FORTUNA` e `/home/fortuna` são dois directórios diferentes num
+    sistema de ficheiros POSIX. Recusar o caminho trocado ali seria inventar uma
+    equivalência que não existe e deixar o sal sem sítio — o mesmo buraco que o
+    teste do pacote veio fechar, pelo outro lado.
+    """
+    pacote_dir = str(pathlib.Path(fp.config.__file__).resolve().parent)
+    trocada = pacote_dir.swapcase()
+    assert trocada != pacote_dir, "sanity: a caixa trocada ficou igual a original"
+    monkeypatch.setattr(fp, "user_data_dir", lambda: trocada)
+
+    assert fp._salt_dir() == trocada, (
+        "nesta plataforma o caminho com a caixa trocada e' outro directorio, "
+        "e o sal pode very bem para la"
+    )
 
 
 def test_o_sal_vai_para_os_dados_do_utilizador_e_nao_para_o_pacote(
