@@ -334,34 +334,39 @@ aparece.
 | Domínio no papel vs. na prática | papel: mobile/remote/Linux/CI · **prática: mobile · remote · CI · licença · discovery** — o desvio do papel era *infra* Windows, e foi por isso que o trabalho real foi ignorado |
 | Bloqueadores de build atribuíveis ao domínio | **0** — o alegado foi retractado (§4.6) |
 | Limitações 🔴 reais no domínio (4, todas pré-existentes) | multi-monitor · sem TLS · sem rate limit · bypass Pro |
-| Testes no mobile | **0** 🔴 — 14 ficheiros de app tocados, nenhum teste (§5.2 item 2) |
-| Portefólio §5.2 | 1 de 3 entregue (gates de licença ✅); origem virtual + multi-monitor e testes mobile por entregar |
+| Testes no mobile | **18** ✅ — `src/__tests__/remoteClient.test.ts` (contrato do protocolo remoto, Jest) |
+| Portefólio §5.2 | 2 de 3 entregue (gates de licença ✅ · testes mobile ✅); origem virtual + multi-monitor por entregar |
 | Ficheiros de teste tocados (21 commits) | **21** — incluindo `tests/test_remote.py`, `tests/test_license_server_url.py`, `license-server/tests/test_revalidate.py` |
-| **Risco operacional aberto** | 🔴 o branch `instrumentacao-corpus-real` **divergiu** de `origin/main`: 12 commits à frente, **21 atrás**. O trabalho dos dois existe e nenhum está no `main`. Ver §7 |
+| **Risco operacional** | 🟢 **RESOLVIDO** — o branch `instrumentacao-corpus-real` foi fundido com `origin/main` (merge `8a24d0d`). 0 atrás, 14 à frente, `origin/main` é ancestral. Ver §7 |
 
 ---
 
-## 7. 🔴 Risco operacional: o branch divergiu de `origin/main`
+## 7. 🟢 Resolvido: o branch divergiu de `origin/main` e foi fundido
 
-Descoberto a 2026-09-30 ao verificar as entregas do sócio. Não é um problema de
-gestão de sócios nem de qualidade do domínio: é o facto de que **nenhum dos dois
-trabalhos está no `main`**, e um lançamento feito a partir do `main` hoje não
-levaria nenhum deles.
+Descoberto a 2026-09-30 ao verificar as entregas do sócio. Não era um problema de
+gestão de sócios nem de qualidade do domínio: era o facto de que **nenhum dos dois
+trabalhos estava no `main`**, e um lançamento feito a partir do `main` não levaria
+nenhum deles.
 
-| | commits |
-|---|---|
-| `instrumentacao-corpus-real` (branch actual) à frente de `origin/main` | **12** |
-| `instrumentacao-corpus-real` atrás de `origin/main` | **21** |
+**Resolvido a 2026-10-01 por ordem do fundador**, com merge local `--no-ff`
+(`8a24d0d`) em vez de rebase/force, para preservar os SHAs de que a documentação
+acima faz citação. Backup do estado pré-merge em `backup/pre-merge-76c32a0`.
 
-Os 21 de trás são as entregas do sócio (§5.3). Os 12 da frente incluem os 3
-commits do fundador de 2026-09-30 — `fbff50d` (§1.1 LandmarkFilterBank),
-`b5fae4e` (§1.2 `class_conf`) e `e457c8b` (guarda do `HandLock`) — **nenhum dos
-três está no `main`**.
+| | antes | agora |
+|---|---|---|
+| à frente de `origin/main` | 12 | **14** |
+| atrás de `origin/main` | 21 | **0** |
+| `origin/main` é ancestral de HEAD | não | **sim** |
 
-**Estado de fusão.** O `origin/main` já contém `54df3c5` "Merge branch
-'instrumentacao-corpus-real'" (o sócio fundiu o branch do corpus a 29/set), por
-isso o `main` tem o corpus até esse ponto. O que falta é trazer de volta o que o
-branch ganhou depois, e o que o branch não tem do `main`.
+Os 21 commits de trás eram as entregas do sócio (§5.3). Os 12 da frente incluíam os
+3 commits do fundador de 2026-09-30 — `fbff50d` (§1.1 LandmarkFilterBank),
+`b5fae4e` (§1.2 `class_conf`) e `e457c8b` (guarda do `HandLock`) — que passaram a
+estar contidos no mesmo branch integrado.
+
+> ⚠️ **A integração é local e ainda não foi enviada.** O `origin/main` continua em
+> `e4da026`. Um lançamento feito a partir do `origin/main` remoto continua a NÃO
+> levar nenhum dos dois trabalhos. O `git push` está por fazer e é uma decisão
+> separada.
 
 **Decisão do fundador, não acção automática.** Uma fusão de branches com 12 e 21
 commits, em dois blocos de trabalho independentes, pode resolver-se por `merge`,
