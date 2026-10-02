@@ -82,6 +82,7 @@ class MouseCtl:
             raise RuntimeError("pynput indispon\u00edvel (sem sess\u00e3o gr\u00e1fica?)")
         self.mouse = Controller()
         self.screen_w, self.screen_h = self._screen_size()
+        self.screen_x, self.screen_y = self._screen_origin()
         self._scroll_acc = 0.0
         self._frac_x = 0.0
         self._frac_y = 0.0
@@ -159,6 +160,42 @@ class MouseCtl:
             log.debug("Sem ecr\u00e3 X11 (%s); a usar 1920x1080.", e)
         return (1920, 1080)
 
+    @staticmethod
+    def _screen_origin():
+        """Origem do ecrã virtual. **Negativa** quando há ecrã à esquerda/acima.
+
+        `_screen_size` devolve a largura e a altura do desktop virtual
+        (SM_CXVIRTUALSCREEN / SM_CYVIRTUALSCREEN), que não dizem nada sobre onde
+        ele começa. O Windows põe a origem em `-1920` se houver um ecrã à esquerda
+        do principal, e em `-1080` se houver um acima. Sem esta origem, o clamp
+        do rato — que assumia que o ecrã começava em 0 — atirava para 0 metade do
+        desktop e o cursor ficava encurralado no monitor principal.
+        """
+        if _IS_WINDOWS:
+            try:
+                user32 = ctypes.windll.user32
+                return (
+                    int(user32.GetSystemMetrics(76)),  # SM_XVIRTUALSCREEN
+                    int(user32.GetSystemMetrics(77)),  # SM_YVIRTUALSCREEN
+                )
+            except Exception as e:
+                log.debug("Sem origem do ecrã virtual, a assumir 0,0: %s", e)
+        return (0, 0)
+
+    def screen_bounds(self):
+        """Limites reais do rato: ``(x_min, y_min, x_max, y_max)`` em píxeis físicos.
+
+        Inclui a origem virtual, ao contrário de ``screen_w``/``screen_h``, que são
+        só o tamanho. Clampar a ``[0, screen_w - 1]`` num ecrã com origem negativa
+        é o bug que mantém o rato preso no monitor principal.
+        """
+        return (
+            self.screen_x,
+            self.screen_y,
+            self.screen_x + self.screen_w - 1,
+            self.screen_y + self.screen_h - 1,
+        )
+
     def _send_down(self, flags):
         if self._sendinput:
             send_mouse_input(build_mouse_input(flags))
@@ -184,8 +221,9 @@ class MouseCtl:
         self._frac_x -= ix
         self._frac_y -= iy
         x, y = self.mouse.position
-        nx = min(max(x + ix, 0), self.screen_w - 1)
-        ny = min(max(y + iy, 0), self.screen_h - 1)
+        lo_x, lo_y, hi_x, hi_y = self.screen_bounds()
+        nx = min(max(x + ix, lo_x), hi_x)
+        ny = min(max(y + iy, lo_y), hi_y)
         self.mouse.position = (int(nx), int(ny))
 
     def left_click(self):

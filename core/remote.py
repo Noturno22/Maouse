@@ -522,7 +522,13 @@ class RemoteServer:
         y = min(max(self._float(data, "y", 0.0), 0.0), 1.0)
         w = max(getattr(self._mouse, "screen_w", 1920) - 1, 1)
         h = max(getattr(self._mouse, "screen_h", 1080) - 1, 1)
-        px, py = int(x * w), int(y * h)
+        # A origem do ecrã virtual é negativa quando há um monitor à esquerda ou
+        # acima do principal. Sem ela, o telemóvel apontava para o canto superior
+        # esquerdo do desktop virtual — que não existe num setup desse género —
+        # e o toque caía no monitor principal em vez de cair onde se tocou.
+        ox = int(getattr(self._mouse, "screen_x", 0))
+        oy = int(getattr(self._mouse, "screen_y", 0))
+        px, py = ox + int(x * w), oy + int(y * h)
         self._mouse.mouse.position = (px, py)
         trace("REMOTE move_to (%.4f,%.4f) -> (%d,%d)", x, y, px, py)
 
