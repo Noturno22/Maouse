@@ -119,11 +119,19 @@ def revoke_machine(conn, machine_id: str) -> int:
     return bump_revocation_nonce(conn)
 
 
-def activate(conn, key: str, machine_id: str) -> tuple[str, str, int]:
+def activate(conn, key: str, machine_id: str,
+             weak_identity: bool = False) -> tuple[str, str, int]:
     """Liga uma chave a uma máquina e emite um lease ES256.
 
     Regra dura: 1 chave = 1 máquina. Se a chave já está ligada a OUTRA máquina,
     levanta ValueError.
+
+    `weak_identity` regista que o `machine_id` não veio de hardware. **Não**
+    bloqueia: quem paga numa máquina esquisita continua a usar, e o que o dono
+    ganha é uma lista para olhar (ver `storage.weak_machines`). Um `machine_id`
+    derivado de um sal local ainda separa máquinas — o buraco de antes era a
+    constante partilhada, e esse está fechado. O que resta é saber quais os
+    ids em que confiar menos, e isso é um dado, não uma sentença.
     """
     key_hash = hash_key(key)
     if not key_exists(conn, key_hash):
@@ -132,7 +140,7 @@ def activate(conn, key: str, machine_id: str) -> tuple[str, str, int]:
     if locked is not None and locked["machine_id"] != machine_id:
         raise ValueError("chave_ja_em_uso_noutra_maquina")
     if locked is None:
-        bind_machine(conn, key_hash, machine_id)
+        bind_machine(conn, key_hash, machine_id, weak_identity)
     session_id = secrets.token_hex(16)
     use_seq = int(time.time() * 1000)
     nonce = get_current_nonce_helper(conn)

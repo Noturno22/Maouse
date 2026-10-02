@@ -64,7 +64,12 @@ token.txt
 # Playwright MCP (sessoes locais de debug)
 .playwright-mcp/
 temp_baseline_ref.py
+# Dump de debug gerado por tools/debug_cmd_hand.py
+tools/cmd_hand_debug.txt
 
 # Node (app movel)
 node_modules/
 mobile/maouse-mobile/node_modules/
+
+# Sal de identidade da maquina (core/fingerprint.py). Segredo por maquina, nunca commitar.
+machine_salt.txt

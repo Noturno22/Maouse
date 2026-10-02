@@ -10,7 +10,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 
 from core.envcfg import env_value
-from core.fingerprint import machine_id
+from core.fingerprint import machine_identity
 from core.license_client import LicenseClient, LicenseError
 from core.license_store_lock import store_lock
 from core.log import get_logger
@@ -92,16 +92,26 @@ def _load_public_key():
 
 class LicenseManager:
     def __init__(self, secret: str = "", store_path=None,
-                 agency: "LicenseAgency | None" = None,
                  endpoints=None, trial_seconds=TRIAL_DEFAULT_SECONDS,
                  public_key=None):
         self._store_path = store_path or _default_store_path()
-        self._agency = agency
         self._endpoints = endpoints or _default_endpoints()
         self._client = LicenseClient(self._endpoints)
         self._trial_seconds = trial_seconds
         self._public_key = public_key or _load_public_key()
-        self._machine = machine_id()
+        # O par, não só o id. `machine_weak` é o que impede que um hash
+        # bem formado passe por prova de que a máquina é aquela: quem
+        # valida a licença precisa de saber que identidade viu, e quem
+        # compra precisa de ser avisado quando ela não prova nada.
+        self._machine, self.machine_weak = machine_identity()
+        if self.machine_weak:
+            log.error(
+                "Identidade fraca: nenhuma componente de hardware foi lida. "
+                "O machine_id deriva de um sal local em vez de hardware. "
+                "A licenca deixa de ser partilhada entre maquinas, mas deixa "
+                "de ser prova de nada, e o servidor trata este id como "
+                "suspeito. Nao bloqueia o produto: bloqueia e' abuso."
+            )
         self.tier = Tier.FREE
         self.key = ""
         self.email = ""
@@ -164,8 +174,18 @@ class LicenseManager:
             self._trial_used = max(self._trial_used, server_used)
             if self._trial_used >= self._trial_seconds:
                 self._blocked = True
-                self._block_reason = "trial_esgotado"
-            self._save()
+                self._block_reason = "trial_requer_ligacao"
+            return
+        try:
+            self._client.trial_report(self._machine, self._trial_used,
+                                  self.machine_weak)
+        except LicenseError as e:
+            log.debug("Relatório de trial ao servidor falhou: %s", e)
+        self._trial_used = max(self._trial_used, server_used)
+        if self._trial_used >= self._trial_seconds:
+            self._blocked = True
+            self._block_reason = "trial_esgotado"
+        self.save()
 
     def tier_pending(self) -> str:
         if self.is_pro:
@@ -203,6 +223,7 @@ class LicenseManager:
                     "email": self.email,
                     "key": self.key,
                     "machine_id": self._machine,
+                    "machine_weak": self.machine_weak,
                     "trial_used": self._trial_used,
                     "last_nonce": self._last_nonce,
                     "last_use_seq": self._last_use_seq,
@@ -311,7 +332,8 @@ class LicenseManager:
         with store_lock(self._store_path):
             self._reload()
             try:
-                result = self._client.activate(key, self._machine)
+                result = self._client.activate(key, self._machine,
+                                              self.machine_weak)
             except LicenseError as exc:
                 # NOTA: uma ativação falhada (chave errada, servidor em baixo) NÃO
                 # bloqueia a app — apenas regista o motivo. Bloquear aqui deixava o
@@ -347,7 +369,8 @@ class LicenseManager:
             if not self.lease:
                 return False
             try:
-                result = self._client.revalidate(self._machine, self.lease)
+                result = self._client.revalidate(self._machine, self.lease,
+                                             self.machine_weak)
             except LicenseError as exc:
                 if not exc.needs_reactivation:
                     return False
@@ -496,15 +519,18 @@ class LicenseManager:
             "Use tools/issue_pro_key.py remoto.")
 
 
-class LicenseAgency:
-    """Interface opcional para validação ONLINE (compat mit UI).
-
-    Mantida da API anterior; o caminho de produção é a ativação online
-    (LicenseManager.activate / lease ES256), não a validação offline.
-    """
-
-    def online_validate(self, license_doc: str) -> bool:
-        return True
+# `LicenseAgency` foi removida. Vivia aqui com um `online_validate()` que
+# devolvia `True` incondicionalmente — um validador que aprova tudo, mantido
+# "por compatibilidade". Nunca foi instanciada em lado nenhum do repo, e o
+# parâmetro `agency=` do `LicenseManager` escrevia `self._agency` sem nunca o
+# ler: um ponto de extensão que aceita uma dependência e a deita fora em
+# silêncio. Quem ligasse um validador a sério por lá ficaria com a certeza de
+# que estava a ser chamado, e sem chamada nenhuma.
+#
+# O caminho de produção é a ativação online (`activate` / lease ES256) e a
+# validação local do lease (`_validate_local_lease`). Se algum dia for preciso
+# um plug-in de validação, que seja uma interface com um método que possa
+# dizer "não" — e que o `LicenseManager` chame mesmo.
 
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
@@ -607,7 +633,7 @@ def active_tier() -> Tier:
 
 __all__ = [
     "Tier", "PRO_LOCKED", "entitlements", "is_pro_locked",
-    "LicenseManager", "LicenseAgency", "UsageWatchdog",
+    "LicenseManager", "UsageWatchdog",
     "set_active_license", "active_license", "active_tier",
     "license_server_configured", "license_server_status",
     "LICENSE_URL_NOT_CONFIGURED",

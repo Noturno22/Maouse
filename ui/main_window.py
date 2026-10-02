@@ -98,6 +98,9 @@ class MainWindow(QMainWindow):
         # Pop-up de bloqueio total: mostra UMA vez por sessão quando o
         # trial/lease esgotou (depois disso o utilizador reabre por menu).
         self._block_shown = False
+        # Uma vez por sessão, como o aviso de bloqueio: o utilizador que
+        # ignorou o aviso não precisa de o ver de novo a cada frame.
+        self._weak_shown = False
 
         # Timer do alerta de bloqueio (toast vermelho + borda + logo-look).
         self._lock_flash_timer = None
@@ -621,6 +624,29 @@ class MainWindow(QMainWindow):
         if dlg.exec() == BlockDialog.Accepted:
             self._sync_license_ui()
 
+    def _maybe_warn_weak_identity(self):
+        """Avisa UMA vez por sessão que a identidade desta máquina é fraca.
+
+        Não bloqueia, e é por isso que é um toast e não um diálogo modal: quem
+        já pagou numa máquina esquisita não pode ficar com o produto preso por
+        causa disso. A decisão tomada foi avisar e funcionar.
+
+        A distinção que o texto faz é a que importa e a que um aviso genérico
+        apagaria: o `machine_id` desta máquina **não é partilhado com nenhuma
+        outra** (o sal é por máquina), o que ele deixou de ser é prova de que
+        a máquina é esta. Uma é um problema de receita; a outra é um problema
+        de confiança. Dizer "a sua licença pode ser partilhada" seria mentira
+        — o buraco grande fechou no cliente.
+        """
+        if self._weak_shown or not self._license or not self._license.machine_weak:
+            return
+        self._weak_shown = True
+        self._toast.show_toast(
+            tr("toast.weak_identity"),
+            danger=True,
+            duration_ms=12000,
+        )
+
     def _sync_license_ui(self):
         """Atualiza a UI consoante o estado da licença (Free vs Pro)."""
         is_pro = bool(self._license and self._license.is_pro)
@@ -711,6 +737,7 @@ class MainWindow(QMainWindow):
 
             self._state["_usage_watchdog"] = UsageWatchdog(self._license, self._state)
         self._maybe_show_block_dialog()
+        self._maybe_warn_weak_identity()
         self._state["filters"] = self._E.filters
         self._state["tuner"] = self._tuner
         self._state["emitter"] = self._E.emitter

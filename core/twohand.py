@@ -208,27 +208,35 @@ class HandPool:
         """Centro X (pulso + base dos dedos) de uma detecao, normalizado."""
         return (hand[0][0] + hand[9][0]) / 2.0 if len(hand) > 9 else hand[0][0]
 
-    def update(self, hands, sides, width, height):
+    def update(self, hands, sides, width, height, confs=None, t=None):
         # O MediaPipe por vezes devolve A MESMA mao real detetada 2x (labels
         # iguais, palma quase na mesma posicao) - isto NAO sao duas maos e nao
         # devia gerar uma segunda entidade (falso "2 maos" no Free, gestos de
         # 2 maos indevidos). Descarta a duplicata quando as palmas coincidem.
+        # `confs` e lido por indice e nao por `zip`, pelo mesmo motivo que o
+        # tracker: pode ser mais curto do que a lista de maos, e um `zip(strict)`
+        # ai levantava ValueError em vez de uma mao sem confianca.
+        confs = confs or ()
         kept = []
-        for hand, side in zip(hands, sides, strict=True):
+        for i, (hand, side) in enumerate(zip(hands, sides, strict=True)):
             cx = self._palm_center(hand)
-            if any(abs(kx - cx) < 0.18 for kx, _, _ in kept):
+            conf = confs[i] if i < len(confs) else None
+            if any(abs(kx - cx) < 0.18 for kx, _, _, _ in kept):
                 continue
-            kept.append((cx, side, hand))
+            kept.append((cx, side, hand, conf))
         # Com 1 mao real mantemos o label original; com 2 maos reais distintas
-        # opomos os labels (o MediaPipe desta camara marca ambas "Right").
+        # opemos os labels (o MediaPipe desta camara marca ambas "Right").
         results = {}
         seen = set()
-        for _i, (_cx, side, hand) in enumerate(kept):
+        for _i, (_cx, side, hand, conf) in enumerate(kept):
             label = side if side in self.engines else "Right"
             if label in seen:
                 label = "Left" if label == "Right" else "Right"
             seen.add(label)
-            results[label] = self.engines[label].update(hand, width, height)
+            results[label] = self.engines[label].update(
+                hand, width, height, conf=conf, t=t
+            )
+
         for label in self.engines:
             if label not in seen:
                 self.engines[label].reset()

@@ -25,7 +25,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QMessageBox,
     QPushButton,
     QVBoxLayout,
 )
@@ -33,6 +32,7 @@ from PySide6.QtWidgets import (
 from core.envcfg import env_int
 from core.licensing import Tier
 from i18n import tr
+from ui.modern_messagebox import show_information, show_warning
 from ui.theme import MAIN_STYLESHEET
 
 SUPPORT_EMAIL = "suporte@maouse.app"
@@ -293,10 +293,10 @@ class LicenseDialog(QDialog):
     # ── Ações ─────────────────────────────────────────────────────────
     def _open_checkout(self, product):
         if not self._lm.open_checkout(product, PADDLE_VENDOR_ID):
-            QMessageBox.warning(self, "Checkout",
+            show_warning(self, "Checkout",
                                 "Não foi possível abrir o checkout no browser.")
         else:
-            QMessageBox.information(
+            show_information(
                 self, "Checkout",
                 "O checkout Paddle abriu no seu browser.\n"
                 "Após a compra, cole a chave que receber no campo abaixo e clique em "
@@ -306,11 +306,11 @@ class LicenseDialog(QDialog):
     def _activate_key(self):
         key = self._key_edit.text().strip()
         if not key:
-            QMessageBox.warning(self, "Chave", "Cole a sua chave Pro primeiro.")
+            show_warning(self, "Chave", "Cole a sua chave Pro primeiro.")
             return
         if self._lm.activate(key):
             self._cfg.license_tier = Tier.PRO.value
-            QMessageBox.information(self, "Licença", "Licença Pro ativada com sucesso!")
+            show_information(self, "Licença", "Licença Pro ativada com sucesso!")
             self.accept()
             return
         # Distinguir "chave errada" de "servidor de licenças não configurado" —
@@ -326,12 +326,12 @@ class LicenseDialog(QDialog):
         elif err == "servidor_nao_configurado":
             QMessageBox.warning(self, "Chave", tr("license.server_not_configured"))
         else:
-            QMessageBox.warning(self, "Chave", tr("license.activate_failed"))
+            show_warning(self, "Chave", tr("license.activate_failed"))
 
     def _deactivate(self):
         self._lm.deactivate()
         self._cfg.license_tier = Tier.FREE.value
-        QMessageBox.information(self, "Licença", "Licença removida. Modo Free ativo.")
+        show_information(self, "Licença", "Licença removida. Modo Free ativo.")
         self.accept()
 
 
@@ -438,7 +438,7 @@ class AccessibilityDialog(QDialog):
             self._error_lbl.setText(f"Erro ao registar o pedido: {e}")
             self._error_lbl.show()
             return
-        QMessageBox.information(
+        show_information(
             self, "Mãouse Pro",
             tr("access.submitted").format(ref=ref),
         )

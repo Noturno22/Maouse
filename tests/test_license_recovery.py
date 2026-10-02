@@ -109,12 +109,12 @@ class _FakeClient:
         self.activate_calls = []
         self.revalidate_calls = 0
 
-    def revalidate(self, machine_id, old_lease):
+    def revalidate(self, machine_id, old_lease, machine_weak=False):
         self.revalidate_calls += 1
         raise LicenseError("seq_repetido", 409,
                            {"error": "seq_repetido", "recovery": "reativar"})
 
-    def activate(self, key, machine_id):
+    def activate(self, key, machine_id, machine_weak=False):
         self.activate_calls.append(key)
         if self.private_key is not None:
             self.lease = _signed_lease(machine_id, self.private_key, use_seq=11)
@@ -207,7 +207,7 @@ def test_revalidate_success_does_not_touch_key(tmp_path, monkeypatch):
     renewed = _signed_lease(lm._machine, priv, use_seq=11)
 
     class _Ok:
-        def revalidate(self, machine_id, old_lease):
+        def revalidate(self, machine_id, old_lease, machine_weak=False):
             return {"lease": renewed, "tier": "pro"}
     monkeypatch.setattr(lm, "_client", _Ok())
 
@@ -227,7 +227,7 @@ def test_revalidate_keeps_last_good_lease_if_server_leaks_counter(tmp_path,
     rolled_back = _signed_lease(lm._machine, priv, use_seq=1)
 
     class _Bad:
-        def revalidate(self, machine_id, old_lease):
+        def revalidate(self, machine_id, old_lease, machine_weak=False):
             return {"lease": rolled_back, "tier": "pro"}
     monkeypatch.setattr(lm, "_client", _Bad())
 
@@ -412,7 +412,7 @@ def test_reload_picks_up_other_process_write(tmp_path, monkeypatch):
     seen = {}
 
     class _Spy:
-        def revalidate(self, machine_id, old):
+        def revalidate(self, machine_id, old, machine_weak=False):
             import base64
             payload = json.loads(base64.urlsafe_b64decode(
                 old.split(".")[1] + "=="))

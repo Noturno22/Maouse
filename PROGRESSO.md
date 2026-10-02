@@ -2,10 +2,70 @@
 
 > **Continuar daqui mais tarde.** Este ficheiro guarda tudo o que foi decidido e feito, e o que falta.
 
-## Estado atual (2026-09-22) — Sprint 2: produto vendável / 1.ª venda
+## Estado atual (2026-09-30) — Sprint 2: produto vendável / 1.ª venda
 
 > Posição no `PLANO_DE_EXECUCAO_90_DIAS.md`: **Sprint 2 (dias 31–60)**. Execução comercial em
 > curso; trabalho em aberto nos 3 bloqueadores da `PRONTIDAO_PARA_VENDA.md` (§4).
+
+> ⚠️ **A secção "Feito recentemente" abaixo está congelada em 22/set** e não foi
+> reconstruída — ler como histórico, não como estado actual. O que aconteceu depois:
+>
+> - **29/set** — o sócio-função Fortuna entregou **21 commits** em `origin/main`
+>   (mobile, remote, discovery, licença, CI Android) e o `user.email` deixou de ser
+>   o placeholder. Ver `BUSSINES/07_ADMINISTRACAO/CONTRIBUICAO_SOCIOS.md`.
+> - **30/set** — Onda 1 §1.1 (`LandmarkFilterBank`, `fbff50d`) e §1.2 (`class_conf`,
+>   `b5fae4e`) fechadas e com baseline comitado; a guarda do `HandLock` foi
+>   corrigida (`e457c8b`). Detalhe em `docs/RECONHECIMENTO_MAOS.md`.
+> - **30/set** — 🔴 o branch `instrumentacao-corpus-real` **divergiu** de
+>   `origin/main` (12 à frente, 21 atrás). Nenhum dos dois trabalhos está no `main`.
+> - **01/out** — 🟢 essa divergência **está resolvida**: merge local `--no-ff`
+>   `8a24d0d` (0 atrás, 14 à frente; `origin/main` é ancestral; backup do
+>   pré-merge em `backup/pre-merge-76c32a0`). No mesmo dia o mobile ganhou
+>   **18 testes Jest** do protocolo remoto, o desktop ganhou **28 testes de
+>   contrato** do mesmo protocolo (`tests/test_remote_protocol_contract.py`, que
+>   travam a simetria PC↔mobile sem precisar de toolchain TS), e foi corrigido um
+>   bug real de lock
+>   da licença no Windows (`core/license_store_lock.py` lia o byte do lock antes
+>   de o trancar; o segundo processo rebentava com `PermissionError`, deixando
+>   o anti-replay por proteger). Publicado no branch e no `origin/main` no dia
+>   seguinte.
+> - **02/out** — 🟢 os dois achados 🔴/🟠 que o `docs/RECONHECIMENTO_REMOTE.md`
+>   dava por abertos no remoto foram **corrigidos e publicados**
+>   (`origin/main` em `514335e`). O **achado #2 (multi-monitor sem origem)**: o
+>   clamp do rato e o `move_to` do servidor assumiam que o desktop virtual
+>   começava em 0, mas o Windows põe a origem negativa quando há um ecrã à
+>   esquerda ou acima do principal — metade do desktop ficava fora do clamp e o
+>   cursor saltava para o monitor principal (`69b15fe`, 17 testes, 8 deles falham
+>   sem a correcção). O **achado #10 (`press`/`release` sem estado de arrasto)**:
+>   o `press` não guardava estado e o `left_down` punha `_drag` a `True` sem nada
+>   a limpar, pelo que perder a rede a meio de um arrasto deixava o botão
+>   premido no PC — o `_combo` já fazia esta limpeza para as teclas
+>   (`10b3b5c`, 14 testes, 6 falham sem a correcção). Ficou também
+>   hermético o `_ctl()` de `tests/test_move_gesture.py`, que passou a herdar a
+>   origem do ecrã real de quem corresse a suite (`51f7012`).
+> - **02/out** — 🟡 `npm audit fix` no mobile: saiu o único aviso **alto** com
+>   correcção limpa (`brace-expansion`, `1f7553c`). O que resta é dívida
+>   upstream sem versão corrigida — a advisory do `node-forge` afecta **todas** as
+>   versões, e a "solução" que o npm propõe é um downgrade a `expo@44.0.6`, três
+>   majors atrás. Está escrito no `mobile/maouse-mobile/README.md` para ninguém
+>   correr `--force` e partir o Expo (`b7efe06`).
+> - **02/out — 🟡 o transporte BLE entrou neste `main`** por um merge local
+>   `--no-ff`: 6 commits que viviam só em `main` local (`1a567d7`, `9a67ae8`,
+>   `9068756`, `19fc220`, `80acba0`, `edd0e57`) e que o `origin/main` nunca
+>   tinha visto — o BLE **não** é adição dos 30 commits de trás, é trabalho
+>   aditivo que entra agora. O `origin/main` não o tinha porque nunca o
+>   recebeu, **não** porque o tenha removido (verificado: nenhum commit do
+>   `origin/main` apagou `core/remote_ble.py`). Detalhe na secção "Feito
+>   recentemente (30 set)" abaixo. O único conflito do merge foi este
+>   ficheiro; `config.py`, `core/remote.py` e `ui/main_window.py`, tocados
+>   pelos dois lados, juntaram sozinhos.
+> - **Bloqueios que continuam abertos:** os achados #3 (sem TLS), #4 (sem rate
+>   limit), #5 (bypass do gate Pro) e #8 (bypass do toggle de pausa) do mesmo
+>   documento. TLS e o URL real do license-server dependem de certificado e de
+>   decisão do dono; o gate Pro é política de produto.
+> - **Bloqueio actual da Onda 1:** a §1.5 (ligar o `HandLock`) e a calibração do
+>   `min_class_conf` esperam as **mãos reais** (Onda 3 §3.1). Não é um problema
+>   de código.
 
 ### ✅ Feito recentemente (30 set) — contra o `bluetoothd` e a câmara reais
 
@@ -54,7 +114,20 @@
    ordem aprovada pela SSL.com (2026-09-23, ticket `#133702727`). Falta **ativar o eSigner**
    e desbloquear o enroll para o `.exe` sair assinado (Passo 4 do `SSLCOM_VALIDACAO.md`).
 5. **Mobile dev** — `conectar.bat` (firewall Metro/Expo) + `@expo/ngrok` para ligação dev.
-6. **Fortuna** registado como **2.º sócio-função** (4% vesting: mobile/remote/Linux).
+6. **Fortuna** registado como **2.º sócio-função** (4% vesting: mobile/remote/Linux/CI).
+   **Actualizado a 2026-09-30:** o `user.email` foi corrigido e o sócio passou a ser
+   *atribuível* no GitHub — **21 commits de 29/set** em `origin/main`
+   (+11810 −876, 79 ficheiros, 21 ficheiros de teste), onde em 28/set a auditoria
+   contava "0 contributions" e "14 dias sem trabalho". Entregas em mobile, remote,
+   discovery, licença, CI Android e manifests. Do portefólio a cobrar, 1 de 3
+    entregue.
+🟢 **2026-10-01:** a divergência do branch **foi fundida** (merge `8a24d0d`,
+     0 atrás / 14 à frente de `origin/main`), o mobile **ganhou 18 testes** Jest do
+     protocolo remoto e o desktop **ganhou 28 testes de contrato** do mesmo
+     protocolo (`tests/test_remote_protocol_contract.py`), que travam a simetria
+     PC↔mobile sem toolchain TS. A integração é local e **ainda não foi enviada** — o
+     `origin/main` remoto continua em `e4da026`.
+    Detalhe em `BUSSINES/07_ADMINISTRACAO/CONTRIBUICAO_SOCIOS.md` §4.5–§7.
 7. **render.yaml movido para a raiz** (Blueprint do Render) + registo SSL.com/domínio.
    *Nota: foi tentada uma subscrição Pro na landing (€4,99/mês) e **removida por decisão** — modelo restante é only lifetime/família/acesso.*
 8. **Design de gestos profissionais Meta Glass/Quest** — especificações detalhadas para 5 novos gestos de produtividade (zoom suave, rotação 3D, menu radial, swipe three fingers, modo anotar) criadas em `.superpawers\specs\2026-09-28-meta-glass-gestos-pro-design.md`.
@@ -427,9 +500,10 @@
     `core/licensing.py:163` valida a licença por `machine_id`, ou seja: a
     licença de uma máquina funciona noutra. Num produto pago, isso é receita
     que sai sem dar erro a ninguém.
-    *Não é hipotético.* O `wmic` foi descontinuado e já não vem no Windows 11
-    recente: `core/fingerprint.py:_wmic` volta `""` para os dois números de
-    série. Falta só o acesso ao registo (`MachineGuid`) também falhar — e esse
+    *Não é hipotético.* O `wmic` foi removido de vez no Windows 11 24H2+
+    (ver o item 24 para a medida): `core/fingerprint.py:_wmic` volta `""` para
+    os dois números de série. Falta só o acesso ao registo (`MachineGuid`)
+    também falhar — e esse
     `except` era `except Exception: pass`, que não distingue um `PermissionError`
     de um `ImportError`, que são problemas de conserto completamente
     diferentes. Este ficou estreito (`OSError`, `ImportError`) e passa a registar
@@ -482,6 +556,307 @@
     importa, e `ast.parse` nem sequer o abre. Está no `.gitignore`, é rascunho
     de alguém, e não é achado.
 
+24. **A margem do buraco #5, medida em vez de estimada.** Escrevi no
+    bloqueador que o buraco abria "basta o acesso ao registo falhar". Isso era
+    uma afirmação; agora é uma medição, e é **menos largo do que parecia**.
+    O `wmic` foi **removido de vez** no Windows 11 24H2+ — não é um FoD, foi
+    reformado e o FoD desaparece em 2026 (Microsoft, "WMIC removal from
+    Windows"). Portanto nessas máquinas `_wmic` volta `""` para os dois números de
+    série, e a fingerprint fica a **1 componente de 3**:
+    | Máquina | Componentes com conteúdo | `degenerate()` |
+    |---|---|---|
+    | esta (Win 10 22H2, tem `wmic.exe`) | 3 de 3 | não |
+    | Win 11 24H2+ | **1 de 3** | não |
+    | Win 11 24H2+ **e** registo indisponível | 0 de 3 | **sim** |
+    *O que muda:* o `MachineGuid` do registo passou a ser **a única coisa** que
+    sustenta a identidade. Confirmado: dois `MachineGuid` diferentes dão
+    `machine_id` diferentes, o que é o que se quer — o problema nunca foi a
+    força do hash, foi haver uma só fonte.
+    *Isto torna o bloqueador menos urgente e mais frágil.* Menos urgente porque
+    é preciso o registo falhar, e ele só falha por `PermissionError` ou chave
+    corrompida. Mais frágil porque **deixou de haver redundância**: antes havia
+    três independentes, e a queda de uma não apoderia nada. Uma política de
+    empresa que negue a leitura do registo é plausível, e o `except` estreito do
+    item 22 agora diz qual foi a razão.
+    *Onde é que isto se decide:* fechar o buraco **não** é uma alteração de
+    produto disfarçada de correcção. Faz `machine_id()` recusar, obriga a
+    `licensing.py` a decidir o que fazer sem identidade estável, e essa decisão
+    (recusar a activação? avisar e continuar com um id derivado do que houver?
+    pedir uma confirmação ao utilizador?) muda o que o produto faz a quem paga.
+    Fica como bloqueador #5, **com a dimensão agora medida** para a decisão ser
+    tomada com números em vez de com um "isto pode ser grave".
+
+25. **O sal de máquina apareceu no `git status` — e não era um ficheiro para
+    commitar.** `core/fingerprint.py::_fallback_salt()` gravava `machine_salt.txt`
+    em `user_data_dir()`. Esse fallback tinha um pormenor que só apareceu em dev:
+    quando o `LOCALAPPDATA` não era gravável, `config.user_data_dir()` devolvia
+    **o directório do pacote** (para não cair a usar `Program Files` com permissões
+    de admin). Em dev esse diretório é a **raiz do repositório**, logo o sal era
+    escrito em `maouse/machine_salt.txt` e aparecia na árvore como um ficheiro não
+    rastreado, a um `git add .` de distância de ser comittado (um segredo por
+    máquina). Num install portátil também seria partilhado por todos os
+    utilizadores, e o sal é o que separa as máquinas — o que teria voltado a
+    partilhar a identidade que o buraco #5 acabou de fechar.
+    *Correção:* `core/fingerprint.py::_salt_dir()` recusa o diretório do pacote
+    (com comparação **sem distinção de maiúsculas** — o bug original foi comparar
+    strings cruamente, e `...\DEV\maouse` vs `...\DEV\Maouse` nunca davam iguais
+    no Windows). Quando o fallback do `user_data_dir()` aponta para o pacote, não se
+    grava nada, `degraded` continua verdadeiro e `machine_identity()` deriva só do
+    hostname — honesto, não mentiroso. Acrescentei `machine_salt.txt` ao
+    `.gitignore`, limpei o ficheiro que tinha nascido na raiz e acrescentei um teste
+    (`test_o_sal_nunca_vai_para_o_directorio_do_pacote`) que força a caixa trocada
+    para não deixar o guard adormecer outra vez. 3 mutações confirmam que ele apanha
+    o caso (inclusive a comparação sem `normcase`). (`core/fingerprint.py`,
+    `tests/test_fingerprint.py`, `.gitignore`)
+
+26. **A gravação dizia a etiqueta uma vez e desaparecia — e a tecla errada é
+    permanente.** A ajuda que dei para gravar dependia de duas coisas que não
+    se defendem: o operador decorar `d PINKY` / `c SHAKA` / `g ROCK`, e
+    apanhar o toast de 1,3 s que confirmava a etiqueta. As duas falhavam em
+    silêncio, e o custo não era um ficheiro meio estragado: `x` limpa a
+    sessão **inteira**, portanto um engano no minuto 4 obriga a refazer tudo,
+    com a mão já cansada e a luz já diferente.
+    *O que mudou:* com `--record`, o preview passa a ter uma **faixa
+    permanente** com a etiqueta corrente, a tecla que a repete, os frames do
+    segmento e do total, e o **fps medido** (`--`, enquanto não há dois
+    frames) — e um **rodapé com a tabela de teclas inteira**, sempre visível.
+    A barra de `ganho`/`suavidade` dá lugar ao rodapé durante a recolha, e o
+    `fps` sobe para a faixa. Se aparecer **duas mãos no ecrã**, a faixa avisa
+    em rosa: só a mão do cursor é gravada, e uma tecla só não descreve duas
+    mãos. O `h` ganhou as três regras (tecla **antes** da pose, mão única,
+    `x` limpa tudo) e desce para `y=140` para não ficar por baixo da faixa.
+    *Duas decisões que valem registar:*
+    - A tabela de teclas **não é escrita no texto do preview**. Sai de
+      `core.corpus.LABEL_KEY_CHOICES` via `ui["record"]["keys"]`, e a quebra
+      de linhas mede o texto com `getTextSize` — um `len()` fixo dava uma
+      tabela truncada, e `THUMB_D` a meio de uma recolha é pior do que não
+      mostrar nada. `tests/test_record_hud.py` fixa a ordem, a integridade e a
+      largura em píxeis a 640/800/1280/480.
+    - **`_record_hud` não levanta.** Um painel que uma excepção mate no meio
+      de uma recolha de minutos acaba a sessão sem ninguém saber porquê — o
+      mesmo argumento que `CorpusRecorder.observe` dá para o descasamento de
+      `confs`. O que o gravador não sabe lê-se `?` / `--`, nunca um número.
+      Foi isto que apareceu: o spy de `tests/test_recorder_provenance.py` só
+      implementa `observe`, e o painel deixou-o de fora antes de o segundo
+      teste o dizer.
+    `tests/test_record_hud.py`, 30 testes. `main.py --replay` sobre a fixture
+    continua em **F1 macro 1.0000** e `--replay-gate` continua a sair 0 — o
+    painel só existe com `ui["record"]`, que só existe com `--record`.
+
+27. **O portão de regressão não via a IA — e foi medido, não suposto.** O
+    `--replay-gate` tem saído verde em todos os commits desta série, e a
+    razão pela qual isso não significava nada foi descoberta agora: com
+    `--no-ai` a saída é **idêntica linha a linha**. Num corpus sintético as
+    regras geométricas resolvem os 193 frames antes de o modelo ser
+    consultado, portanto o portão que íamos usar para validar o retreino
+    para 13 classes **aceitaria pesos inúteis com o mesmo conforto de
+    antes**. A red de segurança de que a decisão 2 dependia não existia.
+    *O que mede o modelo, sozinho:*
+
+    | | N | taxa |
+    |---|---|---|
+    | as 9 classes que o modelo tem | 92 | **1.00** |
+    | as 3 que não tem (`PINKY`, `ONE`, `THUMB_DOWN`) | 24 | **0.00** |
+    | total | 116 | 0.7931 |
+
+    E o défice não é ruído, é coerente: `PINKY → SHAKA` 12/12, `ONE → ROCK`
+    6/8, `THUMB_DOWN → FIST` 4/4. Cada gesto cai na classe mais próxima
+    **que existe**. Isto converte a frase "a `PINKY` é metade da confusão
+    PINKY/SHAKA", que era uma estimativa, em 12/12 medidos — e diz que o
+    estrangulamento é a **lista de classes**, não os pesos. Alargar para 13
+    deixa de ser especulação.
+    *O que este número não diz:* mede a lista, não a qualidade. Dizer que o
+    modelo está "bom" a partir de esqueletos canónicos seria ler uma
+    distribuição sintética como se fossem mãos reais. `tests/test_ai_standalone.py`
+    fixa essa distinção na docstring **e** em código: se algum dia a fixture
+    deixar de ser sintética, o teste falha a dizer que a afirmação tem de ser
+    reescrita, e não a deixar passar em silêncio.
+    `tests/test_ai_standalone.py`, 3 testes. A regra fixada é só esta: cada
+    gesto **que o modelo consegue representar** tem de ser classificado
+    certo, e os que não consegue são contados em vez de falhados. Quando o
+    retreino trouxer `PINKY`/`ONE`/`THUMB_DOWN` para dentro de `CLASSES`, o
+    teste começa a exigir também esses sem ninguém lhe tocar — **fica mais
+    forte sozinho**, que é o único sítio onde isso acontece.
+    *Prova de que o teste parte* (mutações em cópia temporária, modelo do repo
+    intocado): permutar as 9 classes → **parte**; `PINCH ↔ FIST` → **parte**;
+    `THUMB_UP ↔ THREE ↔ PEACE` → **parte**; `w3` a zero → **parte**. É
+    exactamente o estrago que um retreino introduz em silêncio — o modelo
+    carrega, o `shape` bate certo, o `GestureAI` inicializa, o portão dá
+    1.0000, e cada gesto real recebe o nome do vizinho. Duas mutações **não**
+    partiram, e não deviam: `pesos 100x` não muda o `argmax` por construção,
+    e 5% de ruído em esqueletos canónicos também não. Nenhuma das duas é
+    defeito de modelo; registo-as para que ninguém as conte como falha.
+
+28. **A caixa de diálogo nova estava invisível — e a causa era código morto,
+    não um limiar mal afinado (30 set).** `ui/modern_messagebox.py` foi escrito
+    para substituir o `QMessageBox` em todo o diálogo de licença, e a caixa
+    ficava a **opacidade 0.0**: não aparecia. Sem excepção, sem log, sem nada —
+    só faltava aparecer. A causa está medida: a classe tinha *duas*
+    `QPropertyAnimation` na mesma property (`windowOpacity`) dentro de um
+    `QParallelAnimationGroup`, e o grupo deixava o valor no `startValue`.
+    **Medido: animação solitária 1.0 · grupo com duas 0.0 · grupo com uma 1.0.**
+    Havia ainda dois defeitos no caminho de fecho: um `TypeError` (o `finished`
+    de uma animação chama o slot sem argumentos, e o `done(self, result)` não
+    tinha valor por omissão) e um `event.ignore()` sem event loop, que deixava
+    a janela visível para sempre em vez de a fechar.
+    *O que ficou*: uma animação só, com pai explícito — a assinatura é
+    `QPropertyAnimation(target, propertyName, parent=None)`, o primeiro
+    argumento é o *alvo* e não o pai, e sem pai de QObject a animação não
+    aparece em `findChildren`, o que impedia sequer de verificar que havia uma
+    só. E o `finished` reforça o `1.0`, para a janela ficar visível mesmo que
+    a animação seja interrompida a meio. As animações de saída foram
+    **removidas** em vez de arranjadas: eram código morto ao serviço de uma
+    animação de entrada que não funcionava.
+    *Os guards* (`tests/test_modern_messagebox.py`, **15 testes**). O que fixou
+    a caixa foi `test_so_ha_uma_animacao`, que diz o *porquê* — o defeito não
+    foi um limiar mal afinado, foi uma segunda animação na mesma property — e
+    não `test_a_opacidade_chega_a_um`, que só via o sintoma.
+    *Um teste-guarda que era ele próprio um defeito:* a espera pela animação
+    era um `QTimer` de 400 ms para uma animação de 250 ms. Passava sozinho e
+    **falhava na suite completa** (opacidade 0.83), porque 400 ms de relógio
+    não chegam quando o event loop está atrasado. Passou a esperar pelo sinal
+    `finished`. Um guard não pode depender de o CPU estar livre.
+    *Mutações* — **24 tentadas, 20 mortas à primeira**; o resto registado em
+    vez de arredondado para cima:
+    - as duas animações em paralelo, o `closeEvent` a ignorar, o `done()` a
+      voltar a ser override, `show_error` a delegar em `warning`, a mensagem a
+      deixar de partir, a cor de erro trocada, rejeitar a reportar `Accepted`, e
+      a rede de segurança a repor `0.0` em vez de `1.0` — **todas mortas**.
+    - **duas não mediam nada**, e foram reescritas até morrerem. Uma inseria
+      `self._fade_in = None` a seguir a `setWindowOpacity(0.0)`, que está
+      *dentro* de `_setup_animations()` e por isso era sobrescrita duas linhas
+      depois — uma no-op. A outra apagava o `show_warning` do checkout e deixava
+      o `if` sem corpo, o que dá `IndentationError` na *recolha*; e um harness
+      que só lê linhas `FAILED` conta uma recolha falhada como "ninguém
+      morreu". **É a mesma armadilha da mutação do `zip` no item 19.**
+    - **uma não pode morrer, e não é defeito**: com a animação a ir de `0.0` a
+      `0.0`, a rede de segurança continua ligada e repõe o `1.0` quando ela
+      acaba — a janela fica visível na mesma. É a redundância deliberada a
+      funcionar, como as duas mutações do item 27 que "não deviam" partir.
+    - **uma revelou uma lacuna a sério**: não havia nenhum teste para a chave
+      **inválida**, que é o caminho que o utilizador encontra quando paga e a
+      chave não cola. Sem aviso, ele carrega outra vez e outra vez sem
+      perceber porquê que nada muda. Corrigido, com o tier a continuar FREE e
+      o diálogo a não fechar como se fosse sucesso.
+    *O diálogo de licença* deixou de usar `QMessageBox`: os testes
+    `test_license_dialog_free_ui.py` e `test_license_dialog_pro_ui.py` faziam
+    patch de `ld.QMessageBox`, que deixou de existir, o que dava 1 FAILED +
+    7 ERROR e deixava a suite pendurada em diálogos modais. Passam a gravar
+    as chamadas de `show_*` com um spy comum (`tests/_dialog_spies.py`).
+    *Verificado*: `ruff` limpo, **suite completa 654 testes, exit 0**.
+    `tools/cmd_hand_debug.txt` — dump gerado por `tools/debug_cmd_hand.py` —
+    saiu do rastreio do Git (o `*.log` do `.gitignore` não o apanhava por ser
+    `.txt`). E o `LicenseAgency` saiu de `core/licensing.py`: código morto,
+    nunca instanciado, que estava a pesar no diff do diálogo.
+
+29. **Onda 1 §1.1 fechada — e os dois bugs que só apareceram porque o portão mede
+    (30 set).** `LandmarkFilterBank` (`core/filters.py`) põe um `OneEuroFilter`
+    em cada coordenada dos 21 landmarks, dentro do `GestureEngine`, **antes de
+    qualquer limiar** — escala, rácio de pinça, curl, SHAKA e palma consomem todos
+    a lista filtrada. O `reset()` vem do `GestureEngine.reset()`, que o `HandPool`
+    já chamava quando a mão desaparece. Fecha a limitação nº 9.
+    *Dois defeitos meus, ambos com sintoma medido e não teórico:*
+    - **Base temporal errada.** O filtro media `dt` pelo relógio de parede. Numa
+      câmara a 30 fps é um detalhe; num `--replay` que despeja o corpus à
+      velocidade do processador, `dt` é de microssegundos, `alpha = 1/(1+tau/dt)`
+      tende a zero e o filtro **congela**. F1 macro **1.0000 → 0.2787**, e todas as
+      confusões seguiam o gesto anterior (`ROCK→PEACE` 8/8, `SHAKA→PINKY` 8/8) —
+      a assinatura de um filtro parado, não de limiares partidos. Corrigido passando
+      o timestamp do frame (`ts_ms` no runtime, `t_ms` no replay) até ao filtro.
+      **Um filtro cuja saída depende da velocidade da máquina não é um filtro** —
+      o mesmo princípio do item 28, uma camada abaixo.
+    - **`beta` na escala errada.** `beta` foi herdado de `FilterPair2D`, afinado
+      sobre a palma em **pixels**, mas as landmarks chegam normalizadas em [0, 1].
+      Um salto de 32 px em 33 ms mede `|edx| = 591.7/s` em pixels e `0.925/s`
+      normalizado — logo `beta*|edx|` dava 5.92 Hz ou **0.0092 Hz**, 0.3% de um
+      cutoff de 3.0. O One Euro degradava-se num low-pass estático, que é
+      precisamente o que ele existe para não ser. Sintoma: a pinça não cruzava o
+      Schmitt a tempo, F1 macro **0.9098**. Corrigido escalando `beta` pelas
+      dimensões do frame (`_apply_scale`); `width`/`height` são argumentos
+      **obrigatórios**, porque um default de 1 voltaria a essa falha em silêncio.
+    *Medido depois:* F1 macro **1.0000**, 116/116, **0 cliques fantasma**,
+    `ACEITE`, `ruff` limpo, suite **654 → 656 testes**, exit 0. Com
+    `min_cutoff = 5.0` (acima do 1.4 da palma, como o plano mandava) a banca
+    suaviza **1.93x** em repouso contra os 2.57x da palma e arrasta 4.8 px a
+    970 px/s. O `min_cutoff = 3.0` era pior **nos dois** eixos (F1 0.9790,
+    latência 66 ms) — menos suavização é mais atraso, não menos.
+    *O custo, que é real.* **1 frame (33 ms) de latência no clique da pinça**, o
+    atraso de grupo do próprio filtro. A baseline foi re-gerada de `latency_p95_ms`
+    0.0 para 33.0 **com aval explícito do dono do produto**. O 0.0 anterior **não
+    era um alvo de mundo real**: era um zero sintético, porque no corpus a pinça é
+    instantânea e o trigger dispara no primeiro frame qualificado — medir o custo de
+    um filtro contra esse zero é medir contra nada. **Não há saída gratuita:** a
+    latência só volta a 0 ms **acima de 20 Hz**, onde a suavização cai para 1.14x
+    e o filtro deixa de filtrar. O `.npz` ficou **byte-idêntico** (só o JSON muda),
+    porque `--force` reescreve os dois e o corpus é a entrada fixa do teste.
+    *Limite honesto, e é um defeito da fixture, não do filtro.*
+    `tools/make_corpus_fixture.py:265-266` sorteia um **centro novo por frame**
+    (`cx = 0.5 ± 0.05`), teletransportando a mão ~49 px/frame mesmo numa pose
+    supostamente parada; o jitter que o `NOISE_FRAC = 0.008` queria modelar
+    (0.96 px) é ~50x menor e fica enterrado. Verifiquei que **não** é a origem do
+    custo de 33 ms (remediado o centro, a latência mantém-se), mas significa que
+    a fixture **não avalia comportamento temporal com fidelidade** — registado como
+    limitação nº 12, correcção é de scope da Onda 3. Tudo isto continua a ser
+    fixture sintética: trava contra *regressão*, não prova qualidade em mãos reais.
+
+30. **Onda 1 §1.2 fechada — e o código morto que parecia uma feature (30 set).**
+    O `core/tracker.py` já devolvia `handedness[0].score` como terceiro valor
+    desde a Onda 0, e o plumbing estava **inteiro**: `engine.py` → `HandPool` →
+    `GestureEngine.update(conf=...)`. E aí ficava. Ninguém lia o `conf`. Quatro
+    camadas de transporte para um valor que morria à porta — o pior tipo de
+    código, porque à leitura parece implementado e tem testes a passar. A §1.2
+    foi menos "implementar uma feature" e mais "perguntar a quem já transportava
+    isto para que lado vai, e porquê que não vai a lado nenhum".
+    *Os três usos, e sobretudo o que cada um não faz:*
+    - **Abstenção** (`too_far or low_conf` → `Gesture.NONE`): uma mão que não
+      sabemos de que lado é não mexe no rato.
+    - **Gate da IA** (`not (too_far or low_conf)`): um frame de baixa confiança
+      é **neutro, nunca confirmador**. Consultar um classificador cujas
+      entradas não sabemos de que lado estão não é decidir melhor — é fabricar
+      autoridade. E a IA fica com `ai_conf = 0.0`, que é o que ela é: não sabe.
+    - **Feedback**: badge `MAO ???`. A roadmap pedia "anel de tracking a
+      degradar"; escolhi um badge porque um anel a degradar **desenharia uma
+      qualidade que o tracker não mediu**. O badge só diz a única coisa verdadeira
+      — que o motor não sabe de que lado a mão está.
+    *A invariante que sustenta os três:* `None` e `NaN` são **não medido**, e
+    não medido **nunca** abstém. Não é um detalhe — o corpus versionado tem
+    **todas** as confianças a `NaN` por desenho (grava-se `NaN` em vez de
+    inventar um `0.0`). Bastava um `conf < min` sem guarda e a §1.2 silenciava
+    a IA em todas as mãos do portão de regressão, e o portão passava a verde
+    **por estar mudo**: o pior estado possível para um teste de regressão,
+    porque parece proteger-te e não mede nada. O `test_nan_nao_abste` existe
+    exactamente para travar essa regressão.
+    *Nome deliberadamente diferente do sugerido.* A roadmap propunha
+    `detect_conf`; ficou `class_conf`. `handedness[0].score` é a confiança da
+    **classificação** (esta mão é esquerda ou direita), não da **detecção** — o
+    `HandLandmarker` do MediaPipe não expõe confiança de detecção na API Python,
+    só limiares `min_hand_detection_confidence` / `min_hand_presence_confidence`,
+    que são limiares e não medidas. O `tests/test_tracker_confidence.py` já
+    escrevia isto antes de o código o fazer; chamei-lhe `detect_conf` seria
+    contradizer o nosso próprio teste.
+    *Duas armadilhas apanhadas pelo caminho.* O `classify()` da IA devolvia a
+    confiança em `conf` — **o mesmo nome** do parâmetro da classificação, dois
+    sentidos num só âmbito. Não rebentava (a normalização acontece antes), mas
+    qualquer código novo depois daquela linha leria a confiança da IA como se
+    fosse a da mão. Renomeado `ml_conf`. E a primeira versão do teste do
+    badge passava **por estar a medir o badge errado**: o rect "N MAOS" ocupa
+    exactamente (522,10)-(628,40), a mesma caixa do badge novo, porque o
+    `x_right` só é empurrado se o novo existir. Um teste que verde por razão
+    errada é pior do que um teste que falha.
+    Verificado: **16 testes novos** (`tests/test_class_conf_abstention.py`),
+    suite 656 → **672**, `ruff` limpo, portão de regressão **ACEITE** com F1
+    macro 1.0000, 116/116, 0 cliques fantasma e latência p95 33 ms **inalterada**
+    — que é a prova de que a abstenção não se auto-silencia no corpus.
+    *Limite honesto, e é o principal.* `min_class_conf = 0.5` **não está
+    afinado**: não há número com que o afinar, porque o corpus é sintético e
+    não tem confiança de classificação. É uma escolha conservadora, não uma
+    medição — o que a afina é o corpus de mãos reais (Onda 3 §3.1). A abstenção
+    também não diz *qual* dos lados é o incerto, e um badge é mais fraco do que
+    a roadmap pedia. E o `min_class_conf` já tinha estado na `config.py` desde a
+    sessão anterior sem ninguém o ler: **config morta**, exactamente a mesma
+    doença do `LicenseAgency` no item 28. Só passou a existir quando ganhou
+    leitura — e foi isso que a §1.2 me obrigou a verificar.
+
 ### 🔴 Bloqueadores em aberto (Sprint 2 → 1.ª venda paga)
 
 | # | Bloqueador | Estado |
@@ -490,8 +865,8 @@
 | 1 | **Assinatura digital do `.exe`** — pipeline pronto; certificado SSL.com **VALIDADO**; falta **enroll/ativação do eSigner** | 🟡 eSigner por ativar |
 | 2 | **Store listing mobile (Play Console)** — IAP code ✅; falta prebuild/upload/listing. O package agora é `com.maouse.mobile` e o app **ainda não foi submetido**, portanto o rename não custou nada aqui — mas também não há volta: depois do primeiro upload o package é imutável | 🔴 |
 | 3 | **LAB de compatibilidade** — matriz ≥5 dispositivos por categoria    | 🟡 1 🟡 (HP i3-5005U 14.6 fps) |
-| 4 | **Corpus de mãos reais** — a instrumentação está pronta (item 19), mas `--record` e `collect_gestures.py` nunca produziram um ficheiro: o tool estava partido. Recolher é ~20 min por gesto e não se repete; a partir de agora cada recolha grava a confiança e a proveniência | 🔴 precisa de mãos reais — **caminho corrigido (itens 21–22), falta gravar** |
-| 5 | **`machine_id` degenerado é partilhado entre máquinas** — se nenhuma componente de hardware for lida, o `machine_id` é o sha256 de uma string constante e `core/licensing.py:163` valida a licença por ele: a licença de uma máquina passa a funcionar noutra. Plausível agora, porque o `wmic` já não vem no Windows 11 recente e basta o acesso ao registo falhar. O teste que deveria apanhar isto era `assert comps`, que passa com as três componentes vazias. **Aberto de propósito:** fechar exige que `machine_id()` recuse e que `licensing.py` decida o que fazer sem identidade estável — e essa decisão é do dono do produto (item 22) | 🔴 decisão do dono do produto |
+| 4 | **Corpus de mãos reais** — a instrumentação está pronta (item 19), mas `--record` e `collect_gestures.py` nunca produziram um ficheiro: o tool estava partido. Recolher é ~3 min por sessão (uma volta dos 13 gestos é ~60 s); a partir de agora cada recolha grava a confiança e a proveniência. **O modelo foi medido sozinho (item 27): 92/92 nas 9 classes que tem, 0/24 nas 3 que não tem** — o estrangulamento é a lista de classes, e o portão de regressão é cego à IA | 🔴 precisa de mãos reais — **caminho corrigido (itens 21–22 e 25), falta gravar** |
+| 5 | **`machine_id` degenerado é partilhado entre máquinas** — se nenhuma componente de hardware for lida, o `machine_id` é o sha256 de uma string constante (`751f034653eeaa33…`), o mesmo em todas as máquinas assim, e `core/licensing.py:163` valida a licença por ele: a licença de uma máquina passa a funcionar noutra. **Margem medida (item 24):** no Windows 11 24H2+ o `wmic` foi removido de vez, por isso **1 das 3 componentes** enche; o buraco só abre se o acesso ao registo ao `MachineGuid` falhar também. A defesa do servidor existe (`license-server/service.py:78` recusa quando `claims["sub"] != f"machine:{machine_id}"`) e é exactamente esse valor partilhado que a anula. **Decisão do dono do produto (item 22): avisar forte, mas funcionar.** `machine_identity()` devolve agora o par `(id, degradado)`; o id sai de um sal local por máquina, o servidor regista a identidade fraca e mostra-a, e o cliente **avisa uma vez por sessão** (`toast.weak_identity`, 7 línguas). Não recusa a activação — trocar receita por uma garantia que ninguém pediu. Detalhe em `72ee9eb`, incluindo o bug em que o sal nascia na raiz do repositório | 🟢 **fechado** |
 
     > **As duas ferramentas não são o mesmo trabalho**, e o bloqueador tratava-as
     > como se fossem. `tools/eval_recognition.py` — e portanto o `--replay` e o
@@ -508,10 +883,19 @@
     > consome. É plausível que o "nunca houve um ficheiro" venha de se ter gravado
     > com a ferramenta errada, ou com a ferramenta certa para a pergunta errada.
     >
-    > **A ordem dentro de cada segmento decide se os 20 minutos servem:** premir a
+    > **A ordem dentro de cada segmento decide se os 3 minutos servem:** premir a
     > tecla **antes** de adoptar a pose. A etiqueta vale a partir do momento da
     > tecla; se adoptares a pose e só depois premires, os primeiros frames ficam
     > com a etiqueta anterior — e esse erro fica gravado para sempre.
+    >
+    > **Onde se retoma.** O procedimento é `HARDWARE/RECOLHA_CORPUS.md` (o
+    > `RECONHECIMENTO_MAOS.md` remete para lá). O preview já diz a etiqueta, a
+    > tecla e os frames do segmento, portanto não há nada a decorar nem a
+    > adivinhar (item 25). **Primeiro passo é um ensaio de 60 s** para
+    > `data\smoke.npz`: serve para provar que a máquina grava, e não é
+    > medível. A sessão a sério só leva três minutos. Ao gravar, o passo
+    > seguinte é `--replay data\sessao1.npz --replay-settle-guard-ms 300`, e a
+    > matriz de confusão lê-se antes de acreditar em qualquer F1.
 
 24. **O `main` estava vermelho antes de este trabalho, e duas das armadilhas
     encontradas são do mesmo feitio: uma lista que ninguém confere porque é a
@@ -923,8 +1307,20 @@ maouse/
    nao roubam o controlo; apos `hand_lost_grace_frames` (10) qualquer mao pode adquirir.
    Com 1 mao: comportamento anterior intacto.
 2. Tracker agora com `num_hands=2` (config `num_hands`; flag `--single-hand` reverte).
-3. Testes `tools/test_hand_lock.py`: **13/13 PASS** (inclui caso apanhado pelo teste:
-   unica mao intrusa respeita a graca antes de assumir).
+3. Testes: **13/13 PASS** em `tools/test_hand_lock.py` — anotado aqui desde
+   antes, mas este número era aparência de cobertura, não cobertura. Corrigido a
+   **2026-09-30**: o ficheiro em `tools/` era um script standalone (asserções ao
+   nível do módulo, `sys.exit()` no fim) e com `testpaths = ["tests"]` **nunca
+   correu na suite** — o "13/13 PASS" vinha de o correr à mão. E o check que
+   alegava cobrir *"unica mao intrusa respeita a graca antes de assumir"* era
+   `lock2.select([far], W, H) is None or True` — sempre verdadeiro, e colocado
+   depois do ciclo de 12 frames, com a graça já expirada. Era exactamente o caso
+   que o ponto 1 acima promete. Agora são 12 testes a sério em
+   `tests/test_hand_lock.py`, com a garantia afirmada frame a frame
+   (`test_intruso_longe_nao_rouba_durante_a_graca` → dez `None`s seguidos),
+   verificados por mutação: gracar ao primeiro frame, raio desligado e aquisição
+   pela primeira mão **morrem** todas. O `HandLock` **continua desligado** — isto
+   só conserta a guarda, não liga o módulo.
 
 ### COLETA DE DADOS REAIS + RETREINO DA IA
 4. **`tools/collect_gestures.py`** — janela interativa: teclas 1-5 escolhem gesto

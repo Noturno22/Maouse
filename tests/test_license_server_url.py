@@ -168,7 +168,7 @@ def test_failed_activation_does_not_block_free(monkeypatch):
     """Regressão: ativar com chave errada deixava o utilizador sem Free."""
     monkeypatch.setattr(lic, "PROD_LICENSE_SERVER_URL", "https://x.test")
     monkeypatch.setattr(lic.LicenseClient, "activate",
-                        lambda self, key, mid: (_ for _ in ()).throw(
+                        lambda self, key, mid, weak=False: (_ for _ in ()).throw(
                             lic.LicenseError("chave_invalida")))
     lm = lic.LicenseManager(store_path=":memory:", trial_seconds=300)
     assert lm.activate("MAO-ERRADA") is False

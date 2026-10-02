@@ -56,6 +56,42 @@ def test_on_euro_reset_clears_state():
     assert out == 3.0
 
 
+def test_landmark_filter_deterministic_with_fixed_t():
+    """LandmarkFilterBank: com t fixo, o resultado e independente do clock."""
+    from core.filters import LandmarkFilterBank
+
+    bank = LandmarkFilterBank(min_cutoff=5.0, beta=0.010, n_points=3, n_dims=3)
+    lm = [(0.1, 0.2, 0.0), (0.3, 0.4, -0.05), (0.5, 0.6, 0.01)]
+    r1 = bank.filter(lm, width=640, height=480, t=1.0)
+    # simula passagem de tempo sem avancar t
+    import time
+
+    time.sleep(0.001)
+    r2 = bank.filter(lm, width=640, height=480, t=1.0)
+    assert len(r1) == len(r2)
+    for a, b in zip(r1, r2, strict=True):
+        assert len(a) == 3 and len(b) == 3
+        assert abs(a[0] - b[0]) < 1e-12
+        assert abs(a[1] - b[1]) < 1e-12
+        assert abs(a[2] - b[2]) < 1e-12
+
+
+def test_landmark_filter_applies_scale():
+    """LandmarkFilterBank: width/height obrigam a escala correcta de beta."""
+    from core.filters import LandmarkFilterBank
+
+    bank = LandmarkFilterBank(min_cutoff=5.0, beta=0.010, n_points=1, n_dims=2)
+    lm = [(0.5, 0.5)]
+    # chamamos para ativar a escala
+    bank.filter(lm, width=640, height=480, t=0.0)
+    # beta_x deve ser beta_px * width; beta_y = beta_px * height
+    fx = bank._filters[0][0]
+    fy = bank._filters[0][1] if len(bank._filters[0]) > 1 else None
+    assert abs(fx.beta - 0.010 * 640) < 1e-9
+    if fy is not None:
+        assert abs(fy.beta - 0.010 * 480) < 1e-9
+
+
 def test_lowpass_applies_alpha():
     lp = _LowPass()
     assert lp.apply(5.0, 1.0) == 5.0

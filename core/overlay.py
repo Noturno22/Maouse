@@ -3,6 +3,7 @@
 Extraído de ``main.py``: apenas apresentação do preview; a lógica vive em
 ``core.engine.process_frame``, partilhada com a MainWindow PySide6.
 """
+import math
 import time
 
 import cv2
@@ -81,6 +82,100 @@ def _badge(hf):
     return (hf.gesture.name, COLOR_SEM_ROTULO)
 
 
+def _wrap_pairs(pairs, max_chars):
+    """Quebra ``["0 NONE", "1 OPEN", ...]`` em linhas de ate ``max_chars``.
+
+    A largura util depende da resolucao da camara (640x480 no default), e a
+    tabela de teclas e a unica coisa que o operador nao pode deixar de ver.
+    Logo a quebra e calculada a partir do texto real com `getTextSize`, e nao
+    de um numero de caracteres fixo: um `len()` fixo truncava a tabela em
+    cameras largas e empurrava a ultima linha para fora do ecra nas estreitas.
+    """
+    lines, cur = [], ""
+    for p in pairs:
+        cand = p if not cur else f"{cur} | {p}"
+        if cur and len(cand) > max_chars:
+            lines.append(cur)
+            cur = p
+        else:
+            cur = cand
+    if cur:
+        lines.append(cur)
+    return lines
+
+
+def record_keymap_lines(w, keys, scale=0.42):
+    """As linhas do rodape: a tabela de teclas partida para a largura `w`.
+
+    A largura por caractere e medida do proprio texto com `getTextSize` e nao
+    de uma constante: `'0'` e mais estreito que `'W'`, e o separador `" | "`
+    gasta tres caracteres. Um `len()` fixo dava uma tabela truncada ou a sair
+    do ecra, conforme a camara - e quem se descobre com `THUMB_D` a meio de
+    uma recolha nao tem nem como corrigir.
+    """
+    (pw, _), _ = cv2.getTextSize("0" * 20, cv2.FONT_HERSHEY_SIMPLEX, scale, 1)
+    max_chars = max(8, int((w - 24) / (pw / 20.0)))
+    return _wrap_pairs([f"{k} {n}" for k, n in keys.items()], max_chars)
+
+
+def _fps_txt(fps):
+    """fps medido, ou `--` enquanto ainda nao ha dois frames.
+
+    `--` e nao `0`: zero fps e uma leitura (a camara parou) e aqui so
+    significa "ainda nao medido". A diferenca e a diferenca entre um numero que
+    mente e um que admite que nao sabe.
+    """
+    if not fps:
+        return "fps: --"
+    return f"{fps:.0f} fps"
+
+
+def draw_record_panel(frame, info):
+    """Faixa de gravacao: em que etiqueta se esta, e com que tecla se repete.
+
+    A alternativa era um toast de 1,3 s e memoria. Quem grava tem de ler a
+    etiqueta corrente sem desviar os olhos da mao, e tem de confirmar que a
+    tecla que acabou de carregar foi aceite - porque uma etiqueta errada fica
+    no ficheiro e `x` nao desfaz a ultima, limpa tudo.
+
+    A tabela de teclas fica permanentemente no rodape. E o unico sitio onde o
+    mapeamento (que e um `dict` no codigo) pode ser conferido com o que o
+    operador acha que primeu, sem sair da janela.
+    """
+    h, w = frame.shape[:2]
+    label, key = info["label"], info["key"]
+    hands = info.get("hands", 0)
+    rows = [
+        (f"A GRAVAR: {label} [{key}] | {info['frames']}f"
+         f" (neste {info['seg_frames']})", COLOR_GREEN, 0.5),
+        (f"{_fps_txt(info.get('fps'))} | H ajuda | Q sai e grava",
+         COLOR_WHITE, 0.45),
+    ]
+    if hands > 1:
+        rows.append(
+            (f"{hands} MAOS NO ECRA: SO A MAO DA DIREITA E GRAVADA",
+             COLOR_PINK, 0.45))
+
+    y0, lh = 70, 20
+    cv2.rectangle(frame, (0, y0 - 4), (w, y0 + lh * len(rows)), COLOR_DARK, -1)
+    cv2.rectangle(frame, (0, y0 - 4), (w, y0 + lh * len(rows)), COLOR_GREEN, 1)
+    for i, (txt, col, sc) in enumerate(rows):
+        cv2.putText(frame, txt, (12, y0 + lh * i + 12),
+                    cv2.FONT_HERSHEY_SIMPLEX, sc, col, 1, cv2.LINE_AA)
+
+    # Rodape: a tabela inteira, sempre. Deriva de `info["keys"]`, que o motor
+    # copiou de `core.corpus.LABEL_KEY_CHOICES` - o preview nao tem tabela
+    # propria para divergir.
+    scale = 0.42
+    lines = record_keymap_lines(w, info["keys"], scale)
+    y1, klh = h - 16 * len(lines) - 6, 16
+    cv2.rectangle(frame, (0, y1), (w, h), COLOR_DARK, -1)
+    cv2.rectangle(frame, (0, y1), (w, y1), COLOR_GREEN, 1)
+    for i, line in enumerate(lines):
+        cv2.putText(frame, line, (12, y1 + 14 + klh * i),
+                    cv2.FONT_HERSHEY_SIMPLEX, scale, COLOR_WHITE, 1, cv2.LINE_AA)
+
+
 def draw_overlay(frame, all_frames, active_side, last_scroll, fps, cfg,
                  smooth_name, paused, show_help, flash, ui):
     h, w = frame.shape[:2]
@@ -121,6 +216,16 @@ def draw_overlay(frame, all_frames, active_side, last_scroll, fps, cfg,
         cv2.putText(frame, ai_txt, (x_right + 10, 32),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.55, ai_col, 1, cv2.LINE_AA)
         x_right -= 96
+    class_conf = ui.get("class_conf", math.nan)
+    if (
+        hand_frame is not None
+        and not math.isnan(class_conf)
+        and class_conf < getattr(cfg, "min_class_conf", 0.0)
+    ):
+        cv2.rectangle(frame, (x_right, 10), (w - 12, 40), COLOR_DARK, -1)
+        cv2.putText(frame, "MAO ???", (x_right + 10, 32),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, COLOR_GRAY, 1, cv2.LINE_AA)
+        x_right -= 96
     if ui.get("magnify"):
         cv2.rectangle(frame, (x_right, 10), (w - 12, 40), COLOR_DARK, -1)
         cv2.putText(frame, f"LUPA {ui['magnify']}", (x_right + 8, 32),
@@ -160,10 +265,11 @@ def draw_overlay(frame, all_frames, active_side, last_scroll, fps, cfg,
         cv2.putText(frame, "LUZ BAIXA: realce ON", (16, 132),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.45, (80, 180, 255), 1, cv2.LINE_AA)
 
-    cv2.putText(
-        frame, "H ajuda | Q sai", (w - 170, h - 34),
-        cv2.FONT_HERSHEY_SIMPLEX, 0.45, COLOR_GRAY, 1, cv2.LINE_AA,
-    )
+    if not ui.get("record"):
+        cv2.putText(
+            frame, "H ajuda | Q sai", (w - 170, h - 34),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.45, COLOR_GRAY, 1, cv2.LINE_AA,
+        )
 
     if cfg.license_tier != "pro":
         wtxt = "MAouse FREE"
@@ -178,20 +284,29 @@ def draw_overlay(frame, all_frames, active_side, last_scroll, fps, cfg,
         pinch_color = COLOR_GREEN if hand_frame.gesture == Gesture.PINCH else COLOR_GRAY
         cv2.rectangle(frame, (12, h - 30), (12 + int(ratio * (w - 24)), h - 24), pinch_color, -1)
 
-    at_txt = "AT" if ui["autotune"] else ""
-    strip = f"{fps:4.0f} fps | ganho {cfg.move_gain:.1f} | {smooth_name}"
-    if at_txt:
-        strip += f" | {at_txt}"
-    if ui.get("tts"):
-        strip += f" | voz-neural:{ui['tts']}"
-    cv2.rectangle(frame, (0, h - 22), (w, h), COLOR_DARK, -1)
-    cv2.putText(
-        frame, strip, (max(w - 520, 8), h - 7),
-        cv2.FONT_HERSHEY_SIMPLEX, 0.5, COLOR_WHITE, 1, cv2.LINE_AA,
-    )
+    # A faixa de gravacao substitui esta barra: durante a recolha o ganho e a
+    # suavidade ficam parados, e a tabela de teclas e o que o operador precisa
+    # de ter no ecra. O fps ja vai na faixa de cima.
+    if not ui.get("record"):
+        at_txt = "AT" if ui["autotune"] else ""
+        strip = f"{fps:4.0f} fps | ganho {cfg.move_gain:.1f} | {smooth_name}"
+        if at_txt:
+            strip += f" | {at_txt}"
+        if ui.get("tts"):
+            strip += f" | voz-neural:{ui['tts']}"
+        cv2.rectangle(frame, (0, h - 22), (w, h), COLOR_DARK, -1)
+        cv2.putText(
+            frame, strip, (max(w - 520, 8), h - 7),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.5, COLOR_WHITE, 1, cv2.LINE_AA,
+        )
+
+    if ui.get("record"):
+        # Depois da barra de fps (que e substituida) e antes da ajuda (que a
+        # ajuda fica por cima de tudo o resto, como deve ser).
+        draw_record_panel(frame, ui["record"])
 
     if show_help:
-        lines = (
+        lines = [
             "AJUDA",
             "mao aberta / 1 dedo ... mover cursor",
             "pinca index ............ botao esquerdo (manter=arrastar)",
@@ -218,12 +333,28 @@ def draw_overlay(frame, all_frames, active_side, last_scroll, fps, cfg,
             "a ............. auto-afinacao | v voz | s gravar",
             "espaco ................ pausar | Q sair",
             "voz: jarvis <comando natural>",
-        )
-        cv2.rectangle(frame, (12, 120), (430, 120 + 20 * len(lines) + 12), COLOR_DARK, -1)
-        cv2.rectangle(frame, (12, 120), (430, 120 + 20 * len(lines) + 12), COLOR_GRAY, 1)
+        ]
+        if ui.get("record"):
+            # O rodape ja tem a tabela de teclas; aqui ficam as tres regras que
+            # nao se deduzem dela e quecustam a sessao quando se falha uma.
+            lines += [
+                "--- A GRAVAR (--record) ---",
+                "a tecla vai ANTES de adoptar o gesto:",
+                "  a etiqueta conta a partir do momento",
+                "  em que a carregaste, nao em que viste",
+                "so a mao do CURSOR e gravada (a da DIREITA",
+                "  do ecra). A outra fora de vista.",
+                "frames em 0f = etiqueta posta sem mao.",
+                "x limpa a sessao toda. Q sai e grava.",
+            ]
+        # Durante a gravacao a faixa de cima ocupa ate y=130: a ajuda desce para
+        # nao ficar coberta pela linha que a explica.
+        hy = 140 if ui.get("record") else 120
+        cv2.rectangle(frame, (12, hy), (430, hy + 20 * len(lines) + 12), COLOR_DARK, -1)
+        cv2.rectangle(frame, (12, hy), (430, hy + 20 * len(lines) + 12), COLOR_GRAY, 1)
         for i, line in enumerate(lines):
             cv2.putText(
-                frame, line, (24, 140 + 20 * i),
+                frame, line, (24, hy + 20 + 20 * i),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.48, COLOR_WHITE, 1, cv2.LINE_AA,
             )
 

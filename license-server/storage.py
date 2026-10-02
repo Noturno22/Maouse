@@ -66,10 +66,32 @@ def init_db(conn: sqlite3.Connection) -> None:
     # tabelas administrativas (painel web)
     from admin_storage import init_admin_tables
     init_admin_tables(conn)
+    _migrate_weak_identity(conn)
     cur = conn.execute("SELECT v FROM config WHERE k='revocation_nonce'")
     if cur.fetchone() is None:
         conn.execute("INSERT INTO config(k,v) VALUES('revocation_nonce','0')")
     conn.commit()
+
+
+def _migrate_weak_identity(conn) -> None:
+    """Acrescenta `weak_identity` a `machines`, se ainda não lá estiver.
+
+    O `CREATE TABLE IF NOT EXISTS` acima não chega: numa base que já existe em
+    produção a tabela é criada na sua forma **antiga**, e a coluna nova não
+    aparece. A migração tem de ser explícita, e tem de ser idempotente porque
+    `init_db` corre a cada arranque.
+
+    O `DEFAULT 0` é o que mantém honestos os registos antigos: uma máquina
+    activada antes de isto existir tem identidade desconhecida, e desconhecida
+    não é forte. O cliente novo marca as que sabe; estas ficam a zero, que é
+    "nao foi marcado", e o painel tem de as ler assim.
+    """
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(machines)")}
+    if "weak_identity" in cols:
+        return
+    conn.execute(
+        "ALTER TABLE machines ADD COLUMN weak_identity INTEGER NOT NULL DEFAULT 0"
+    )
 
 
 def hash_key(key: str) -> str:
@@ -90,11 +112,39 @@ def key_exists(conn, key_hash: str) -> bool:
 
 
 # --- máquinas / vínculo ---
-def bind_machine(conn, key_hash: str, machine_id: str) -> None:
+def bind_machine(conn, key_hash: str, machine_id: str,
+                 weak_identity: bool = False) -> None:
     conn.execute(
-        "INSERT INTO machines(machine_id, key_hash, activated_at) VALUES(?,?,?)",
-        (machine_id, key_hash, int(time.time())))
+        "INSERT INTO machines(machine_id, key_hash, activated_at, weak_identity)"
+        " VALUES(?,?,?,?)",
+        (machine_id, key_hash, int(time.time()), 1 if weak_identity else 0))
     conn.commit()
+
+
+def machine_is_weak(conn, machine_id: str) -> bool:
+    """A identidade desta máquina veio de hardware, ou de um sal local?
+
+    `None` quando a máquina não está na base. O `None` **não** é `False`: uma
+    máquina que ninguém activou ainda não disse nada sobre a sua identidade, e
+    tratar a ausência como "forte" seria a mesma mentira pelo outro lado.
+    """
+    cur = conn.execute(
+        "SELECT weak_identity FROM machines WHERE machine_id=?", (machine_id,))
+    row = cur.fetchone()
+    return None if row is None else bool(row["weak_identity"])
+
+
+def weak_machines(conn) -> list:
+    """As máquinas cuja identidade não prova nada, para o dono as ver.
+
+    Não bloqueia nada: é uma lista para um humano olhar. Bloquear quem paga
+    por causa de uma máquina esquisita seria trocar receita por uma garantia
+    que ninguém pediu.
+    """
+    cur = conn.execute(
+        "SELECT machine_id, key_hash, activated_at, last_seen FROM machines"
+        " WHERE weak_identity=1 ORDER BY activated_at DESC")
+    return [dict(r) for r in cur.fetchall()]
 
 
 def machine_for_key(conn, key_hash: str):

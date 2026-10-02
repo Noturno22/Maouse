@@ -30,6 +30,11 @@ class KeyResponse(BaseModel):
 class ActivateRequest(BaseModel):
     key: str
     machine_id: str
+    # O cliente diz que o machine_id nao veio de hardware. Fica a `False` para
+    # que um cliente antigo (que nao manda o campo) continue a ser aceite, e o
+    # registo guarda `weak_identity=0` — que se le como "nao foi marcado", nao
+    # como "forte". Ver `storage._migrate_weak_identity`.
+    machine_weak: bool = False
 
 
 class ActivateResponse(BaseModel):
@@ -94,7 +99,8 @@ def create_app() -> FastAPI:
     def api_activate(req: ActivateRequest, db=Depends(get_db)):
         try:
             lease, session_id, use_seq = activate(
-                db, req.key.strip(), req.machine_id.strip())
+                db, req.key.strip(), req.machine_id.strip(),
+                weak_identity=req.machine_weak)
         except ValueError as exc:
             return JSONResponse(status_code=403, content={"error": str(exc)})
         return ActivateResponse(tier="pro", lease=lease,

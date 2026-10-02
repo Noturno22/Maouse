@@ -300,21 +300,22 @@ telemóvel** (`RemoteScreen.tsx:219-220`: `x = locationX / layoutRef.current.w`)
 no ecrã do PC — **sem correcção de aspecto**, pelo que mapear 9:19.5 num 16:9 produz
 alongamento anisotrópico.
 
-### 🔴 Bug crítico: multi-monitor sem origem
+### 🟢 Bug crítico: multi-monitor sem origem — **corrigido a 2026-10-02**
 
-`core/mouse_ctl.py:127-143` lê o **tamanho** do desktop virtual mas **nunca a origem**:
+`core/mouse_ctl.py:120-161` lia o **tamanho** do desktop virtual mas **nunca a origem**:
 
 ```python
-# core/mouse_ctl.py:130-131
+# core/mouse_ctl.py:131-132
 w = int(user32.GetSystemMetrics(78))  # SM_CXVIRTUALSCREEN
 h = int(user32.GetSystemMetrics(79))  # SM_CYVIRTUALSCREEN
 ```
 
-`SM_XVIRTUALSCREEN` (76) e `SM_YVIRTUALSCREEN` (77) **não aparecem em lado nenhum do
-código** (verificado em `core/`, `ui/`, `main.py`). Entretanto o pynput posiciona via
-`SetCursorPos`, que usa coordenadas de desktop virtual e **aceita valores negativos**.
+`SM_XVIRTUALSCREEN` (76) e `SM_YVIRTUALSCREEN` (77) **não apareciam em lado nenhum
+do código** (verificado em `core/`, `ui/`, `main.py`). Entretanto o pynput posiciona
+via `SetCursorPos`, que usa coordenadas de desktop virtual e **aceita valores
+negativos**.
 
-| Configuração | Origem virtual | Resultado |
+| Configuração | Origem virtual | Resultado (antes da correcção) |
 |---|---|---|
 | 2 monitores lado a lado, principal à esquerda | `(0, 0)` | ✅ correcto |
 | Qualquer monitor **à esquerda ou acima** do principal | `(−W₂, 0)` | 🔴 faixa inalcançável; `move_by` encurrala o cursor no monitor principal |
@@ -322,10 +323,20 @@ código** (verificado em `core/`, `ui/`, `main.py`). Entretanto o pynput posicio
 É o bug clássico desta classe, e é exactamente o cenário de quem faz *trading* com
 vários ecrãs.
 
-⚠️ **Pior: um teste afirma o bug como correcto.**
-`tests/test_move_gesture.py:176-201` fixa o clamp `[0, screen_w−1]` num ecrã
-sintético 2000×1200, sem qualquer noção de origem. O bug fica **enterrado pela
-mesma suite que o deveria apanhar**.
+**Correcção.** `MouseCtl` passou a ler também `SM_XVIRTUALSCREEN` (76) e
+`SM_YVIRTUALSCREEN` (77), e a expor `screen_bounds()` — os limites reais,
+`(screen_x, screen_y, screen_x + screen_w − 1, screen_y + screen_h − 1)`. `move_by`
+passou a clampar contra isso em vez de `[0, screen_w−1]`, e o `move_to` do servidor
+passou a somar a origem aoconverter de normalizado para píxeis. `screen_w`/`screen_h`
+continuam a significar **tamanho**, porque `engine.py:555-556`, `main.py:551` e a
+resposta de `auth` dependem disso.
+
+⚠️ **O teste que enterrava o bug.** `tests/test_move_gesture.py` fixava o clamp
+`[0, screen_w−1]` num ecrã sintético 2000×1200 sem qualquer noção de origem — e
+`_ctl()` construía um `MouseCtl()` real, pelo que depois da correcção passou a herdar
+a origem do ecrã de quem corre a suite. Passou a fixar `screen_x`/`screen_y` à mão, e
+`tests/test_multi_monitor_origin.py` (17 testes) cobre a origem negativa nos dois
+sentidos, para o mesmo bug não voltar a passar.
 
 ## 1.6 Teclado — do texto à tecla (mobile)
 
@@ -456,8 +467,11 @@ iteração usa `for (const ch of added)`, consciente de code points.
    sessões RDP, prompts UAC, a UI de credenciais do Windows, e jogos que lêem input
    bruto vão ignorar ou distorcer. Um caminho por clipboard com `Ctrl+V` seria mais
    robusto para campos de texto.
-3. **Zero testes.** A afirmação mais importante para o mercado **não tem um único
-   teste** que a proteja.
+3. ~~**Zero testes.**~~ **Parcialmente esbarrado a 2026-10-01:** o caminho do
+   protocolo (`_type_text` é chamado, aceita texto vazio e não vazio) está coberto
+   pelos testes de contrato, mas contra um **teclado falso**. A afirmação que importa
+   para o mercado — que os caracteres acentuados chegam mesmo ao Windows —
+   **continua sem um único teste**.
 
 ## 1.9 Segurança e modelo de ameaça actual
 
@@ -504,28 +518,43 @@ Free obtém rato + teclado remotos completos, grátis.
 
 ## 1.10 Cobertura de testes
 
-### Mobile: **zero**
+### Mobile: `src/__tests__/remoteClient.test.ts` (18 testes)
 
-Sem ficheiros `*.test.*` / `*.spec.*`, sem directório `__tests__/`, sem `jest` ou
-`vitest` configurado, e **sem `test` script** no `package.json`.
+🟢 **Corrigido a 2026-10-01.** A auditoria encontrou zero cobertura; hoje há `jest-expo`
+configurado, `test` script no `package.json` e 18 testes do `RemoteClient`:
+`buildWsUrl` (host, porta, omissões, esquemas, limpeza, token fora do URL, `wss`→`ws`),
+`auth` como primeira mensagem, comandos bloqueados antes de `auth.ok`, token recusado e
+ausente, dimensões inválidas, JSON inválido e fechos.
 
-Consequência: a matemática de coordenadas, os filtros, o diff do teclado e todo o
-caminho de mensagens do `RemoteClient` estão **completamente por cobrir** — apesar de
-serem funções puras e trivialmente testáveis.
+### Contrato dos dois lados: `tests/test_remote_protocol_contract.py` (28 testes)
+
+🟢 **Novo a 2026-10-01.** Os dois directórios nunca são compilados juntos, por isso
+jogar só do lado TS deixaria passar uma renomeação de comando no PC. Estes testes
+prendem o contrato **no lado do servidor**, sem toolchain TS: os 11 comandos que o
+`remoteClient.ts` manda são aceites, as formas das respostas (`{cmd,ok,w,h}`,
+`{ok,note}`, `bad_command`, `auth_required`) são as que o parser do TS consome,
+`auth`/`ping` são inline e não passam por `_handle`, e um comando antes do `auth` é
+recusado sem mover o rato um píxel. A simetria é testada nos dois sentidos — um
+comando novo no PC que o app não manda também falha.
 
 ### Desktop: `tests/test_remote.py` existe, mas é fino
 
 | Teste | O que realmente afirma |
 |---|---|
-| `test_dispatch_move_to_clamps` | Aritmética contra `FakeMouse` (`screen_w=1920`). **Não modela origem** — estruturalmente incapaz de detectar o bug multi-monitor. Fixa o truncamento como se fosse intenção. |
-| `test_auth_and_commands_over_websocket` | Servidor real em `127.0.0.1:0`. ⚠️ **A asserção de bad-auth é um no-op** — está dentro de `try/except Exception: pass` (linhas 167-169), portanto um cliente que nem consiga ligar-se passa. |
+| `test_dispatch_move_to_clamps` | Aritmética contra `FakeMouse` (`screen_w=1920`). **Não modela origem** — continua cego ao multi-monitor, mas deixou de ser o único: `tests/test_multi_monitor_origin.py` fixa a origem negativa nos dois sentidos. A 2026-10-02 `_ctl()` em `tests/test_move_gesture.py` passou a fixar `screen_x/screen_y` à mão, porque `MouseCtl()` lê a origem real da máquina e o teste dependeria do setup de ecrã de quem o corre. |
+| `test_auth_and_commands_over_websocket` | Servidor real em `127.0.0.1:0`. ⚠️ **A asserção de bad-auth é um no-op** — está dentro de `try/except Exception: pass` (linhas 167-169), portanto um cliente que nem consiga ligar-se passa. **Esbarrado a 2026-10-01:** `test_resposta_de_auth_falhado_tem_error_auth_required` e `test_comando_antes_do_auth_nunca_parte` em `tests/test_remote_protocol_contract.py` afirmam o auth falhado sem `try/except`. |
 | `test_generate_token_is_unique` | Não-vazio, `len >= 8`, distinto. **Não** afirma a força real de 64 bits. |
 | `test_key_aliases_arrow_keys` | Único teste que toca pynput real. |
 | `test_dispatch_move_click_scroll_press` | Despacho contra `FakeMouse`. |
 
-**Não testado de todo:** injecção de texto, `_type_text`, `_combo`, `_tap_key,
-**caracteres acentuados**, media keys, a tabela de gestos, simetria de arrasto,
-coordenadas multi-monitor, rejeição de auth ou replay, clientes concorrentes.
+**Continua por testar:** injecção de texto contra o teclado real, **caracteres
+acentuados** de facto, replay, e clientes concorrentes. As duas excepções saíram
+da lista a 2026-10-02: a simetria de arrasto quando o socket cai a meio
+(achado #10) e as coordenadas multi-monitor (achado #2) têm agora
+`tests/test_remote_drag_release.py` e `tests/test_multi_monitor_origin.py`. Nota: os
+testes de contrato exercitam `_type_text`, `_combo`, `_tap_key`, media keys e a
+tabela de gestos, mas contra um teclado **falso** — provam que o comando é aceite e
+despachado, não que o evento chega ao Windows.
 
 ⚠️ **A CI não executa o caminho crítico.** `.github/workflows/ci.yml` corre
 `QT_QPA_PLATFORM=offscreen xvfb-run -a pytest tests -q` em Linux. Como
@@ -540,7 +569,7 @@ Consolidadas e verificadas no repositório em 2026-09-28.
 |---|---|---|---|
 | 0 | 🔴 Crítico | **`cryptography` em falta nos manifestos** — importado por `core/licensing.py` ao nível do módulo, e `main.py:35` importa esse módulo. O `setup.bat` produzia um ambiente onde a aplicação **não arrancava**. Provado por resolução limpa (59 pacotes, `cryptography` ausente, nada o traz transitivamente). **Corrigido** 2026-09-28. | `requirements.txt`, `core/licensing.py:9-10`, `main.py:35` |
 | 1 | ⚪ **Falso positivo** | ~~`websockets>=13.0` é um floor inválido; `websockets.asyncio.server` só existe a partir da 14.0.~~ **Falso.** O namespace `websockets.asyncio` foi introduzido na **13.0** (changelog 13.0: *"introduces a new asyncio implementation"*); a 14.0 foi apenas o que o tornou default. `websockets/asyncio/server.py` existe na tag `13.0` do upstream, com a API `serve` completa. O floor declarado está **correcto**. Ver §1.14.1. | `requirements.txt:5`, `core/remote.py:223` |
-| 2 | 🔴 Crítico | **Multi-monitor sem origem** — cursor encurralado no monitor principal se algum ecrã estiver à esquerda/acima. | `core/mouse_ctl.py:127-143,186-189` |
+| 2 | 🟢 **Resolvido** | ~~**Multi-monitor sem origem** — cursor encurralado no monitor principal se algum ecrã estiver à esquerda/acima.~~ **Corrigido a 2026-10-02:** `_screen_size` lia a largura e a altura do desktop virtual mas descartava a origem (`SM_XVIRTUALSCREEN`/`SM_YVIRTUALSCREEN`, métricas 76/77), logo o clamp de `move_by` assumia que o ecrã começava em 0 e atirava metade do desktop para a origem; `move_to` convertia normalizado→píxeis sem a mesma origem. Passa a existir `MouseCtl.screen_bounds()`, usada pelos dois caminhos, com 17 testes em `tests/test_multi_monitor_origin.py` — 8 deles falham sem a correcção. Ver §1.5. | `core/mouse_ctl.py`, `core/remote.py`, `tests/test_multi_monitor_origin.py` |
 | 3 | 🔴 Crítico | **Sem TLS**, e o cliente impede usar `wss://`. | `core/remote.py:227-231`, `remoteClient.ts:36` |
 | 4 | 🔴 Crítico | **Sem rate limit / lockout / allowlist** numa porta aberta à Internet. | `core/remote.py:250` |
 | 5 | 🔴 Crítico | **Bypass do gate Pro** — rato e teclado remotos são grátis. | `App.tsx:153` vs ausência em `remote.py` |
@@ -548,9 +577,9 @@ Consolidadas e verificadas no repositório em 2026-09-28.
 | 7 | ⚪ **Sem impacto** | **`pyproject.toml` não declarava as dependências** — só `cryptography>=42`, e não empacotava `config.py`/`i18n.py`. Premissa errada: o projecto não é distribuído por pip (`git grep "pip install \."` vazio; o produto sai por PyInstaller e as dependências vêm do `setup.bat` → `requirements.txt`). As secções mortas foram apagadas a 2026-09-28. Ver [§1.14.3](#1143-o-pyprojecttoml-não-era-o-problema--e-a-primeira-correcção-estava-errada). | `pyproject.toml:1-44` (removido) |
 | 8 | 🟠 Alto | **Bypass do toggle de pausa** — controlo total com a app "pausada". | ausência em `remote.py` |
 | 9 | 🟠 Alto | **`_combo` bloqueia o event loop** 40 ms com `time.sleep`. | `core/remote.py:475` |
-| 10 | 🟠 Alto | **`press`/`release` sem estado de arrasto** — sem `finally` de limpeza, um socket que cai a meio de um arrasto deixa o botão logicamente premido. | `core/remote.py:379-397` |
+| 10 | 🟢 **Resolvido** | ~~**`press`/`release` sem estado de arrasto** — sem `finally` de limpeza, um socket que cai a meio de um arrasto deixa o botão logicamente premido.~~ **Corrigido a 2026-10-02:** `press` não guardava estado nenhum e o gesto `left_down` punha `_drag` a `True` sem nada a limpar — o `_combo` já fazia esta limpieza para as teclas, os botões é que ficaram de fora. Agora os dois caminhos passam por um registo único (`_held`, canonicalizado para `lmb` e `left` serem o mesmo botão) e o `finally` de `_on_connect` solta o que ficou premido. 14 testes em `tests/test_remote_drag_release.py`, 6 dos quais falham sem a correcção. | `core/remote.py`, `tests/test_remote_drag_release.py` |
 | 11 | 🟠 Alto | **Sem auto-reconnect, sem AppState, sem fila.** Input perdido em silêncio. | `src/services/remoteClient.ts` |
-| 12 | 🟡 Médio | **Zero testes no mobile**; suite desktop não cobre auth nem texto. | `tests/test_remote.py` |
+| 12 | 🟢 **Resolvido** | ~~**Zero testes no mobile**; suite desktop não cobre auth nem texto.~~ **Corrigido a 2026-10-01:** 18 testes Jest em `mobile/maouse-mobile/src/__tests__/remoteClient.test.ts` e 28 testes de contrato em `tests/test_remote_protocol_contract.py`, que cobrem o handshake, a rejeição de auth, o texto e a simetria dos 11 comandos. Ver §1.10. | `src/__tests__/remoteClient.test.ts`, `tests/test_remote_protocol_contract.py` |
 | 13 | 🟡 Médio | **Double-Enter** no teclado. | `RemoteScreen.tsx:95-96,113` |
 | 14 | 🟡 Médio | **Corrupção em edições não-append** (diff por índice). | `RemoteScreen.tsx:91` |
 | 15 | 🟡 Médio | **Sem filtro, aceleração ou escala no touchpad** — sensação dependente do telemóvel. | `remoteClient.ts:31` |
@@ -1325,8 +1354,12 @@ Recomenda-se a primeira, com o contador visível. Silêncio é o pior dos dois m
 - `core/remote.py:475` — `time.sleep(0.04)` **dentro do event loop** bloqueia o
   servidor inteiro. `await asyncio.sleep(...)` com o handler tornado async, ou
   `asyncio.to_thread`.
-- `core/remote.py:379-397` — dar estado de arrasto a `press`/`release`, com
-  `try/finally` para libertar o botão se a ligação cair a meio do gesto.
+- ~~`core/remote.py:379-397` — dar estado de arrasto a `press`/`release`, com
+  `try/finally` para libertar o botão se a ligação cair a meio do gesto.~~
+  **Feito a 2026-10-02:** `press` e o gesto `left_down` passam por um registo único
+  (`_held`, com `lmb`/`left` canonicalizados no mesmo botão) e o `finally` de
+  `_on_connect` solta o que ficou premido. 14 testes em
+  `tests/test_remote_drag_release.py`.
 - `core/remote.py:489` — estreitar o `except Exception` a `InvalidCharacterException`
   para tornar a duplicação de texto impossível.
 

@@ -409,8 +409,19 @@ um salto.
 ⚠️ **Nota importante**: `core/hand_lock.py` implementa um `HandLock` com
 continuidade de trajectória (`radius_frac`, `lost_grace_frames`) que seria
 exactamente o mecanismo certo — mas **está desligado**. Não é instanciado nem
-importado pelo `engine.py`. Existe apenas teste próprio (`tools/test_hand_lock.py`)
-e uma secção de config (`config.py:146-147`).
+importado pelo `engine.py`. Existe uma secção de config (`config.py:146-147`).
+
+A guarda deste módulo foi corrigida em 2026-09-30 e **não** o liga ao produto.
+Até então a única guarda era `tools/test_hand_lock.py`, um script standalone que
+corre as verificações ao nível do módulo e termina em `sys.exit()`; com
+`testpaths = ["tests"]` em `pyproject.toml` aquele ficheiro **nunca correu na
+suite** — os "13 PASS" vinham de o correr à mão. Pior: o único check que afirmava
+a garantia central do `HandLock` (um intruso longe não rouba o controlo durante a
+janela de graça) era `lock2.select([far], W, H) is None or True`, que é sempre
+verdadeiro, e estava colocado *depois* do ciclo de 12 frames, quando a graça já
+tinha expirado. Agora são 12 testes a sério em `tests/test_hand_lock.py`, com a
+garantia afirmada frame a frame, e verificados por mutação (gracar ao primeiro
+frame, raio desligado, aquisição pela primeira mão) — as três morrem.
 
 ## 1.9 Fase 8 — Movimento do cursor
 
@@ -629,7 +640,7 @@ Todos em `config.py`, persistidos em `settings.json` (ver `config.py:280+`).
 | `max_jump_frac` | 0.35 | rejeição de teleports |
 | `warmup_frames` | 10 | frames ignorados no arranque |
 | `low_light_boost` | False | CLAHE |
-| `hand_lock_radius_frac` / `hand_lost_grace_frames` | 0.30 / 10 | **desligado** |
+| `hand_lock_radius_frac` / `hand_lost_grace_frames` | 0.30 / 10 | **desligado** (guardado em `tests/test_hand_lock.py`) |
 
 ### Movimento
 
@@ -683,7 +694,7 @@ Todos em `config.py`, persistidos em `settings.json` (ver `config.py:280+`).
 | `core/motion.py` | `SmoothEmitter` 180 Hz, predição |
 | `core/autotune.py` | Auto-afinação de filtro e ganho |
 | `core/light.py` | Detecção de luz baixa com histerese |
-| `core/hand_lock.py` | `HandLock` — **código morto, não ligado** |
+| `core/hand_lock.py` | `HandLock` — **código morto, não ligado** (§1.5; guarda real em `tests/test_hand_lock.py`) |
 | `core/mouse_ctl.py` | Escrita no rato |
 | `core/hotkeys.py` | Atalhos (Alt+F4, Win+D, Cmd+±) |
 | `core/commands.py` | Comandos unificados · `_click_assist` |
@@ -717,9 +728,15 @@ Relevantes para o reconhecimento:
 | `test_eval_recognition.py` | métricas, exclusão de `SETTLE`, aceitação |
 | `test_corpus_fixture.py` | **portão de regressão**: fixture ↔ baseline comitado |
 
-Diagnóstico em `tools/`: `test_hand_lock.py`, `test_left_hand.py`,
-`test_new_gestures.py`, `test_click_latency.py`, `test_v3.py`,
-`test_retrain_smoke.py`.
+Diagnóstico em `tools/`: `test_left_hand.py`, `test_new_gestures.py`,
+`test_click_latency.py`, `test_v3.py`, `test_retrain_smoke.py`.
+
+`test_hand_lock.py` saiu desta lista a 2026-09-30: deixou de ser um script
+standalone em `tools/` e passou a ser `tests/test_hand_lock.py`, dentro da suite.
+Estes `tools/test_*.py` são diagnósticos manuais por natureza — correm
+afirmações ao nível do módulo e saem com `sys.exit()`, o que rebenta a recolha do
+pytest com `INTERNALERROR` se alguém os apontar. É por isso que `testpaths` está
+limitado a `tests/`; guardas que precisam de correr pertencem a `tests/`.
 
 ### Benchmark de precisão — fechado na Onda 0
 
@@ -729,7 +746,10 @@ detectores*, não *benchmarks de precisão*") está fechada:
 * **Gravar** — `main.py --record <ficheiro.npz>` (com `--record-max-frames`,
   `--frame-width/height`) guarda landmarks **e** o rótulo que o utilizador
   Estava a fazer em cada frame. Corre em todo o pipeline, sem câmaras
-  adicionais.
+  adicionais. **O procedimento operativo está em
+  `HARDWARE/RECOLHA_CORPUS.md`**: as três regras, a sequência dos 13
+  gestos e como se lê o relatório. Este ficheiro é o *porquê*; aquele é
+  o *como*.
 * **Reproduzir** — `main.py --replay <ficheiro.npz>` corre o classificador
   real sobre as landmarks gravadas e imprime o relatório. Sem câmara, sem rato,
   sem interface, sem licença — corre em qualquer máquina de CI.
@@ -782,13 +802,14 @@ Documentadas em `HARDWARE/PROBLEMAS_KNOWN.md` e confirmadas no código:
 | 2 | **`--gpu` inoperante** em iGPU antigas (`NotImplementedError`), sem ganho | §1.3 — 13.4 fps com `--gpu` |
 | 3 | **Label de handedness instável** — obriga à seleção por X | `engine.py:46-58`, `twohand.py:223` |
 | 4 | **`commands_ok` sem teste de integração** no engine | spec 2026-09-06 |
-| 5 | `HandLock` — continuidade de mão implementada mas não ligada | `hand_lock.py:19` |
+| 5 | `HandLock` — continuidade de mão implementada mas não ligada. A guarda passa a correr na suite em 2026-09-30 (antes era um script em `tools/` com um check `or True` que não podia falhar). Ligar continua **bloqueado por dados**: `docs:1598` | `hand_lock.py:19`, `tests/test_hand_lock.py` |
 | 6 | `MultiClapDetector` / `DualWaveDetector` implementados mas não instanciados | `twohand.py:408`, `:475` |
 | 7 | Rótulos do enum `Gesture` desactualizados face ao comportamento real | `gestures.py:18-19` |
 | 8 | Confiança de detecção do MediaPipe **descartada** | `tracker.py:89-99` |
-| 9 | Jitter das landmarks dos dedos **não filtrado** | `engine.py:427` filtra só a palma |
+| 9 | ~~Jitter das landmarks dos dedos **não filtrado**~~ — **fechado na Onda 1 §1.1** (2026-09-30). `LandmarkFilterBank` (`core/filters.py`) filtra as 21 landmarks de cada mão antes de qualquer limiar, com reset coerente com o `HandPool`. `min_cutoff = 5.0` (acima do 1.4 da palma): suaviza 1.93x em repouso contra os 2.57x da palma, arrasta 4.8 px a 970 px/s. **Custo medido: 1 frame (33 ms) de latência no clique da pinça**, aceite com aval explícito e registado na baseline (`latency_p95_ms` 0.0 → 33.0). | `core/filters.py:LandmarkFilterBank`, `core/gestures.py:109`, `tests/test_filters.py` |
 | 10 | ~~CLI não tem modo de gravação/replay~~ — **fechado na Onda 0** | `main.py --record` / `--replay`, `core/corpus.py` |
 | 11 | ~~**`SHAKA` (Ctrl+V) é praticamente inalcançável**~~ — **fechado na Onda 1 §1.3** (2026-09-28). O `thumb_out` media a ponta do polegar contra o seu próprio IP (`landmark 3`) e exigia `dx > 0.30 × escala`: geometricamente impossível, porque a falange distal mede ~0.28. Mede anatomia, não intenção. Passou a medir a distância da ponta do polegar à **base do indicador (`landmark 5`)**, normalizada pela escala (~1.23 para o lado, ~0.85 recolhido, corte em 1.05). **Na fixture: `SHAKA` F1 0.0 → 1.0, `PINKY` P 0.600 → 1.0, zero confusões, F1 macro 1.0000.** Por confirmar em mãos reais. | `core/gestures.py` (`thumb_out`), `tests/test_corpus_fixture.py::TestShakaIsRecognised`, `tests/test_shaka_thumb_out.py`, `PROBLEMAS_KNOWN.md` §1.4 |
+| 12 | **A fixture de regressão não é temporalmente fiel** — `tools/make_corpus_fixture.py:265-266` sorteia um **centro novo por frame** (`cx = 0.5 ± 0.05`), pelo que a mão teletransporta ~49 px/frame mesmo numa pose supostamente parada. O jitter que o `NOISE_FRAC = 0.008` pretendia modelar (0.96 px) é ~50x menor e fica enterrado. Verificado que **não** é a origem do custo de latência da §1.1 (remediado o centro, a latência mantém-se), mas a fixture **não avalia comportamento temporal com fidelidade** — nada no portão temporal pode ser considerado prova. Correção é de scope da Onda 3, não desta. | `tools/make_corpus_fixture.py:265` |
 
 ---
 
@@ -1101,6 +1122,56 @@ está testado (`core/filters.py`); é instanciá-lo.
 *Impacto esperado:* menos falsos positivos e menos "gesto a tremer" sem
 qualquer modelo novo.
 
+> **✅ Feito (2026-09-30, Onda 1 §1.1).** `LandmarkFilterBank` (`core/filters.py`)
+> põe um `OneEuroFilter` em cada coordenada dos 21 landmarks, dentro do
+> `GestureEngine`, antes de qualquer limiar — escala, rácio de pinça, curl, SHAKA
+> e palma consomem todos a lista filtrada. O `reset()` vem do `GestureEngine.reset()`,
+> que o `HandPool` já chama quando a mão desaparece.
+>
+> **Dois defeitos meus apareceram só porque o portão mede.** Nenhum era teoria:
+>
+> 1. **Base temporal errada.** O `OneEuroFilter` media `dt` pelo relógio de
+>    parede. Numa câmara a 30 fps isso é um detalhe; num `--replay` que despeja o
+>    corpus à velocidade do processador, `dt` é de microssegundos,
+>    `alpha = 1/(1+tau/dt)` tende a zero e o filtro **congela**. F1 macro
+>    **1.0000 → 0.2787**, e as confusões seguiam todas o gesto anterior
+>    (`ROCK→PEACE` 8/8, `SHAKA→PINKY` 8/8). Corrigido passando o timestamp do
+>    frame (`ts_ms` no runtime, `t_ms` no replay) até ao filtro. Um filtro cuja
+>    saída depende da velocidade da máquina não é um filtro.
+> 2. **`beta` na escala errada.** `beta` foi herdado de `FilterPair2D`, afinado
+>    sobre a palma em **pixels**, mas as landmarks chegam normalizadas em [0, 1].
+>    Um salto de 32 px em 33 ms mede `|edx| = 591.7/s` em pixels e `0.925/s`
+>    normalizado, logo `beta*|edx|` dava 5.92 Hz ou **0.0092 Hz** — 0.3% de um
+>    cutoff de 3.0. O One Euro degradava-se num low-pass estático, que é
+>    precisamente o que ele existe para não ser. Sintoma: a pinça não cruzava o
+>    Schmitt a tempo, F1 macro **0.9098**. Corrigido escalando `beta` pelas
+>    dimensões do frame (`_apply_scale`).
+>
+> **Medido depois de corrigido:** F1 macro **1.0000**, 116/116, **0 cliques
+> fantasma**, `ACEITE`. Com `min_cutoff = 5.0` (acima do 1.4 da palma, como o
+> plano mandava) a banca suaviza **1.93x** em repouso contra os 2.57x da palma, e
+> arrasta 4.8 px a 970 px/s. O `min_cutoff = 3.0` era pior **nos dois** eixos
+> (F1 0.9790, latência 66 ms): menos suavização é mais atraso, não menos.
+>
+> **O custo, que é real e foi aceite:** **1 frame (33 ms) de latência no clique
+> da pinça**, o atraso de grupo do próprio filtro. A baseline foi re-gerada de
+> `latency_p95_ms` 0.0 para 33.0 com aval explícito. O 0.0 anterior **não era um
+> alvo de mundo real**: era um zero sintético, porque no corpus a pinça é
+> instantânea e o trigger dispara no primeiro frame qualificado. Medir o custo de
+> um filtro contra esse zero é medir contra nada. Não há saída gratuita — a
+> latência só volta a 0 ms **acima de 20 Hz**, onde a suavização cai para 1.14x
+> e o filtro deixa de filtrar.
+>
+> **O que fica por provar:** a fixture é sintética (§1.16). E há um defeito nela
+> que convém não esconder — `tools/make_corpus_fixture.py` sorteia um **centro
+> novo por frame** (`cx = 0.5 ± 0.05`), o que teletransporta a mão ~49 px/frame
+> mesmo numa pose supostamente parada; o jitter que o `NOISE_FRAC = 0.008`
+> pretendia modelar (0.96 px) é 50x menor e fica enterrado. Verificado que **não**
+> é a origem do custo de 33 ms (remediu-se o centro e a latência mantém-se), mas
+> significa que esta fixture **não avalia comportamento temporal com fidelidade**.
+> Continua a valer como portão contra *regressão*, não como prova de qualidade.
+
+
 ### 1.2 Propagar a confiança do tracker
 
 - Ler `handedness[0].score` em `core/tracker.py:89` e, se disponível, o score de
@@ -1111,9 +1182,61 @@ qualquer modelo novo.
      classificar. A Meta chama a isto `IsHighConfidence`.
   2. **Peso no gate da IA** — um frame de baixa confiança **não** pode confirmar
      um gesto; só pode ser neutro.
-  3. **Feedback ao utilizador** — mostrar o anel de tracking a degradar. O
+3. **Feedback ao utilizador** — mostrar o anel de tracking a degradar. O
      overlay já sabe desenhar o esqueleto. O utilizador reage antes de o rato
      correr sozinho.
+
+> **✅ Feito (2026-09-30, Onda 1 §1.2).** O `core/tracker.py` já devolvia
+> `handedness[0].score` como terceiro valor desde a Onda 0, mas **ninguém o
+> lia**: `engine.py` passava-o a `HandPool`, `HandPool` passava-o a
+> `GestureEngine.update(conf=...)`, e aí ficava. Plumbing completo, função zero —
+> o pior tipo de código, porque parece implementado.
+>
+> **O nome ficou `class_conf`, não `detect_conf`.** O `handedness[0].score` é a
+> confiança da **classificação** (esta mão é esquerda ou direita), não da
+> **detecção**. O `HandLandmarker` do MediaPipe não expõe a confiança de
+> detecção na API Python — só os limiares `min_hand_detection_confidence` /
+> `min_hand_presence_confidence`, que são limiares, não medidas. Chamar-lhe
+> `detect_conf` seria exactamente o over-claim que este projecto já se pegou a
+> pagar duas vezes (ver `tests/test_tracker_confidence.py`, que já escrevia isto
+> antes de o código o fazer).
+>
+> Os três usos, e o que cada um **não** faz:
+>
+> 1. **Abstenção** (`core/gestures.py`): `too_far or low_conf` → `Gesture.NONE`.
+>    Uma mão que não sabemos de que lado é não move o rato.
+> 2. **Gate da IA**: `not (too_far or low_conf)`. Um frame de baixa confiança
+>    é **neutro**, nunca confirmador — confirmar com um classificador cujas
+>    entradas não sabemos de que lado estão é fabricar autoridade.
+> 3. **Feedback**: badge `MAO ???` no overlay. A roadmap pedia "anel de
+>    tracking a degradar"; um badge é mais honesto, porque **não** desenha uma
+>    qualidade que o tracker não mediu — só diz que ele não sabe.
+>
+> **A invariante que segura tudo isto:** `None` e `NaN` significam *não
+> medido*, e *não medido* nunca abstém. Isto não é um detalhe — o corpus
+> versionado tem **todas** as confianças a `NaN` por desenho (grava-se `NaN`
+> em vez de inventar um zero). Se `NaN` se lêsse como confiança zero, a §1.2
+> silenciaria a IA em todas as mãos do portão de regressão e o portão passaria
+> a verde **por estar mudo** — o pior estado possível para um teste de
+> regressão: parece proteger-te e não mede nada. O `test_nan_nao_abste` existe
+> exactamente para travar isso.
+>
+> No caminho: `classify()` devolvia a confiança em `conf`, o mesmo nome do
+> parâmetro da classificação — dois sentidos num só âmbito. Renomeado para
+> `ml_conf`, para que `class_conf` nunca possa conter a confiança da IA.
+>
+> Verificado: **16 testes novos** em `tests/test_class_conf_abstention.py`,
+> suite 656 → **672**, `ruff` limpo, portão de regressão **ACEITE** (F1 macro
+> 1.0000, 116/116, 0 cliques fantasma, latência p95 33 ms inalterada).
+>
+> **Limites honestos.** `min_class_conf = 0.5` **não está afinado** — não há
+> número com que o afinar, porque o corpus é sintético e não tem confiança de
+> classificação. É uma escolha conservadora, não uma medição; afina-se com o
+> corpus de mãos reais (Onda 3 §3.1). A abstenção também não diz *qual* dos
+> dois lados é o incerto, e um badge é mais fraco do que a roadmap pedia. E o
+> que a §1.2 **não** fez: `class_conf` continua sem ser gravado no `--record`
+> com utilidade prática para afinar, porque o corpus v1 já é imutável.
+
 
 ### 1.3 Rever a cadeia de limiares com dados
 
@@ -1189,13 +1312,23 @@ passam a ser **ajustados ao maior off-diagonal**.
 
 ### 1.5 Ligar o `HandLock` ⚠️ com cautela
 
-`core/hand_lock.py:19` existe e está testado. **Não ligar directamente**: a
-seleção por X foi deliberada e está documentada como mais fiável que o label
-nesta câmara. O `HandLock` resolve a **troca de mão**, não o **lado**.
+`core/hand_lock.py:19` existe e agora **tem guarda que corre na suite**
+(`tests/test_hand_lock.py`, 12 testes, verificados por mutação). **Não ligar
+directamente**: a seleção por X foi deliberada e está documentada como mais
+fiável que o label nesta câmara. O `HandLock` resolve a **troca de mão**, não o
+**lado**.
 
 O que faz sentido é um **híbrido**: decidir o *lado* por X (como hoje) e usar o
 `HandLock` para decidir **qual mão** dentro do lado, quando há ambiguidade (duas
-detecções à esquerda). Ganho marginal, mas é código já escrito e testado.
+detecções à esquerda). Ganho marginal, e o código já está escrito e testado.
+
+**Estado: bloqueado por dados, não por código.** `docs:1598` é explícito — *"Não
+ligar `HandLock` sem o corpus"*. O que falta é o corpus de mãos reais (Onda 3
+§3.1) com pelo menos um caso de duas mãos do mesmo lado, para se poder medir se a
+troca de mão é um problema real nesta câmara antes de trocar o rato de mão. Ligar
+antes disso é um acto de fé com o rato do utilizador como espectador. Correr a
+calibração de `min_class_conf` no mesmo corpus, por isso Onda 3 §3.1 desbloqueia
+os dois.
 
 ## 3.3 Onda 2 — Arquitectura de features à Meta
 

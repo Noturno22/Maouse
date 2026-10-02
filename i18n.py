@@ -450,6 +450,19 @@ _STRINGS = {
         "it": "IN PAUSA",
         "pt_br": "PAUSADO",
     },
+    # A distinção é deliberada e não se pode encurtar: a licença **não** é
+    # partilhada com outra máquina (o id deriva de um sal por máquina), o que
+    # falta é poder provar que a máquina é esta. "A sua licença pode ser
+    # partilhada" seria falso — o buraco grande fechou no cliente.
+    "toast.weak_identity": {
+        "pt": "Identidade fraca: nenhuma componente de hardware foi lida. A sua licença não é partilhada com outra máquina, mas esta máquina não se consegue provar. Contacte o suporte se isto não for esperado.",  # noqa: E501
+        "en": "Weak identity: no hardware component could be read. Your licence is not shared with another machine, but this machine cannot be proven. Contact support if this is unexpected.",  # noqa: E501
+        "es": "Identidad débil: no se pudo leer ningún componente de hardware. Tu licencia no se comparte con otra máquina, pero esta máquina no se puede probar. Contacta con soporte si no es lo esperado.",  # noqa: E501
+        "fr": "Identité faible : aucun composant matériel n'a pu être lu. Votre licence n'est pas partagée avec une autre machine, mais cette machine ne peut pas être prouvée. Contactez le support si cela est inattendu.",  # noqa: E501
+        "de": "Schwache Identität: Es konnte keine Hardwarekomponente gelesen werden. Ihre Lizenz wird nicht mit einem anderen Rechner geteilt, dieser Rechner kann aber nicht nachgewiesen werden. Wenden Sie sich an den Support, wenn dies unerwartet ist.",  # noqa: E501
+        "it": "Identità debole: nessun componente hardware è stato letto. La tua licenza non è condivisa con un'altra macchina, ma questa macchina non può essere dimostrata. Contatta l'assistenza se non è previsto.",  # noqa: E501
+        "pt_br": "Identidade fraca: nenhum componente de hardware foi lido. Sua licença não é compartilhada com outra máquina, mas esta máquina não pode ser comprovada. Fale com o suporte se isso for inesperado.",  # noqa: E501
+    },
     "toast.resume": {
         "pt": "RETOMAR",
         "en": "RESUMED",

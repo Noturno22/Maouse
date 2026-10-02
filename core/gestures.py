@@ -3,6 +3,8 @@ import math
 from dataclasses import dataclass
 from enum import Enum
 
+from core.filters import LandmarkFilterBank
+
 FINGER_TIPS_PIPS = ((8, 6), (12, 10), (16, 14), (20, 18))
 PALM_IDS = (0, 5, 9, 13, 17)
 INDEX, MIDDLE, RING, PINKY = 0, 1, 2, 3
@@ -48,6 +50,9 @@ class HandFrame:
     # True se a mao abriu totalmente (todos os dedos bem esticados). Usado para
     # abrir o alternador de janelas quase de imediato (gesto claro e intencional).
     fully_open: bool = False
+    # Onda 1 §1.2. `nan` = "nao medido" (corpus v1, ou tracker sem score), e NAO
+    # "confianca zero" — nunca interpretar como 0.
+    class_conf: float = math.nan
 
 
 def _dist(a, b):
@@ -62,6 +67,13 @@ class GestureEngine:
         self.ai = gesture_ai
         self.ai_conf = 0.0
         self._ai_window = collections.deque(maxlen=getattr(cfg, "ai_window", 5))
+        # Onda 1 §1.1. Lida uma vez: o `,`/`.` do preview mexe em
+        # `cfg.filter_min_cutoff` (a palma) e de proposito NAO nesta banca.
+        self._landmark_filter = LandmarkFilterBank(
+            min_cutoff=getattr(cfg, "landmark_min_cutoff", 3.0),
+            beta=getattr(cfg, "landmark_beta", 0.010),
+        )
+        self._filter_landmarks = bool(getattr(cfg, "landmark_filter_enabled", True))
         self._pinch_index_on = False
         self._pinch_mid_on = False
         self._candidate = Gesture.NONE
@@ -75,6 +87,7 @@ class GestureEngine:
 
     def reset(self):
         self._ai_window.clear()
+        self._landmark_filter.reset()
         self._pinch_index_on = False
         self._pinch_mid_on = False
         self._candidate = Gesture.NONE
@@ -86,11 +99,23 @@ class GestureEngine:
         self._vol_acc_y = 0.0
         self._prev_curled = [False, False, False, False]
 
-    def update(self, landmarks, width, height):
+    def update(self, landmarks, width, height, conf=None, t=None):
         cfg = self.cfg
-        pts = [(lm[0] * width, lm[1] * height) for lm in landmarks]
-        if len(landmarks[0]) > 2:
-            pts3 = [(lm[0] * width, lm[1] * height, lm[2]) for lm in landmarks]
+        # `has_z` decide-se pela ENTRADA, e nao pela saida da banca: a banca preenche
+        # a z a 0.0, e ler a forma dela faria uma deteccao 2D parecer 3D.
+        has_z = len(landmarks[0]) > 2
+        # Onda 1 §1.1: filtrar os 21 pontos ANTES de qualquer limiar. Tudo o que
+        # segue — escala, rácio de pinça, curl, SHAKA, palma — consome esta lista.
+        # `t` e o timestamp do frame: sem ele o filtro mede o tempo pelo relogio
+        # de parede e passa a depender da velocidade do loop (ver o filtro).
+        src = (
+            self._landmark_filter.filter(landmarks, width, height, t)
+            if self._filter_landmarks
+            else landmarks
+        )
+        pts = [(lm[0] * width, lm[1] * height) for lm in src]
+        if has_z:
+            pts3 = [(lm[0] * width, lm[1] * height, lm[2]) for lm in src]
         else:
             pts3 = pts
         self._ai_window.append(pts3)
@@ -99,10 +124,10 @@ class GestureEngine:
         # racio 2D: fiável de frente para a câmara (os dedos sobrepõem-se na projeção)
         pinch_ratio_2d = _dist(pts[THUMB_TIP], pts[INDEX_TIP]) / scale
         pinch_mid_ratio_2d = _dist(pts[THUMB_TIP], pts[MIDDLE_TIP]) / scale
-        if len(landmarks[0]) > 2:
+        if has_z:
             # racio 3D: imune a inclinacao da mao (foreshortening)
             ky = height / width
-            p3 = [(lm[0], lm[1] * ky, lm[2]) for lm in landmarks]
+            p3 = [(lm[0], lm[1] * ky, lm[2]) for lm in src]
 
             def _d3(a, b):
                 return math.sqrt(
@@ -155,6 +180,14 @@ class GestureEngine:
             self._pinch_mid_on = True
 
         too_far = scale < cfg.min_hand_scale_px
+        # Onda 1 §1.2. `nan` = nao medido, e nao medido nao e motivo para se
+        # calar: o corpus v1 tem todas as confiancas a nan, e se `nan < min` fosse
+        # lido como "baixa confianca" o gate silenciava-se a si proprio.
+        class_conf = math.nan if conf is None else float(conf)
+        low_conf = (
+            not math.isnan(class_conf)
+            and class_conf < getattr(cfg, "min_class_conf", 0.0)
+        )
         all_curled = all(curled)
 
         def _clearly_curled(idx):
@@ -239,7 +272,7 @@ class GestureEngine:
                 and dy_down > 0.55 * seg
             )
 
-        if too_far:
+        if too_far or low_conf:
             geo = Gesture.NONE
         elif all_curled:
             if thumb_up:
@@ -276,10 +309,10 @@ class GestureEngine:
             and not self._pinch_mid_on
         )
         self.ai_conf = 0.0
-        if self.ai is not None and not too_far and self._ai_window:
-            ml_g, conf = self.ai.classify(list(self._ai_window))
-            self.ai_conf = conf
-            if ml_g is not None and conf >= cfg.ai_confidence_min:
+        if self.ai is not None and not (too_far or low_conf) and self._ai_window:
+            ml_g, ml_conf = self.ai.classify(list(self._ai_window))
+            self.ai_conf = ml_conf
+            if ml_g is not None and ml_conf >= cfg.ai_confidence_min:
                 # a IA so pode confirmar o que a geometria tambem ve;
                 # nunca inventa modos (THREE/PEACE/FIST) nem mata um clique ativo
                 ml_ok = (
@@ -386,6 +419,7 @@ class GestureEngine:
             palm_center=palm_center,
             ai_conf=self.ai_conf,
             fully_open=fully_open,
+            class_conf=class_conf,
         )
         return frame, event, value
 
