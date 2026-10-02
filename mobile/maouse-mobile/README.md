@@ -101,19 +101,30 @@ maouse-mobile/
 
 O único alvo com testes é o **protocolo remoto**, porque é a fronteira de
 segurança entre o telemóvel e o PC: o `core/remote.py` do PC executa comandos que
-mexem no rato e no teclado de quem está a usar a máquina, e o único coisa entre um
+mexem no rato e no teclado de quem está a usar a máquina, e a única coisa entre um
 host qualquer da mesma rede e esse rato é o handshake `auth` da primeira mensagem.
 
 ```bash
-npm test          # jest, uma passageira
+npm test          # jest, uma passagem
 npx tsc --noEmit  # tipos
 ```
 
 Coberto: `buildWsUrl` (normalização de host, porta por omissão, token fora do
 URL), o `auth` como primeira e única mensagem antes do servidor confirmar, o
-cliente a ignorar comandos premature, o token recusado, lixo JSON, e a distinção
-entre «o PC não está alcançável» e «a ligação caiu». O preset é o `jest-expo` do
-Expo SDK 57, com `@react-native/jest-preset` à parte desde o RN 0.86.
+cliente a ignorar comandos que chegam antes da hora, o token recusado, lixo JSON, e
+a distinção entre «o PC não está alcançável» e «a ligação caiu». O preset é o
+`jest-expo` do Expo SDK 57, com `@react-native/jest-preset` à parte desde o RN
+0.86. Do lado do PC, `tests/test_remote_protocol_contract.py` prende o mesmo
+contrato em Python — 28 testes que não precisam de toolchain TS.
+
+> **`npm audit` — não corras `--force`.** O `audit` reporta ~16 avisos herdados do
+> toolchain do Expo. O único *high* que tinha correção sem partir nada
+> (`brace-expansion`) já foi resolvido. O que resta é dívida upstream sem versão
+> corrigida: a advisory do `node-forge` afecta **todas** as versões, e o `npm`
+> propõe como «solução» um downgrade a `expo@44.0.6` — três majors atrás. O mesmo
+> vale para `decode-uri-component` via `expo-router`. Trocar uma vulnerabilidade
+> transitiva do toolchain de build por um Expo partido é um mau negócio; o
+> `node-forge` só corre na máquina de quem faz build, a verificar assinaturas.
 
 ## Controlo remoto do PC
 

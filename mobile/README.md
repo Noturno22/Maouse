@@ -356,8 +356,13 @@ SystemController.setBrightness(128)
 ### Erro: "Cannot find module"
 ```bash
 rm -rf node_modules
-npm install --legacy-peer-deps
+npm install
 ```
+
+> Antes isto pedia `npm install --legacy-peer-deps`. Já não: o `package.json`
+> declara `allowScripts` e o lockfile resolve as peers. Se precisares do
+> `--legacy-peer-deps`, é sinal de que o lockfile ficou dessincronizado com o
+> `package.json`.
 
 ### Erro: "Camera permission denied"
 Verificar `app.json` → `expo.plugins` → `expo-camera`
