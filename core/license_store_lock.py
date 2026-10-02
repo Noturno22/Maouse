@@ -63,7 +63,7 @@ def store_lock(store_path: str):
         entry = _state.get(key)
         if entry is None:
             os.makedirs(os.path.dirname(lock_path) or ".", exist_ok=True)
-            entry = {"guard": threading.RLock(), "fh": open(lock_path, "a+b"),
+            entry = {"guard": threading.RLock(), "fh": _open_lock_file(lock_path),
                      "users": 0}
             _state[key] = entry
         # `users` conta quem está dentro E quem está à espera, para o handle só
@@ -95,16 +95,33 @@ def store_lock(store_path: str):
                 entry["fh"].close()
 
 
+def _open_lock_file(lock_path: str):
+    """Abre o ficheiro de lock para leitura E escrita, criando-o se não existir.
+
+    O byte semeado (`\0`) é posto AQUI, antes de qualquer trinco, e não dentro de
+    `_lock_os`. A razão é o Windows: `msvcrt.locking` tranca um intervalo de
+    bytes, e ler uma região que outro processo já trancou levanta `PermissionError:
+    [Errno 13]`. Se o "está vazio?" fosse decidido dentro de `_lock_os`, o segundo
+    processo a chegar ao lock rebentava a ler o byte 0 — que o primeiro tinha
+    acabado de trancar. `fstat` é metadado, não leitura, por isso não colide.
+
+    `r+b` via `os.open` com `O_CREAT` dá leitura, escrita posicional e criação sem
+    truncar — o que `fcntl.flock` e `msvcrt.locking` precisam dos dois lados.
+    """
+    fd = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
+    fh = os.fdopen(fd, "r+b")
+    if os.fstat(fd).st_size == 0:
+        with contextlib.suppress(OSError):
+            fh.write(b"\0")
+            fh.flush()
+    return fh
+
+
 def _lock_os(fh) -> None:
     try:
         import fcntl
     except ImportError:
         import msvcrt
-        fh.seek(0)
-        # O locking do Win32 precisa de pelo menos 1 byte para assentar.
-        if fh.read(1) == b"":
-            fh.write(b"\0")
-            fh.flush()
         fh.seek(0)
         msvcrt.locking(fh.fileno(), msvcrt.LK_LOCK, 1)
     else:
