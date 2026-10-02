@@ -1,4 +1,5 @@
 import queue
+import sys
 import time
 import types
 
@@ -205,8 +206,48 @@ def test_speech_capture_passes_gate_to_stt():
     assert q and q[0]["action"] == "left_click"
 
 
+def _stub_audio_deps(monkeypatch):
+    """Põe `sounddevice` e `vosk` no `sys.modules` como módulos vazios.
+
+    O `VoiceEngine.start()` abre por `import sounddevice` e `from vosk import
+    ...`, e num clone a serio os dois precisam de coisas que nem sempre existem
+    na maquina: o `sounddevice` levanta `OSError` sem a lib de PortAudio
+    instalada no sistema, e o `vosk` precisa do `srt`. Sem este stub, o teste
+    do erro do microfone nunca chegava ao `select_device` — falhava no import,
+    a medir outra coisa.
+
+    O que se testa aqui e' o que acontece **depois** dos imports: e' o
+    `select_device` que esta sob teste (e vem logo a seguir), nao o
+    `sounddevice`. Por isso um modulo vazio chega, e e' melhor que depends de
+    haver hardware de audio na maquina.
+    """
+    for nome in ("sounddevice", "vosk"):
+        monkeypatch.setitem(sys.modules, nome, types.ModuleType(nome))
+    vosk = sys.modules["vosk"]
+    for attr in ("KaldiRecognizer", "Model", "SetLogLevel"):
+        setattr(vosk, attr, object())
+
+
+class _PortAudioAusente:
+    """Finder que faz `import sounddevice` levantar `OSError`.
+
+    E' o que acontece numa maquina com o `pip install sounddevice` feito e a
+    biblioteca de PortAudio do sistema em falta — o `sounddevice` e' importado
+    com sucesso e explode ao procurar o `libportaudio`, com `OSError` e nao com
+    `ImportError`. Um stub no `sys.modules` nao reproduz isso (um modulo
+    posto la importa-se sem erro nenhum), por isso a falha tem de vir do
+    proprio mecanismo de import.
+    """
+
+    def find_spec(self, name, path=None, target=None):
+        if name == "sounddevice":
+            raise OSError("PortAudio library not found")
+        return None
+
+
 def test_start_mic_error_sets_status_error(monkeypatch):
     import core.audio_devices as ad
+    _stub_audio_deps(monkeypatch)
     ve, _ = make_ve()
 
     def boom(pref):
@@ -216,6 +257,27 @@ def test_start_mic_error_sets_status_error(monkeypatch):
     assert ve.start() is False
     assert ve.status == "error"
     assert "x" in (ve.mic_error or "")
+
+
+def test_start_sem_portaudio_desactiva_a_voz_em_vez_de_rebentar(monkeypatch, capsys):
+    """O bug: `OSError` do PortAudio nao era apanhado e subia ao chamador.
+
+    O `start()` so apanhava `ImportError`, que e' o que da quando o *pacote*
+    falta. Com o pacote instalado e a lib do sistema em falta, o `sounddevice`
+    levanta `OSError` — que passava a serio, e a aplicacao rebentava a
+    tentar ligar a voz em vez de a desactivar. Os outros tres sitios que
+    importam `sounddevice` ja apanham largo; este era o unico que nao.
+    """
+    monkeypatch.setattr(sys, "meta_path", [_PortAudioAusente()] + list(sys.meta_path))
+    ve, _ = make_ve()
+
+    assert ve.start() is False
+    assert ve.status == "error"
+    assert "PortAudio" in (ve.mic_error or "")
+    # E' preciso dizer o que fazer, e nao so que falhou: a biblioteca do
+    # sistema instala-se com apt/dnf, nao com pip.
+    saida = capsys.readouterr().out
+    assert "apt install" in saida or "dnf install" in saida
 
 
 def test_toggle_from_error_retries_start(monkeypatch):

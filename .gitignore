@@ -60,6 +60,11 @@ core/_license_endpoint.py
 # Config local do utilizador (calibração, dispositivo de mic, token remoto)
 # O exemplo com defaults de fábrica segue commitado em settings.example.json
 settings.json
+# Token de autenticacao do controlo remoto. Nao e lido por nenhum modulo — o
+# token vive em `settings.json` (`remote_token`) e e o `RemoteServer` que o
+# gera se estiver vazio — mas um ficheiro com um token na raiz e uma `git add .`
+# de森林公园 de o tornar publico. Ignorar e mais barato que confiar.
+token.txt
 # Playwright MCP (sessoes locais de debug)
 .playwright-mcp/
 temp_baseline_ref.py

@@ -4,6 +4,7 @@ import {
   KeyboardAvoidingView,
   PanResponder,
   Platform,
+  ScrollView,
   StyleSheet,
   Switch,
   Text,
@@ -13,27 +14,14 @@ import {
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import type { ProEntitlement } from '../hooks/useProEntitlement';
-import { remote } from '../services/remoteClient';
+import { remote } from '../services/remoteTransport';
+import { CODE_LEN, codeCompleto, normalizeCode } from '../services/pairingCode';
 import { useRemoteStore } from '../store/remote';
 import ProGate from './ProGate';
 
 interface Props {
   onBack: () => void;
   entitlement: ProEntitlement;
-}
-
-interface Size {
-  w: number;
-  h: number;
-}
-
-// O touchpad também sabe onde está na janela. Sem isto, o toque tinha de ser
-// convertido com `locationX`, que é relativo à vista que recebeu o toque — e
-// como o touchpad tem o texto de dica e o distintivo do ecrã por cima, tocar
-// em cima deles mandava o cursor para outra direção.
-interface PadRect extends Size {
-  pageX: number;
-  pageY: number;
 }
 
 interface TouchPos {
@@ -51,30 +39,42 @@ const DRAG_HOLD_MS = 380;
 // contar como arrasto. A tremedeira normal do dedo num toque fica abaixo
 // disto, portanto não desloca o cursor nem descarta o clique.
 const TAP_SLOP_PX = 12;
+const TAP_DECISION_DEADZONE = 1.5;
 
 export default function RemoteScreen({ onBack, entitlement }: Props) {
   const {
     host,
     port,
-    token,
+    code,
     forwardGestures,
     status,
     screen,
     error,
+    scanning,
+    blePeers,
+    peers,
+    discovering,
+  mdnsRunning,
+  stopDiscover,
     saveConfig,
     setForwardGestures,
     connect,
     disconnect,
+    discover,
+    scanBle,
+    connectBle,
+    connectPeer,
   } = useRemoteStore();
 
   const [hostDraft, setHostDraft] = useState(host);
   const [portDraft, setPortDraft] = useState(port);
-  const [tokenDraft, setTokenDraft] = useState(token);
+  const [codeDraft, setCodeDraft] = useState(code);
   const kbBufRef = useRef('');
   const [kbText, setKbText] = useState('');
 
   const connected = status === 'connected';
   const busy = status === 'connecting';
+  const codeOk = codeCompleto(codeDraft);
 
   // 'loading' é o estado entre o mount e o `hydrate()` ler o AsyncStorage. Sem
   // esta guarda vê-se um frame do ecrã errado: paywall a um Pro, formulário a um Free.
@@ -84,8 +84,16 @@ export default function RemoteScreen({ onBack, entitlement }: Props) {
   useEffect(() => {
     setHostDraft((v) => v || host);
     setPortDraft((v) => v || port);
-    setTokenDraft((v) => v || token);
-  }, [host, port, token]);
+    setCodeDraft((v) => v || code);
+  }, [host, port, code]);
+
+  // Sair da tela tem de parar a procura. O `NsdManager` é um registo nativo
+  // que vive para sempre: sem isto, voltar a abrir a tela reencontra a procura
+  // anterior a correr, os peers accumulate-se aos poucos entre visitas, e o
+  // `NativeEventEmitter` continua a emitir para um componente que já não
+  // existe — que em Android é uma `IllegalStateException` de acesso a um
+  // CatalystInstance destruído, e só quando o utilizador abre a tela outra vez.
+  useEffect(() => () => stopDiscover(), [stopDiscover]);
 
   const haptic = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
@@ -95,7 +103,7 @@ export default function RemoteScreen({ onBack, entitlement }: Props) {
     saveConfig({
       host: hostDraft,
       port: portDraft,
-      token: tokenDraft,
+      code: codeDraft,
     });
     connect();
   };
@@ -139,20 +147,7 @@ export default function RemoteScreen({ onBack, entitlement }: Props) {
     if (remote.isConnected) remote.key('backspace');
   }, []);
 
-  const layoutRef = useRef<PadRect>({ w: 1, h: 1, pageX: 0, pageY: 0 });
   const padRef = useRef<View>(null);
-
-  // `measureInWindow` dá a posição do touchpad na janela, para depois converter
-  // `pageX`/`pageY` (que são absolutos) em coordenadas relativas ao touchpad.
-  const measurePad = useCallback(() => {
-    const node = padRef.current;
-    if (!node) return;
-    node.measureInWindow((x, y, w, h) => {
-      if (w > 0 && h > 0) {
-        layoutRef.current = { w, h, pageX: x, pageY: y };
-      }
-    });
-  }, []);
 
   const touchState = useRef({
     count: 0,
@@ -173,10 +168,6 @@ export default function RemoteScreen({ onBack, entitlement }: Props) {
       onPanResponderTerminationRequest: () => false,
       onPanResponderGrant: (evt) => {
         const ts = touchState.current;
-        // Remedir a cada toque: o teclado abrir/fechar ou o telefone rodar
-        // mudam a posição do pad sem necessariamente mudar o tamanho, e o
-        // `onLayout` só dispara quando o tamanho muda.
-        measurePad();
         ts.count = evt.nativeEvent.touches.length;
         ts.startTime = Date.now();
         ts.moved = false;
@@ -271,29 +262,14 @@ export default function RemoteScreen({ onBack, entitlement }: Props) {
         } else if (!ts.moved) {
           // Sem limite de tempo: um toque deliberado e lento também é toque.
           if (ts.count === 1) {
-            const all = evt.nativeEvent.touches as any[];
-            const changed = (evt.nativeEvent as any).changedTouches;
-            const touch = (changed && changed.length ? changed[0] : all[0]) as any;
-            let x = 0.5;
-            let y = 0.5;
-            if (touch) {
-              // `pageX`/`pageY` são absolutos e não dependem de qual vista
-              // recebeu o toque. `locationX` depende — e o touchpad tem o texto
-              // de dica e o distintivo do ecrã por cima, portanto tocar neles
-              // mandava o cursor para outra direção.
-              //
-              // O toque é ABSOLUTO (clica onde o dedo toca) e o arrasto é
-              // RELATIVO. É esta mistura que resolve: com o toque relativo o
-              // clique dependia de o cursor já estar no sítio certo, e chegar
-              // lá exige acertar no ganho — qualquer erro aparecia como "o
-              // clique salta". Com o toque absoluto não há mira a acertar: o
-              // clique vai para o ponto tocado, e o `move_to` + `left_click`
-              // chegam ao PC no mesmo comando, sob o mesmo árbitro.
-              const pad = layoutRef.current;
-              x = Math.max(0, Math.min(1, (touch.pageX - pad.pageX) / pad.w));
-              y = Math.max(0, Math.min(1, (touch.pageY - pad.pageY) / pad.h));
-            }
-            remote.gesture('tap', x, y);
+            // O toque é RELATIVO, como num touchpad de portátil: clica onde o
+            // cursor está, não onde o dedo toca. A versão anterior mandava as
+            // coordenadas absolutas do toque (`gesture('tap', x, y)`), e o PC
+            // fazia `move_to` antes de clicar — o cursor saltava do sítio onde
+            // o dedo o tinha pousado para o ponto tocado no pad, que não tem
+            // relação nenhuma com ele. O arrasto já era relativo; o toque
+            // agora é-o também, e o clique fica onde o utilizador o deixou.
+            remote.click('left', 1);
             haptic();
           } else if (ts.count === 2) {
             remote.click('right', 1);
@@ -345,19 +321,10 @@ export default function RemoteScreen({ onBack, entitlement }: Props) {
         <View
           ref={padRef}
           style={styles.touchpad}
-          onLayout={(e) => {
-            const { width, height } = e.nativeEvent.layout;
-            if (width > 0 && height > 0) {
-              layoutRef.current = { ...layoutRef.current, w: width, h: height };
-            }
-            // A posição na janela só vem do `measureInWindow`, e é o que
-            // permite acertar o ponto do toque.
-            measurePad();
-          }}
           accessible
           accessibilityRole="none"
           accessibilityLabel="Rato — área de toque"
-          accessibilityHint="Um dedo move o cursor, toque clica no ponto tocado, manter arrasta, dois dedos faz scroll."
+          accessibilityHint="Um dedo move o cursor, toque clica onde o cursor está, manter arrasta, dois dedos faz scroll."
           {...panResponder.panHandlers}
         >
           <Text style={styles.touchpadHint}>
@@ -444,13 +411,91 @@ export default function RemoteScreen({ onBack, entitlement }: Props) {
     </View>
   );
 
+  // Procura o PC por mDNS ou por Bluetooth.
+  //
+  // As duas vias ficam lado a lado porque resolvem problemas diferentes: o
+  // mDNS acha o PC em qualquer rede onde circule, e o BLE funciona sem rede
+  // nenhuma — que é o caso de uma rede de empresa onde o multicast está
+  // bloqueado, ou de um telemóvel em dados móveis com o PC em Ethernet.
+  const renderDiscoveryPanel = () => (
+    <View style={styles.discoveryPanel}>
+      <View style={styles.discoveryRow}>
+        <TouchableOpacity
+          style={styles.discoveryBtn}
+          onPress={discovering ? stopDiscover : discover}
+          disabled={mdnsRunning && !discovering}
+        >
+          {discovering ? (
+            <ActivityIndicator color={ACCENT} />
+          ) : (
+            <Text style={styles.discoveryBtnText}>
+              {mdnsRunning ? 'PARAR PROCURA' : 'PROCURAR NA REDE'}
+            </Text>
+          )}
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.discoveryBtn}
+          onPress={() => scanBle(8)}
+          disabled={scanning}
+        >
+          {scanning ? (
+            <ActivityIndicator color={ACCENT} />
+          ) : (
+            <Text style={styles.discoveryBtnText}>PROCURAR POR BLUETOOTH</Text>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {peers.map((p) => (
+        <TouchableOpacity
+          key={`${p.host}:${p.port}`}
+          style={styles.peerRow}
+          onPress={() => {
+            saveConfig({ code: codeDraft });
+            connectPeer(p);
+          }}
+        >
+          <Text style={styles.peerName}>{p.name || p.host}</Text>
+          <Text style={styles.peerAddr}>
+            {p.host}:{p.port}
+          </Text>
+        </TouchableOpacity>
+      ))}
+
+      {blePeers.map((p) => (
+        <TouchableOpacity
+          key={p.address}
+          style={styles.peerRow}
+          onPress={() => {
+            saveConfig({ code: codeDraft });
+            void connectBle(p.address, p.name);
+          }}
+        >
+          <Text style={styles.peerName}>{p.name || p.address}</Text>
+          <Text style={styles.peerAddr}>{p.address}</Text>
+        </TouchableOpacity>
+      ))}
+
+      {peers.length === 0 && blePeers.length === 0 && !scanning && !discovering ? (
+        <Text style={styles.discoveryHint}>
+          A procura na rede só funciona se o telemóvel e o PC estiverem na mesma
+          rede local e o multicast não estiver bloqueado. O Bluetooth não usa a
+          rede, mas precisa de «Controlar também por Bluetooth» ligado nas
+          definições do PC.
+        </Text>
+      ) : null}
+    </View>
+  );
+
   const renderConnectForm = () => (
     <View style={styles.form}>
       <Text style={styles.title}>Ligar ao PC</Text>
       <Text style={styles.subtitle}>
-        No PC abre Definições → «Controlo remoto (mobile)» e copia o IP, a porta
-        e o token que aparecem lá.
+        Procura o PC sozinha, ou escreve o IP à mão. O código de 6 dígitos é o
+        mesmo por WiFi e por Bluetooth, e só vive aqui e no PC.
       </Text>
+
+      {renderDiscoveryPanel()}
 
       <Text style={styles.label}>IP do PC</Text>
       <TextInput
@@ -474,16 +519,44 @@ export default function RemoteScreen({ onBack, entitlement }: Props) {
         keyboardType="number-pad"
       />
 
-      <Text style={styles.label}>Token</Text>
+      <Text style={styles.label}>Código do PC</Text>
       <TextInput
-        style={styles.input}
-        value={tokenDraft}
-        onChangeText={setTokenDraft}
-        placeholder="Token mostrado no PC"
-        placeholderTextColor="#9E9E9E"
-        autoCapitalize="none"
+        style={[styles.input, styles.codeInput, !codeOk && styles.inputCurto]}
+        value={codeDraft}
+        // O teclado de números não tem '#', '%' nem '@', e num campo de
+        // emparelhamento um símbolo não faz sentido: o teclado do telemóvel é
+        // maior do que o campo, e é preciso ver o que se escreve.
+        keyboardType="number-pad"
+        inputMode="numeric"
+        maxLength={CODE_LEN}
+        placeholder={'·'.repeat(CODE_LEN)}
+        placeholderTextColor="#4A4A4A"
+        onChangeText={(v) => {
+          const limpo = normalizeCode(v);
+          setCodeDraft(limpo);
+          // Auto-ligar no sexto dígito. É o que um telemóvel faz com o código
+          // de um banco: seis dígitos escritos é uma intenção acabada, e pedir
+          // outro toque num ecrã que se segura com uma mão é atrito a mais.
+          // Só quando o IP já está guardado — sem ele, adivinhar o endereço
+          // do PC é o trabalho que a descoberta faz.
+          if (codeCompleto(limpo) && hostDraft.trim()) {
+            saveConfig({
+              host: hostDraft,
+              port: portDraft,
+              code: limpo,
+            });
+            connect();
+          }
+        }}
+        onSubmitEditing={onConnectPress}
         autoCorrect={false}
+        autoCapitalize="none"
       />
+      <Text style={styles.codeHint}>
+        {codeOk
+          ? `Código completo. É este que o PC tem de ter.`
+          : `São ${CODE_LEN} dígitos. Copia-os de Definições → Controlo remoto no PC.`}
+      </Text>
 
       <View style={styles.switchRow}>
         <Text style={styles.switchLabel}>Gestos da câmara comandam o PC</Text>
@@ -503,7 +576,14 @@ export default function RemoteScreen({ onBack, entitlement }: Props) {
           <Text style={styles.busyText}>A ligar…</Text>
         </View>
       ) : (
-        <TouchableOpacity style={styles.primaryButton} onPress={onConnectPress}>
+        <TouchableOpacity
+          style={[
+            styles.primaryButton,
+            !codeOk && styles.primaryButtonFraco,
+          ]}
+          onPress={onConnectPress}
+          disabled={!codeOk}
+        >
           <Text style={styles.primaryButtonText}>LIGAR</Text>
         </TouchableOpacity>
       )}
@@ -526,7 +606,19 @@ export default function RemoteScreen({ onBack, entitlement }: Props) {
     if (!isPro) {
       return <ProGate feature="remote" entitlement={entitlement} onClose={onBack} />;
     }
-    return connected ? renderConnected() : renderConnectForm();
+    if (connected) return renderConnected();
+    // O formulário ganhou o painel de descoberta, e a lista de PCs encontrados
+    // cresce a cada anúncio. Num ecrã pequeno o formulário passa do fundo, e o
+    // botão LIGAR - que é o que se quer alcançar - é o último.
+    return (
+      <ScrollView
+        style={styles.formScroll}
+        contentContainerStyle={styles.form}
+        keyboardShouldPersistTaps="handled"
+      >
+        {renderConnectForm()}
+      </ScrollView>
+    );
   };
 
   return (
@@ -562,7 +654,7 @@ export default function RemoteScreen({ onBack, entitlement }: Props) {
         </View>
       </View>
 
-      {renderBody()}
+{renderBody()}
     </KeyboardAvoidingView>
   );
 }
@@ -609,10 +701,69 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
 
-  form: {
+  formScroll: {
     flex: 1,
+  },
+  form: {
+    flexGrow: 1,
     paddingHorizontal: 24,
     paddingTop: 8,
+    paddingBottom: 32,
+  },
+  discoveryPanel: {
+    marginBottom: 16,
+    padding: 12,
+    borderRadius: 10,
+    backgroundColor: PANEL,
+    borderWidth: 1,
+    borderColor: BORDER,
+  },
+  discoveryRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  discoveryBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: ACCENT,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 40,
+  },
+  discoveryBtnText: {
+    color: ACCENT,
+    fontSize: 11,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  peerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
+    marginTop: 8,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    backgroundColor: KEY_BG,
+  },
+  peerName: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '600',
+    flexShrink: 1,
+  },
+  peerAddr: {
+    color: '#9E9E9E',
+    fontSize: 12,
+    marginLeft: 10,
+  },
+  discoveryHint: {
+    color: '#9E9E9E',
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 10,
   },
   title: {
     color: '#FFF',
@@ -642,6 +793,27 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     color: '#FFF',
     fontSize: 16,
+  },
+  // O código lê-se à distância e à pressa: 28 px, mono, e o mesmo tamanho
+  // para os seis dígitos, para não parecer um campo de texto qualquer.
+  codeInput: {
+    fontSize: 28,
+    fontWeight: '700',
+    letterSpacing: 14,
+    textAlign: 'center',
+    paddingVertical: 14,
+    // A seguir à última letra: sem isto, o `letterSpacing` também entra no
+    // fim e o último dígito fica a olhar para fora do meio do campo.
+    paddingRight: 26,
+  },
+  inputCurto: {
+    borderColor: '#4A4A4A',
+  },
+  codeHint: {
+    color: '#9E9E9E',
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 8,
   },
   switchRow: {
     flexDirection: 'row',
@@ -683,6 +855,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     letterSpacing: 1,
+  },
+  // Botão desligado: esbatido e sem acção. Um botão que parece activo e
+  // depois diz "código inválido" no ecrã é pior do que um botão cinzento.
+  primaryButtonFraco: {
+    backgroundColor: '#2F3A44',
+    opacity: 0.7,
   },
   hint: {
     color: '#9E9E9E',

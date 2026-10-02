@@ -40,10 +40,16 @@ import check_deps  # noqa: E402
 # `core/snap.py` faz o import guardado, e o produto corre no Linux sem elas.
 _ONLY_WINDOWS_OMISSIONS = {"requirements-linux.txt": check_deps.WINDOWS_ONLY}
 
+# `dbus-next` (BLE) e o inverso: o `requirements.txt` e o manifesto do Windows e
+# nao a declara, porque no Windows nao ha `bluetoothd` nem BlueZ.
+_ONLY_LINUX_OMISSIONS = {"requirements.txt": check_deps.LINUX_ONLY}
+
 
 def _esperado(manifest: str) -> set[str]:
     """Distribuicoes que `manifest` tem de declarar, ja com as omissoes certas."""
-    return set(check_deps.third_party_dists()) - _ONLY_WINDOWS_OMISSIONS.get(manifest, set())
+    return (set(check_deps.third_party_dists())
+            - _ONLY_WINDOWS_OMISSIONS.get(manifest, set())
+            - _ONLY_LINUX_OMISSIONS.get(manifest, set()))
 
 
 class TestImportsEstaoDeclarados:
@@ -135,23 +141,35 @@ class TestManifestosEstaoBemFormados:
 
 
 class TestManifestosNaoDivergem:
-    """O Windows e o Linux so podem diferir nas dependencias so-Windows.
+    """Os dois manifestos só podem diferir nos dois sentidos que fazem sentido.
 
     Divergencia entre manifestos e a forma silenciosa de um produto funcionar
     para quem instala no Windows e nao funcionar para quem instala no Linux.
+
+    A divergencia tem dois sentidos legitimos e nenhum outro:
+
+    * o Windows declara mais do que o Linux (`uiautomation`, que o `core/snap.py`
+      importa dentro de um `try`);
+    * o Linux declara mais do que o Windows (`dbus-next`, para o BLE: no Windows
+      nao ha `bluetoothd`, e a dependencia custaria uma falha de instalação sem
+      dar ganho nenhum).
+
+    Qualquer outra diferenca e um descuido, e e quase sempre o descuido de
+    alguém que mudou de sistema e não actualizou o manifesto do outro.
     """
 
-    def test_requirements_linux_e_requirements_menos_o_so_windows(self):
+    def test_a_divergencia_esta_explicada_nos_dois_sentidos(self):
         windows = set(check_deps.read_requirements("requirements.txt"))
         linux = set(check_deps.read_requirements("requirements-linux.txt"))
         assert windows - linux == set(check_deps.WINDOWS_ONLY), (
-            f"os dois manifestos diferem em {sorted(windows ^ linux)}, mas a unica "
-            f"diferenca legítima e {sorted(check_deps.WINDOWS_ONLY)}"
+            f"o manifesto do Windows declara {sorted(windows - linux)}, que o do "
+            f"Linux nao declara, e a unica diferenca desse tipo e "
+            f"{sorted(check_deps.WINDOWS_ONLY)}"
         )
-        assert linux - windows == set(), (
-            f"requirements-linux.txt declara {sorted(linux - windows)}, que o "
-            "manifesto do Windows nao declara. A variante Linux nao pode ser "
-            "mais exigente que a outra."
+        assert linux - windows == set(check_deps.LINUX_ONLY), (
+            f"o manifesto do Linux declara {sorted(linux - windows)}, que o do "
+            f"Windows nao declara, e a unica diferenca desse tipo e "
+            f"{sorted(check_deps.LINUX_ONLY)}"
         )
 
     def test_a_so_windows_so_esta_no_manifesto_do_windows(self):
@@ -161,4 +179,14 @@ class TestManifestosNaoDivergem:
             assert dist in windows, f"{dist} falta em requirements.txt"
             assert dist not in linux, (
                 f"{dist} e so para Windows e nao pode estar em requirements-linux.txt"
+            )
+
+    def test_a_so_linux_so_esta_no_manifesto_do_linux(self):
+        windows = check_deps.read_requirements("requirements.txt")
+        linux = check_deps.read_requirements("requirements-linux.txt")
+        for dist in check_deps.LINUX_ONLY:
+            assert dist in linux, f"{dist} falta em requirements-linux.txt"
+            assert dist not in windows, (
+                f"{dist} e so para Linux (D-Bus de sistema/BlueZ) e no Windows a "
+                f"instalacao ia falhar sem que houvesse ganho"
             )

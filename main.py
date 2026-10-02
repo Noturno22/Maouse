@@ -44,6 +44,8 @@ from core.llm import ChatClient
 from core.log import get_logger, setup_logging
 from core.mouse_ctl import MouseCtl, MuteMouse
 from core.remote import RemoteArbiter, RemoteServer, lan_ips
+from core.remote_ble import SERVICE_UUID as BLE_SERVICE_UUID
+from core.remote_ble import RemoteBLE
 from core.snap import SnapEngine
 from core.tracker import HandTracker, ensure_model
 from core.tray import TrayAppAdapter, TrayIcon
@@ -204,7 +206,7 @@ def resolve_assistant(cfg):
 
 def run_gui(cfg, cam, tracker, mouse, smooth_idx, gesture_ai, voice, tuner, speaker,
             snap, assistant, magnifier, ctx, state, tray_icon, license_mgr=None,
-            remote=None):
+            remote=None, discovery=None, ble=None):
     """Arranca a janela nativa PySide6 (MainWindow) como interface principal.
 
     A MainWindow apresenta o feed com o esqueleto e overlays; a lógica de
@@ -230,8 +232,8 @@ def run_gui(cfg, cam, tracker, mouse, smooth_idx, gesture_ai, voice, tuner, spea
         cfg, cam, tracker, mouse, gesture_ai=gesture_ai, voice=voice,
         tuner=tuner, speaker=speaker, snap=snap,
         assistant=assistant, magnifier=magnifier,
-        license_mgr=license_mgr, remote=remote,
-        state=state,
+        license_mgr=license_mgr, remote=remote, discovery=discovery,
+        ble=ble, state=state,
     )
     window.setWindowTitle("Mãouse")
     window.resize(900, 640)
@@ -239,17 +241,37 @@ def run_gui(cfg, cam, tracker, mouse, smooth_idx, gesture_ai, voice, tuner, spea
     # (gesto de paz com a mao esquerda). Serve apenas para configuracao.
     window.hide()
 
-    # Ctrl+C na consola fecha a janela de forma limpa (sem interromper o
-    # MediaPipe no meio do processamento nem deixar tracebacks repetidos).
+    # Ctrl+C e `kill` devem fechar a Maouse de forma limpa. O detalhe que
+    # demora a perceber e que **fechar a janela nao sai da aplicacao**: com
+    # o icone de bandeja a correr, o `window.close()` dispara o `closeEvent`
+    # (e o BLE e restaurado, ja medido) mas o `QApplication` fica vivo a
+    # espera no event loop. Por isso o pedido e `app.quit()`: o `exec()`
+    # regressa e o `window.close()` logo a seguir em `main.py` faz o teardown
+    # todo, pela ordem que o BLE precisa.
+    #
+    # O `SIGTERM` — o `kill`, o `systemd`, o logout — leva uma rede de
+    # seguranca: se o event loop estiver preso (uma leitura da camara que nao
+    # devolve, um modal aberto), `quit()` nao chega a correr e quem mandou o
+    # sinal fica a espera — ou vem com um `SIGKILL` que deixaria o adaptador
+    # **anunciavel**. A rede repete o pedido e, se ainda assim nao sair,
+    # sai na mesma. E uma rede, nao o caminho normal.
     try:
         import signal as _sig
 
         from PySide6.QtCore import QTimer as _QTimer
 
-        def _on_sigint(signum, frame):
-            _QTimer.singleShot(0, window.close)
+        def _sair(signum, frame):
+            _QTimer.singleShot(0, app.quit)
 
-        _sig.signal(_sig.SIGINT, _on_sigint)
+            def _segurar():
+                _QTimer.singleShot(5000, app.quit)
+                _QTimer.singleShot(10000, lambda: os._exit(0))
+
+            if signum == _sig.SIGTERM:
+                _segurar()
+
+        _sig.signal(_sig.SIGINT, _sair)
+        _sig.signal(_sig.SIGTERM, _sair)
     except Exception:
         pass
 
@@ -443,6 +465,7 @@ def main():
     mouse = MuteMouse() if mute_output else MouseCtl()
     remote = None
     discovery = None
+    ble = None
     if cfg.remote_enabled:
         remote = RemoteServer(cfg, mouse)
         if remote.start():
@@ -451,10 +474,39 @@ def main():
             # Só anuncia quem tem algo para anunciar: um `_maouse._tcp` a
             # apontar para uma porta fechada é pior do que não anunciar, porque
             # o telefone escolhe-o e perde tempo a sondar.
+            #
+            # O objecto passa à janela mesmo quando o anúncio não arrancou.
+            # Perder a referência aqui significava perder a única hipótese de
+            # repassar quando a rede voltasse; `_apply_discovery` tenta de novo
+            # a cada vez que as definições são gravadas.
             if cfg.remote_discovery:
                 discovery = MaouseAdvertiser(cfg)
-                if not discovery.start():
-                    discovery = None
+                discovery.start()
+
+            # O BLE é um **segundo transporte para o mesmo rato**: o `RemoteBLE`
+            # não tem comandos próprios, entrega-os ao `_handle` deste mesmo
+            # servidor. Por isso só é criado aqui — sem um `RemoteServer` vivo não
+            # há a quem entregar o comando — e não como uma via separada, que
+            # acabaria com duas implementações da mesma coisa.
+            if cfg.remote_ble:
+                # Importar `dbus_next` e falar com o `bluetoothd` não é
+                # garantido. Uma falha aqui não pode impedir a Maouse de
+                # arrancar: quem não tem Bluetooth fica com o WiFi, que é o
+                # que já existia, e o log diz porquê.
+                try:
+                    ble = RemoteBLE(cfg, remote)
+                    if ble.start():
+                        log.info("Controlo remoto por BLE ativo (servico %s).",
+                                 BLE_SERVICE_UUID)
+                    else:
+                        log.warning(
+                            "BLE nao arrancou (bluetoothd parado, adaptador "
+                            "desligado ou sem permissao D-Bus). O WiFi continua."
+                        )
+                        ble = None
+                except Exception as exc:
+                    log.warning("BLE indisponivel (%s); a usar apenas WiFi.", exc)
+                    ble = None
     else:
         log.info("Controlo remoto por telemovel desativado.")
     tuner = AutoTuner(cfg)
@@ -582,6 +634,7 @@ def main():
                 cfg, cam, tracker, mouse, smooth_idx, gesture_ai, voice,
                 tuner, speaker, snap, assistant, magnifier, ctx, state,
                 tray_icon, license_mgr=lic_, remote=remote,
+                discovery=discovery, ble=ble,
             )
             if result is None:
                 log.info("A usar preview OpenCV (sem PySide6).")
@@ -630,6 +683,14 @@ def main():
         if speaker is not None:
             speaker.stop()
         snap.stop()
+        # O BLE antes do `RemoteServer`: o `RemoteBLE` usa-o para entregar
+        # comandos, e um `WriteValue` a meio do encerramento encontraria um
+        # servidor já parado. A ordem é o contrário do que se lê bem.
+        if ble is not None:
+            try:
+                ble.stop()
+            except Exception:
+                pass
         if remote is not None:
             try:
                 remote.stop()

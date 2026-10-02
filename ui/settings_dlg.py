@@ -1,5 +1,5 @@
 """Settings dialog — sidebar navigation + painéis agrupados."""
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -19,11 +19,16 @@ from PySide6.QtWidgets import (
 )
 
 from config import SMOOTH_PRESETS
+from core import remote_ble
 from core.licensing import Tier, is_pro_locked
+from core.log import get_logger
+from core.remote import valid_code
 from i18n import tr
 from ui.icon_kits import menu_icon
 from ui.theme import FONT_MONO, FONT_PRIMARY, MAIN_STYLESHEET
 from ui.tune_slider import TuneSlider
+
+log = get_logger("settings")
 
 
 # ── Sidebar item (checkable button) ────────────────────────────────
@@ -392,6 +397,52 @@ class SettingsDialog(QDialog):
         port_lay.addStretch(1)
         rl.addLayout(port_lay)
 
+        # A descoberta é o que dispensa escrever o IP à mão. Desligar só faz
+        # sentido onde o mDNS não circule (VPN, rede de empresa) — e mesmo
+        # desligada, escrever o IP à mão continua a funcionar.
+        self._remote_discovery_ch = QCheckBox(
+            "Encontrar este PC automaticamente (mDNS)"
+        )
+        self._remote_discovery_ch.setChecked(self._cfg.remote_discovery)
+        self._remote_discovery_ch.setToolTip(
+            "Anuncia este PC na rede local para o telemóvel o encontrar sem "
+            "escrever o IP. O token nunca vai no anúncio."
+        )
+        rl.addWidget(self._remote_discovery_ch)
+
+        # O Bluetooth é a via que não depende da rede: é a única que funciona
+        # numa rede de empresa onde o mDNS não circule, ou sem rede nenhuma.
+        #
+        # Só em Linux (ver `core.remote_ble.suportado`): a implementação fala
+        # com o `bluetoothd` pela D-Bus de sistema, e o Windows não tem nenhuma
+        # das duas. A checkbox **fica à vista e desligaada**, em vez de
+        # desaparecer — desaparecer esconde a funcionalidade a quem compará a
+        # Maouse com a documentação, e deixá-la clicável é pior: o `start()`
+        # devolvia `False` e o único sintoma era um aviso no log e um botão que
+        # não fazia nada. O texto diz porquê, que é o que a torna honesto em vez
+        # de disabled.
+        self._remote_ble_ch = QCheckBox("Controlar também por Bluetooth (BLE)")
+        self._ble_suportado = remote_ble.suportado()
+        if self._ble_suportado:
+            self._remote_ble_ch.setChecked(self._cfg.remote_ble)
+            self._remote_ble_ch.setToolTip(
+                "Publica este PC como peripheral Bluetooth. Não usa a rede, e o "
+                "token nunca é anunciado — o telefone autentica-se como no WiFi. "
+                "Precisa de bluetoothd a correr; sem isso, o WiFi continua."
+            )
+        else:
+            self._remote_ble_ch.setEnabled(False)
+            # Um `settings.json` copiado de um Linux traria `remote_ble: true`, e
+            # ficaria a tentar arrancar um peripheral em cada arranque, para nada.
+            self._remote_ble_ch.setChecked(False)
+            self._remote_ble_ch.setToolTip(
+                "Só funciona em Linux. A Maouse publica-se como peripheral "
+                "Bluetooth pela D-Bus de sistema, que é o que o bluetoothd "
+                "expõe; o Windows não tem BlueZ. Para o telemóvel encontre o PC "
+                # noutro sistema, use a descoberta mDNS acima."
+            )
+        rl.addWidget(self._remote_ble_ch)
+
         self._remote_bind_cb = QComboBox()
         self._remote_bind_cb.setObjectName("SettingsCombo")
         self._remote_bind_cb.addItem("Rede local + Internet (0.0.0.0)", "0.0.0.0")
@@ -401,18 +452,31 @@ class SettingsDialog(QDialog):
         rl.addWidget(self._remote_bind_cb)
 
         token_lay = QHBoxLayout()
-        token_lbl = QLabel("Token:")
+        token_lbl = QLabel("Código:")
         token_lbl.setObjectName("SettingsLabel")
         token_lay.addWidget(token_lbl)
-        self._remote_token_edit = QLineEdit()
-        self._remote_token_edit.setObjectName("KeyField")
-        self._remote_token_edit.setReadOnly(True)
-        token_lay.addWidget(self._remote_token_edit)
-        gen = QPushButton("Gerar")
+        self._remote_code_edit = QLineEdit()
+        self._remote_code_edit.setObjectName("KeyField")
+        self._remote_code_edit.setReadOnly(True)
+        self._remote_code_edit.setInputMask("000000")
+        self._remote_code_edit.setAlignment(Qt.AlignCenter)
+        self._remote_code_edit.setMinimumWidth(120)
+        self._remote_code_edit.setMaximumWidth(160)
+        token_lay.addWidget(self._remote_code_edit)
+        gen = QPushButton("Gerar novo")
         gen.setObjectName("SettingsButtonGhost")
         gen.clicked.connect(self._gen_token)
         token_lay.addWidget(gen)
+        copy_btn = QPushButton("Copiar")
+        copy_btn.setObjectName("SettingsButtonSecondary")
+        copy_btn.clicked.connect(self._copy_code)
+        token_lay.addWidget(copy_btn)
+        token_lay.addStretch(1)
         rl.addLayout(token_lay)
+
+        self._copiado = QLabel("")
+        self._copiado.setObjectName("MicHint")
+        rl.addWidget(self._copiado)
 
         self._remote_info = QLabel()
         self._remote_info.setObjectName("MicHint")
@@ -491,11 +555,27 @@ class SettingsDialog(QDialog):
 
     # ── Ações ───────────────────────────────────────────────────────
     def _gen_token(self):
-        from core.remote import generate_token
+        """Manda um código novo — o telefone tem de voltar a emparelhar."""
+        from core.remote import generate_code
 
-        self._cfg.remote_token = generate_token()
-        self._remote_token_edit.setText(self._cfg.remote_token)
+        self._cfg.remote_code = generate_code()
+        self._remote_code_edit.setText(self._cfg.remote_code)
         self._refresh_remote_info()
+        log.info("Novo código de emparelhamento gerado.")
+
+    def _copy_code(self):
+        """Põe o código na área de transferência, para escrever no telemóvel."""
+        from PySide6.QtWidgets import QApplication
+
+        codigo = self._remote_code_edit.text().strip()
+        if not codigo:
+            return
+        QApplication.clipboard().setText(codigo)
+        self._copiado.setText("Copiado. No telemóvel, escreve estes 6 dígitos.")
+        # O aviso some sozinho: um "Copiado" permanente no ecrã é lixo para
+        # quem voltou aqui por outra coisa.
+        QTimer.singleShot(4000, lambda: self._copiado.setText(""))
+        log.info("Código de emparelhamento copiado.")
 
     def _buy_trading_master(self):
         from ui.license_dlg import PADDLE_VENDOR_ID
@@ -511,17 +591,20 @@ class SettingsDialog(QDialog):
             )
 
     def _refresh_remote_info(self):
-        from core.remote import generate_token, lan_ips
+        from core.remote import CODE_LEN, generate_code, lan_ips
 
-        token = (self._cfg.remote_token or "").strip()
-        if not token:
-            token = generate_token()
-            self._cfg.remote_token = token
-        self._remote_token_edit.setText(token)
+        codigo = (self._cfg.remote_code or "").strip()
+        if not valid_code(codigo):
+            # Um `settings.json` de antes do código de 6 dígitos traz o
+            # `remote_token` de 16 hex. Gerar aqui é melhor do que mostrar um
+            # campo vazio: o utilizador vem buscar o código e o encontra.
+            codigo = generate_code()
+            self._cfg.remote_code = codigo
+        self._remote_code_edit.setText(codigo)
         ips = ", ".join(lan_ips()) or "IP local apenas"
         self._remote_info.setText(
             f"Telemóvel liga a:\nws://{ips}:{self._cfg.remote_port}\n"
-            f"token: {token[:4]}…  ·  {len(token)} caracteres"
+            f"código de {CODE_LEN} dígitos — o mesmo por WiFi e por Bluetooth"
         )
 
     def _reset_defaults(self):
@@ -543,6 +626,10 @@ class SettingsDialog(QDialog):
         self._remote_en_ch.setChecked(defaults.remote_enabled)
         self._remote_port_spin.setValue(defaults.remote_port)
         self._remote_gain_sl.setValue(int(defaults.remote_move_gain * 10))
+        self._remote_discovery_ch.setChecked(defaults.remote_discovery)
+        # O mesmo `and` do construtor: repôr os omissões de fábrica não pode
+        # reanimar um `remote_ble: true` num sistema onde o BLE não existe.
+        self._remote_ble_ch.setChecked(defaults.remote_ble and self._ble_suportado)
         self._tv_btn_ch.setChecked(defaults.tv_button_enabled)
 
     def _save(self):
@@ -571,8 +658,10 @@ class SettingsDialog(QDialog):
         self._cfg.remote_enabled = self._remote_en_ch.isChecked()
         self._cfg.remote_port = self._remote_port_spin.value()
         self._cfg.remote_bind = self._remote_bind_cb.currentData()
-        self._cfg.remote_token = self._remote_token_edit.text().strip()
+        self._cfg.remote_code = self._remote_code_edit.text().strip()
         self._cfg.remote_move_gain = max(1.0, self._remote_gain_sl.value() / 10.0)
+        self._cfg.remote_discovery = self._remote_discovery_ch.isChecked()
+        self._cfg.remote_ble = self._remote_ble_ch.isChecked()
         self._cfg.tv_button_enabled = self._tv_btn_ch.isChecked()
         self._cfg.tv_tool_combos = self._parse_tv_combos()
         self.accept()

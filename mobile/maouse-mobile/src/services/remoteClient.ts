@@ -1,10 +1,11 @@
 // Cliente WebSocket para o controlo remoto do PC (Rato + Teclado).
 //
 // Protocolo (PC: core/remote.py):
-//   1. Primeira mensagem é sempre o auth, e exige token *e* lease:
-//       {"cmd":"auth","token":"...","lease":"..."}
+//   1. Primeira mensagem é sempre o auth, e exige code *e* lease:
+//       {"cmd":"auth","code":"123456","lease":"..."}
 //         -> {"cmd":"auth","ok":true,"w":1920,"h":1080}
-//      Token errado -> {"cmd":"auth","ok":false,"error":"auth_required"} + ligação fechada.
+//      Código errado -> {"cmd":"auth","ok":false,"error":"auth_required"} + ligação fechada.
+//      Muitas tentativas -> {"cmd":"auth","ok":false,"error":"auth_locked"} + ligação fechada.
 //      Lease ausente/expirada/tier não pago -> {"ok":false,"error":"pro_required"}.
 //      A lease vem do license-server (`useProEntitlement`) e é o que impede um
 //      telemóvel free de controlar o PC; o PC é quem valida a assinatura.
@@ -12,6 +13,13 @@
 //       ping | move{dx,dy} | move_to{x,y} | click{button,count}
 //       press{button} | release{button} | scroll{dx,dy} | key{key}
 //       combo{mods,key} | text{text} | media{action} | gesture{event,x,y,value}
+
+import {
+  CODE_LEN,
+  authErrorMessage,
+  codeCompleto,
+  normalizeCode,
+} from './pairingCode';
 
 export type RemoteStatus =
   | 'disconnected'
@@ -58,7 +66,7 @@ export function buildWsUrl(host: string, port: string | number): string {
 
 export class RemoteClient {
   private ws: WebSocket | null = null;
-  private token = '';
+  private code = '';
   private lease = '';
   private ready = false;
   private cbs: RemoteClientCallbacks | null = null;
@@ -75,7 +83,7 @@ export class RemoteClient {
 
   connect(
     url: string,
-    token: string,
+    code: string,
     lease: string,
     cbs: RemoteClientCallbacks
   ): void {
@@ -86,11 +94,13 @@ export class RemoteClient {
     this.pendingDx = 0;
     this.pendingDy = 0;
     this.cbs = cbs;
-    this.token = (token || '').trim();
+    this.code = normalizeCode(code);
     this.lease = (lease || '').trim();
 
-    if (!this.token) {
-      this.emitError('Falta o token — vê-o em Definições no PC.');
+    if (!codeCompleto(this.code)) {
+      this.emitError(
+        `O código são ${CODE_LEN} dígitos — vê-os em Definições no PC.`
+      );
       return;
     }
 
@@ -111,7 +121,7 @@ export class RemoteClient {
     // Nota: o auth é enviado diretamente (rawSend) porque só passa a poder usar
     // sendRaw depois de ready=true, que depende do ok do servidor a esta mensagem.
     ws.onopen = () =>
-      this.rawSend({ cmd: 'auth', token: this.token, lease: this.lease });
+      this.rawSend({ cmd: 'auth', code: this.code, lease: this.lease });
     ws.onmessage = (ev) => this.handleMessage(String(ev.data));
     ws.onerror = () => {
       this.lastError = 'Falha de ligação (rede inacessível?).';
@@ -241,12 +251,7 @@ export class RemoteClient {
         this.startTimers();
         this.cbs?.onOpen(screen);
       } else {
-        this.lastError =
-          msg.error === 'auth_required'
-            ? 'Token recusado. Confirma o token nas definições do PC.'
-            : msg.error === 'pro_required'
-              ? 'O PC recusou a licença Pro. Tenta "Restaurar" ou compra o Pro.'
-              : String(msg.error || 'Auth falhou.');
+        this.lastError = authErrorMessage(msg.error, msg.retry_after);
         this.emitError(this.lastError);
         this.close();
       }

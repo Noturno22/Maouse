@@ -6,8 +6,9 @@ import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.uimanager.ViewManager
 
 /**
- * MaousePackage: regista os módulos nativos (Touch, Keyboard, System).
- * Adicionado no MainApplication.kt à lista de packages do React Native.
+ * MaousePackage: regista os módulos nativos (Touch, Keyboard, System, Ble,
+ * MdnsDiscovery). Adicionado no MainApplication.kt à lista de packages do
+ * React Native.
  */
 class MaousePackage : ReactPackage {
     override fun createNativeModules(reactContext: ReactApplicationContext): List<NativeModule> =
@@ -15,6 +16,8 @@ class MaousePackage : ReactPackage {
             TouchControllerModule(reactContext),
             KeyboardControllerModule(reactContext),
             SystemControllerModule(reactContext),
+            BleRemoteModule(reactContext),
+            MdnsDiscoveryModule(reactContext),
         )
 
     override fun createViewManagers(reactContext: ReactApplicationContext): List<ViewManager<*, *>> =

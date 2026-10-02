@@ -5,7 +5,13 @@ import json
 import pytest
 
 from config import Config
-from core.remote import RemoteArbiter, RemoteServer, generate_token, lan_ips
+from core.remote import (
+    RemoteArbiter,
+    RemoteServer,
+    generate_code,
+    lan_ips,
+    valid_code,
+)
 from tests.lease_test_keys import VALID_LEASE
 
 
@@ -92,11 +98,13 @@ class _FakeConnection:
         self.sent.append(payload)
 
 
-def test_generate_token_is_unique():
-    a = generate_token()
-    b = generate_token()
-    assert a and b
-    assert len(a) >= 8
+def test_generate_code_is_unique_e_de_seis_digitos():
+    a = generate_code()
+    b = generate_code()
+    assert valid_code(a)
+    assert valid_code(b)
+    assert len(a) == 6
+    assert a.isdigit()
     assert a != b
 
 
@@ -133,7 +141,7 @@ def test_key_aliases_arrow_keys():
 
 def test_dispatch_move_click_scroll_press():
     cfg = Config()
-    cfg.remote_token = "tok"
+    cfg.remote_code = "123456"
     cfg.remote_move_gain = 1.0
     mouse = FakeMouse()
     srv = RemoteServer(cfg, mouse)
@@ -158,7 +166,7 @@ def test_dispatch_move_click_scroll_press():
 
 def test_dispatch_move_to_clamps():
     cfg = Config()
-    cfg.remote_token = "tok"
+    cfg.remote_code = "123456"
     mouse = FakeMouse()
     srv = RemoteServer(cfg, mouse)
 
@@ -171,7 +179,7 @@ def test_dispatch_move_to_clamps():
 
 def test_dispatch_unknown_command_raises():
     cfg = Config()
-    cfg.remote_token = "tok"
+    cfg.remote_code = "123456"
     srv = RemoteServer(cfg, FakeMouse())
     with pytest.raises(ValueError):
         srv._handle("coiso", {})
@@ -192,7 +200,7 @@ class TestTouchpadRelativo:
         sempre x/y), mas o servidor continua a aceitá-lo para clientes que
         queiram o rato como alvo."""
         cfg = Config()
-        cfg.remote_token = "tok"
+        cfg.remote_code = "123456"
         mouse = FakeMouse()
         srv = RemoteServer(cfg, mouse)
 
@@ -209,7 +217,7 @@ class TestTouchpadRelativo:
     def test_toque_com_coordenadas_mantem_o_salto_explicito(self):
         """Clientes que mandem x/y continuam a poder saltar antes de clicar."""
         cfg = Config()
-        cfg.remote_token = "tok"
+        cfg.remote_code = "123456"
         mouse = FakeMouse()
         srv = RemoteServer(cfg, mouse)
 
@@ -262,7 +270,7 @@ class TestTouchpadRelativo:
     def test_ganho_fora_de_raio_e_limitado(self):
         for bruto, esperado in ((0.1, 1.0), (99.0, 8.0), (-5.0, 1.0)):
             cfg = Config()
-            cfg.remote_token = "tok"
+            cfg.remote_code = "123456"
             cfg.remote_move_gain = bruto
             mouse = FakeMouse()
             srv = RemoteServer(cfg, mouse)
@@ -274,7 +282,7 @@ class TestTouchpadRelativo:
         relativo já não tem sentido: sem o reset, o primeiro `move` following
         arrancava um deslocamento fantasma."""
         cfg = Config()
-        cfg.remote_token = "tok"
+        cfg.remote_code = "123456"
         cfg.remote_move_gain = 2.5
         mouse = FakeMouse()
         srv = RemoteServer(cfg, mouse)
@@ -293,7 +301,7 @@ class TestTouchpadRelativo:
             config_mod, "SETTINGS_FILE", str(tmp_path / "settings.json")
         )
         cfg = Config()
-        cfg.remote_token = "tok"
+        cfg.remote_code = "123456"
         cfg.remote_move_gain = 4.5
         config_mod.save_settings(cfg, "NORMAL")
 
@@ -341,7 +349,7 @@ class TestToqueAbsoluto:
 
     def _srv(self, cfg=None, mouse=None):
         cfg = cfg or Config()
-        cfg.remote_token = "tok"
+        cfg.remote_code = "123456"
         mouse = mouse or FakeMouse()
         return RemoteServer(cfg, mouse), mouse
 
@@ -418,7 +426,7 @@ def test_auth_and_commands_over_websocket(patched_public_key):
     cfg = Config()
     cfg.remote_bind = "127.0.0.1"
     cfg.remote_port = 0
-    cfg.remote_token = "segredo123"
+    cfg.remote_code = "123456"
     # Ganho a 1: este teste é sobre o protocolo e o auth, não sobre a
     # velocidade do touchpad (ver TestTouchpadRelativo).
     cfg.remote_move_gain = 1.0
@@ -434,7 +442,7 @@ def test_auth_and_commands_over_websocket(patched_public_key):
 
             try:
                 async with connect(f"ws://127.0.0.1:{port}") as ws:
-                    await ws.send(json.dumps({"cmd": "auth", "token": "errado"}))
+                    await ws.send(json.dumps({"cmd": "auth", "code": "000000"}))
                     reply = json.loads(await asyncio.wait_for(ws.recv(), 3))
                     assert reply.get("ok") is False
             except Exception:
@@ -446,7 +454,7 @@ def test_auth_and_commands_over_websocket(patched_public_key):
         async def good_flow():
             from websockets.asyncio.client import connect
 
-            auth = {"cmd": "auth", "token": "segredo123", "lease": VALID_LEASE}
+            auth = {"cmd": "auth", "code": "123456", "lease": VALID_LEASE}
 
             async with connect(f"ws://127.0.0.1:{port}") as ws:
                 await ws.send(json.dumps(auth))
@@ -593,7 +601,7 @@ class TestRemoteArbiter:
 
         conn = _FakeConnection(
             [
-                {"cmd": "auth", "token": srv._cfg.remote_token, "lease": VALID_LEASE},
+{"cmd": "auth", "code": srv.code, "lease": VALID_LEASE},
                 {"cmd": "gesture", "event": "tap", "x": 0.5, "y": 0.5},
             ]
         )

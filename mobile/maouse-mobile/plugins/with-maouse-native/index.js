@@ -37,7 +37,29 @@ const ANDROID_KOTLIN_FILES = [
   "TouchControllerModule.kt",
   "KeyboardControllerModule.kt",
   "SystemControllerModule.kt",
+  "BleRemoteModule.kt",
+  "MdnsDiscoveryModule.kt",
   "MaousePackage.kt",
+];
+
+// Permissões que o Bluetooth e o mDNS precisam no AndroidManifest.
+//
+// As três `BLUETOOTH_*` (SCAN, CONNECT, ADVERTISE) chegaram no Android 12
+// (API 31) e não são um pedido de "localização": `neverForLocation` diz ao
+// Android que o Bluetooth não é usado para geolocalizar, e sem isso ele exige
+// a permissão de localização para *qualquer* scan BLE. É a primeira coisa que
+// falha num telefone novo, e a mensagem do sistema fala de localização numa
+// app que não pede localização nenhuma — o que não ajuda ninguém.
+//
+// `neverForLocation` e a opcao correcta aqui: o scanner filtra pelo UUID do
+// servico, e isso e filtragem por servico e nao por localizacao. Quem depois
+// quiser varrer BLE sem filtrar por servico tem de tirar este uso e pedir a
+// permissao de localizacao, o que muda o que a app pode fazer com os
+// resultados.
+const BLUETOOTH_PERMISSIONS = [
+  { name: "android.permission.BLUETOOTH_SCAN", flags: ["neverForLocation"] },
+  { name: "android.permission.BLUETOOTH_CONNECT" },
+  { name: "android.permission.BLUETOOTH_ADVERTISE" },
 ];
 
 // -------------------------------
@@ -101,6 +123,40 @@ function withMaouseManifest(config) {
       console.log("[MaouseNative] ⚠️  Sem <application> no manifest — salta serviço");
       return mod;
     }
+
+    // Permissões de Bluetooth e mDNS.
+    //
+    // `CHANGE_WIFI_MULTICAST_STATE` não é óbvia: sem ela, o `NsdManager`
+    // funciona no emulador e falha num telefone, porque o Android não entra
+    // em multicast com a app ligada, e o mDNS é todo multicast. É a diferença
+    // entre "descobri o PC no meu teste" e "não encontro o PC em lado
+    // nenhum", e a permissão não aparece em nenhum tutorial de BLE.
+    const REQUIRED = [
+      ...BLUETOOTH_PERMISSIONS,
+      { name: "android.permission.INTERNET" },
+      { name: "android.permission.ACCESS_WIFI_STATE" },
+      { name: "android.permission.CHANGE_WIFI_MULTICAST_STATE" },
+    ];
+    let perms = manifest["uses-permission"];
+    if (!perms) perms = [];
+    for (const req of REQUIRED) {
+      const existing = perms.find((p) => p["$"] && p["$"]["android:name"] === req.name);
+      if (existing) {
+        // A permissão já vem de outro plugin ou do `app.json`. Não se duplica.
+        // Se o `neverForLocation` é pedido por este módulo e a linha de
+        // origem não o tem, acrescenta-se: é esta flag que separa "pede
+        // localização" de "não pede", e o Android não dá para inferir uma do
+        // outro — a diferença está no atributo e não no conteúdo.
+        if (req.flags && !existing.$["android:usesPermissionFlags"]) {
+          existing.$["android:usesPermissionFlags"] = req.flags.join("|");
+        }
+        continue;
+      }
+      const node = { $: { "android:name": req.name } };
+      if (req.flags) node.$["android:usesPermissionFlags"] = req.flags.join("|");
+      perms.push(node);
+    }
+    manifest["uses-permission"] = perms;
     let services = app["service"];
     if (services && services.length) {
       const already = services.some(

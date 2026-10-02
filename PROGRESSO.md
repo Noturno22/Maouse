@@ -88,6 +88,16 @@
 >   correr. O `pro_required` não tinha garantia automática nenhuma, e o paywall do
 >   `RemoteScreen` continua sem teste de componente, logo estes 21 testes eram o único
 >   guard automático do caminho de monetização. Corrigido com um passo `Test (mobile)`.
+> - **02/out — 🟡 o transporte BLE entrou neste `main`** por um merge local
+>   `--no-ff`: 6 commits que viviam só em `main` local (`1a567d7`, `9a67ae8`,
+>   `9068756`, `19fc220`, `80acba0`, `edd0e57`) e que o `origin/main` nunca
+>   tinha visto — o BLE **não** é adição dos 30 commits de trás, é trabalho
+>   aditivo que entra agora. O `origin/main` não o tinha porque nunca o
+>   recebeu, **não** porque o tenha removido (verificado: nenhum commit do
+>   `origin/main` apagou `core/remote_ble.py`). Detalhe na secção "Feito
+>   recentemente (30 set)" abaixo. O único conflito do merge foi este
+>   ficheiro; `config.py`, `core/remote.py` e `ui/main_window.py`, tocados
+>   pelos dois lados, juntaram sozinhos.
 > - **Bloqueios que continuam abertos:** os achados #3 (sem TLS), #4 (sem rate
 >   limit) e #8 (bypass do toggle de pausa) do mesmo documento. TLS e o URL real do
 >   license-server dependem de certificado e de decisão do dono.
@@ -100,6 +110,40 @@
 > - **Bloqueio actual da Onda 1:** a §1.5 (ligar o `HandLock`) e a calibração do
 >   `min_class_conf` esperam as **mãos reais** (Onda 3 §3.1). Não é um problema
 >   de código.
+
+### ✅ Feito recentemente (30 set) — contra o `bluetoothd` e a câmara reais
+
+10. **O BLE registava o serviço e não anunciava nada.** O `RemoteBLE` registava
+    a aplicação GATT, exportava as características e registava-se no log como
+    "BLE ativo" — mas nunca mexia no `Discoverable` do `Adapter1`, que é uma
+    propriedade **do adaptador**, não nossa. Medido: `Discoverable: no` e
+    `DiscoverableTimeout: 0xb4` (180 s) enquanto a Maouse corria, e um telefone
+    a varrer não via nada. O registo do GATT não anuncia sozinho.
+    Agora arranca com `DiscoverableTimeout = 0` (que no BlueZ quer dizer "até
+    alguém desligar", e sem ele o PC cala-se sozinho aos 3 minutos, sem erro e
+    sem log) e `Discoverable = true`, e o `stop()` repõe o valor que lá estava —
+    se o utilizador o tinha ligado para outra coisa, não é nosso para o
+    desligar. **7 testes novos** em `TestAnuncioDoAdaptador`, verificados por
+    mutação (tirar o `DiscoverableTimeout` e ignorar o valor anterior fazem
+    falhar cada um o seu teste).
+
+11. **`SIGINT` e `SIGTERM` não limpavam nada.** Não havia handler de `SIGTERM`:
+    um `kill` matava o processo a meio e o adaptador ficava anunciável para
+    sempre. E `window.close()` **não encerra a aplicação** — com o ícone de
+    bandeja activo o `QApplication` fica vivo, a janela fecha (o `closeEvent`
+    corre, o BLE é reposto) e o processo fica lá. O pedido de saída passou a ser
+    `app.quit()`, e o `SIGTERM` leva rede de segurança para o caso de o event
+    loop estar preso.
+    *Medido contra a aplicação real* (`/tmp/opencode/test_signal.sh`, que lança
+    a Maouse, manda o sinal e mede `Discoverable` antes e depois):
+    `SIGINT` e `SIGTERM` saem ambos em ~15 s com `Discoverable` reposto.
+
+12. **Aprendido a medir isto de jeito** (vale o registo): `setsid` faz *fork*
+    quando já é líder de grupo, e `pgrep | head -1` dá o *wrapper* que já
+    morreu — nunca o processo real. Três "conclusões" antes disso estavam
+    erradas, e uma delas tinha acabado por escrever um parágrafo a justificar
+    código com uma medição que não existia. O script ficou parametrizado
+    (`test_signal.sh INT|TERM`) para não voltar a tropeçar.
 
 ### ✅ Feito recentemente (14–22 set)
 
@@ -994,6 +1038,216 @@
     `TestSemDependenciasFantasmas` reprova dependência declarada que o código
     não importa: o `dbus-next` entra no commit que trouxer
     `core/remote_ble.py`, e o `zeroconf` no que trouxer `core/discovery.py`.
+
+26. **A descoberta mDNS announce o PC — e cinco faturas ficaram por pagar até
+    ao dia seguinte.** O `core/discovery.py` do `e4da026` anunciava
+    `_maouse._tcp` com a porta do `RemoteServer` e o token fora dos TXT (allowlist
+    fechada de `v` e `id`, com `test_token_nunca_vai_nos_txt` a segurar a porta).
+    O desenho estava certo; o que faltava era o que rodeia o desenho, e cada
+    uma das cinco coisas era do mesmo feitio — **uma afirmação no docstring que
+    o código não sustentava**.
+    * **A promessa de "falhar é normal" era falsa no arranque.**
+      `main.py:33` importava `core.discovery`, que importava `zeroconf` ao
+      nível do módulo. Num venv instalado antes daquele commit — exactamente
+      o que o `setup.bat` diz para executar *uma vez* — a Maouse **não
+      arrancava**: `ImportError` no import, não uma mensagem no log. É a mesma
+      classe do `cryptography` em falta (item 13), pelo caminho inverso: o
+      manifesto estava certo e a degradação prometida não existia.
+      **Corrigido** com o import dentro de `_zeroconf()`, que devolve `None` e
+      deixa `build_info()`/`start()` a dizerem que não há o que anunciar.
+      Provado por `TestSemZeroconfInstalado`, que corre `import main` num
+      subprocesso com o `zeroconf` bloqueado no `sys.meta_path` — o teste
+      importa o módulo no topo, portanto prová-lo aqui não provaria nada.
+    * **O `device_id()` prometia estabilidade entre arranques e não a tinha.**
+      `uuid.getnode()` **não devolve o MAC nesta máquina**: devolve
+      `5b:95:ac:79:2c:49`, que não é o `enp7s0` (`70:5a:…`) nem o `wlp13s0`
+      (`30:f7:…`), e tem o bit multicast ligado — que por RFC 4122 §4.5 significa
+      "endereço pseudo-aleatório, não um IEEE address". `_ip_getnode()` devolve
+      o MAC certo; `getnode()` vai antes a `_unix_getnode()`. O valor só
+      parece estável porque o módulo `uuid` o memoriza **no processo**, que
+      morre com o processo: o `id` mudava a cada arranque e o telefone via um
+      "PC novo" sempre. O teste antigo (`a == b`) provava exactamente o que
+      `uuid` garante por si, que é o oposto do que interessa.
+      **Corrigido**: `_hardware_id()` só aceita o valor quando o bit multicast
+      está desligado; sem hardware, o id vai para `%LOCALAPPDATA%\Maouse\device_id`
+      e é relido daí. Ficheiro e não `settings.json` porque tem de sobreviver a
+      um `settings.json` apagado.
+    * **O anúncio não acompanhava a porta.** `_apply_remote_config`
+      (`ui/main_window.py`) reiniciava o `RemoteServer` quando a porta mudava e
+      nunca tocava no anúncio — que nem sequer era passado à janela. Mudar a
+      porta deixava o `_maouse._tcp` a apontar para a porta antiga: o telefone
+      encontrava o PC e levava com ligação recusada, que é a pior forma de
+      "descobrir" o PC. Desligar o remoto pela UI deixava o anúncio no ar, o
+      contrário do que o anúncio promete. **Corrigido** com `_apply_discovery()`,
+      testado por `TestAnuncioSegueOPortao` (o método é chamado com um `self`
+      emprestado, para não precisar de câmara, tracker e event loop Qt).
+    * **`remote_discovery` não tinha um único sítio onde se mexer.** Estava em
+      `config.py` (carrega e guarda) e em lado nenhum da interface. O comentário
+      do config dizia "desligar em redes onde o mDNS não circule" — e não havia
+      forma de o fazer sem editar o `settings.json` à mão.
+    * **Nada abria a UDP 5353, e o `.exe` não trazia o `zeroconf`.** O mDNS é
+      UDP 5353: o `conectar.bat` abria 61120/61121 (Expo) e o instalador não
+      tinha regra nenhuma. Combinado com a falha silenciosa por desenho, no
+      Windows isto falha sem rasto — o telefone é que "não encontra o PC". E o
+      `maouse.spec` só fazia `collect_all` de `mediapipe` e `vosk`, deixando de
+      fora os `.pyd`/`.so` compilados do `zeroconf`.
+      **Corrigido**: `collect_all("zeroconf")` no spec, regra UDP 5353 no
+      `installer.iss` (num bloco `[Code]` com `Exec`, para que um `netsh` que
+      falhe não faça o instalador falhar) e no `conectar.bat`.
+    * *Verificado*: ruff limpo, **705** testes do cliente (1 falha ambiental
+      pré-existente, `PortAudio`), `tests/test_discovery.py` **38/38**.
+      **Não verificado, e é honesto dizê-lo**: o `.exe` a anunciar num Windows
+      com firewall. O `collect_all` é o que a documentação do PyInstaller manda
+      usar, mas ninguém viu o `.exe` num Windows com o `NsdManager` do Android a
+      encontrar o PC. O `maouse.spec` e o `installer.iss` também não têm teste
+      — são lidos, não executados.
+
+27. **O BLE do PC é um peripheral GATT a sério — e o `Flags` estava escrito
+    ao contrário do que o BlueZ lê.** O `core/remote_ble.py` exporta serviço,
+    RX e TX, e entrega tudo ao `RemoteServer._handle` (o mesmo caminho do
+    WebSocket, por decisão: duas implementações de comandos divergem). O
+    `RegisterApplication` era rejeitado com
+    `org.bluez.Error.Failed: No valid service object found`, sem log — porque
+    `bluetoothd` corre como root e aqui não há.
+    * **O `Flags` é `as`, não `q`.** A documentação que se encontra online diz
+      `q` (bitfield) e é o que qualquer um escreve primeiro. O
+      `parse_flags()` do BlueZ faz `get_arg_type(&iter) != DBUS_TYPE_ARRAY →
+      return false`, e o `chrc_create()` que a chama põe a app em `failed`. A
+      mensagem fala do **serviço** quando o problema é a **característica**.
+      Como não há log, a causa achou-se por teste diferencial contra o
+      próprio `bluetoothd`, subindo a cascata: nada exportado →
+      `No object received`; só o serviço → **REGISTOU**; serviço +
+      característica → falha. Só o serviço a registar isola a falha no
+      `chrc_create()`. Valores correctos: RX
+      `["write","write-without-response"]`, TX `["read","notify"]`.
+      `TestContratoGattDbus` segura a porta, e verifica a **assinatura
+      D-Bus** que o daemon lê — o objecto Python estava correcto, testá-lo não
+      provaria nada.
+    * **O `RegisterApplication` não devolve valor algum.** Atribuir o retorno
+      ao caminho da app punha `None` no sítio do path: o daemon aceitava o
+      registo e o `start()` devolvia `False`. Passa a guardar o caminho
+      enviado depois do sucesso.
+    * **O `Notifying` é só de leitura e o BlueZ escreve nele.** A CCC activa-se
+      por `Properties.Set`, que num `readwrite` faz sentido e num `read` dá
+      `PropertyReadOnly` — telefone ligado, PC mudo.
+    * **Fragmentos de 22 bytes e o link layer recorta em silêncio.** O valor de
+      uma característica é `MTU - 3` = 20 com a MTU por omissão, e o
+      cabeçalho de 2 bytes do framing sai **desse** total. Confundir "20" com o
+      corpo dá 22 bytes por fragmento, e não há excepção nem `status` — só um
+      rato que não obedece. Daí `ATT_WRITE_MAX` e `CHUNK_BODY` serem duas
+      constantes. O `GattManager1` também vive no **adaptador**
+      (`/org/bluez/hci0`), não em `/org/bluez` — primeira coisa a errar, porque
+      `/org/bluez` é onde o `ObjectManager` responde.
+    * **O `move` vai em binário, não em JSON.** Um `move` em JSON são ~30 bytes
+      contra 20 de valor de característica: partir-se-ia sempre, e a 60 Hz
+      seriam 120 escritas por segundo. `0x01` + dois `int16` em décimos = 7
+      bytes, uma escrita. É a única constante do protocolo duplicada
+      (`OP_MOVE`/`MOVE_SCALE`), e a única que diverge em silêncio.
+    * **O cliente Android e a descoberta `NsdManager` estão escritos, não
+      testados.** `BleRemoteModule.kt` (scan, GATT, MTU, CCC, `auth`, `move`)
+      e `MdnsDiscoveryModule.kt` (`_maouse._tcp`, TXT `v`/`id`) estão registados
+      no `MaousePackage.kt`, com `BLUETOOTH_SCAN`/`CONNECT` e
+      `CHANGE_WIFI_MULTICAST_STATE` no manifest. O token continua fora dos TXT
+      e a ir na primeira frame BLE, como no WebSocket.
+    * *Verificado*: ruff limpo, 38/38 em `tests/test_remote_ble.py`,
+      12/12 em `tests/test_manifests.py`, `npm run typecheck` limpo, e
+      **`RemoteBLE.start()` a devolver `True` contra o `bluetoothd` real**
+      (BlueZ 5.64, `hci0`) com as três características aceites.
+      **Não verificado, e é honesto dizê-lo**: nada disto foi contra um
+      telefone. Não há Android nesta máquina, e sem aparelho não há scan, nem
+      MTU negociada, nem CCC, nem `auth`, nem `move` a mexer o rato. O Kotlin
+      não foi compilado; o `NsdManager` não viu um PC. §1.16 do
+      `RECONHECIMENTO_REMOTE.md` diz o mesmo com mais detalhe.
+
+28. **O BLE ficou com dois donos e a thread não saía — e há mais três coisas
+    deste caminho que ficam por corrigir, de propósito.** Quatro foram
+    corrigidas: duas no commit do BLE, uma no seguinte e uma neste. As três que
+    ficam aqui são a diferença entre "isto não funciona" e "isto funciona mal",
+    e nenhuma se resolve sem uma decisão ou sem um aparelho.
+
+    * **Corrigido: o `RemoteBLE` era registado duas vezes.** O `main.py`
+      criava e arrancava o objecto mas **não o passava** à janela, que punha
+      `self._ble = None` no `__init__`. Ao primeiro `_apply_ble()` — ou seja,
+      à primeira gravação das definições do remoto — a janela construía um
+      segundo `RemoteBLE` e registava uma segunda aplicação GATT **nos mesmos
+      caminhos de objecto** (`/org/maouse/app0/...`): duas threads, duas
+      ligações ao bus de sistema, e nenhuma delas a saber qual está a servir o
+      telefone. Passa a ser o mesmo objecto que o `discovery` já era.
+    * **Corrigido: um `start()` que falhava deixava a thread e o bus abertos.**
+      `_thread_main` caía no `run_forever()` mesmo com o registo recusado, e
+      o `main.py` **descartava** o objecto sem nunca lhe chamar `stop()`. Cada
+      falha deixava uma thread e uma ligação ao bus de sistema até ao fim do
+      processo — invisível, porque o `start()` já tinha devolvido `False` — e
+      tornava o BLE irrecoverável sem matar a aplicação, porque `start()` via a
+      guarda `is_alive()`. Medido: 3 tentativas, 3 threads vivas; depois da
+      correcção, 0.
+    * **Em aberto: o `notifying` não é por sessão.** O `_on_properties_changed`
+      filtra por `msg.path != TX_PATH`, e esse caminho é **um só para todas as
+      ligações** — o BlueZ não dá identidade de ligação num `PropertiesChanged`.
+      Por isso o código põe o sinal em *todas* as sessões, e com dois
+      telefones as respostas podem ir para o errado. **Não se corrige com um
+      patch**: exige uma decisão (flag global optimista, ou um `Value` por
+      dispositivo, que o GATT deste lado não tem) e um telefone para a provar.
+    * **Em aberto: as `_sessions` nunca são despejadas.** Só saem numa falha de
+      `auth` (`core/remote_ble.py:751`). As características não levam
+      `authenticated-signed-writes` nem `secure-read`, portanto qualquer
+      dispositivo emparelhado ao alcance que escreva lixo cria uma entrada
+      permanente. Num produto de utilizador único é um leak lento; num PC com o
+      adaptador ligado numa sala partilhada, é crescimento sem fundo. Precisa de
+      um `disconnect` por sessão, e o BlueZ só o dá se aCharacteristic for
+      removido.
+    * **Corrigido neste commit: o BLE é só-Linux e a interface dizia que não.**
+      O `dbus-next` está em `LINUX_ONLY` (`tools/check_deps.py`) e a
+      implementação é BlueZ/D-Bus pura — no Windows **não há** como publicar um
+      peripheral GATT por este caminho. Mas `ui/settings_dlg.py` mostrava a
+      checkbox a toda a gente, incluindo ao `.exe`, onde ela nunca pode
+      funcionar: o `start()` devolvia `False` e o único sintoma era um aviso no
+      log a cada arranque. Era exactamente a classe que o item 26 fechou no
+      outro lado — uma **afirmação que o código não sustenta**, aqui na
+      interface. `core/remote_ble.py::suportado()` diz agora o que a
+      implementação consegue fazer, e a checkbox fica **desligada e a dizer
+      porque** fora do Linux. Desligada-e-dita, e não escondida: desaparecer
+      tirava a funcionalidade de vista a quem compara a Maouse com a
+      documentação, e o §1.16 passou a abrir com o aviso. Um `settings.json`
+      copiado de um Linux trazia `remote_ble: true` para o Windows, por isso o
+      construtor e o "repor omissões de fábrica" o ignoram lá.
+    * **Corrigido: o `App.tsx` mandava os gestos pelo WebSocket certo, mas pelo
+      transporte errado.** Importava o `remoteClient` — o cliente cru — em vez
+      da fachada `remoteTransport`. O `status` que decide enviar o gesto vem da
+      store, que passa pela fachada e por isso cobre `wifi` **e** `ble`; o
+      comando é que ia pelo WebSocket cru. Por WiFi funcionava **por acidente**,
+      porque nessa altura o `ws` *é* o transporte activo — que é o que torna o
+      bug pior: escondia-se até alguém ligar o Bluetooth. Por BLE o `status`
+      ficava `connected`, a UI mostrava "PC remoto" ligado (`:661`) e o gesto
+      saía por um WebSocket que nunca tinha sido aberto: o rato não mexia e
+      nada no ecrã dizia porquê. Uma linha, e a guarda que impede a volta está
+      em `TestAFachadaNaSaoApanhadaPelaRaiz`.
+    * **Em aberto, e é o que bloqueia o resto: a fila de escrita do
+      `BleRemoteModule.kt` encrava no primeiro gesto.** `writeNext()` escreve
+      `writeQueue.firstOrNull()` e **não a remove** — o único código que remove
+      é o `drainWriteQueue()`, chamado só do `onCharacteristicWrite`. E os
+      gestos vão com `WRITE_TYPE_NO_RESPONSE`, para o qual o Android **não
+      garante** esse callback. Num ROM que não o entregue, o resultado não é
+      "comandos perdidos": o fragmento #1 é **reenviado a cada gesto** e nunca
+      sai da fila, o PC repete o primeiro gesto indefinidamente, e do 2.º em
+      diante não chega nada. Aos 64 (`MAX_QUEUED_WRITES`) o overflow deita a
+      cabeça fora e o replay avança para o seguinte — o rato vai atrás, sempre
+      atrasado. Num ROM que *entregue* o callback a fila drena uma escrita por
+      callback e funciona. A correcção é um `writeInFlight` mais um `pump()` com
+      `postDelayed` para o caso sem resposta, porque não se pode esperar por um
+      callback que não vem.
+    * **Em aberto: as permissões de BLE matam o Android 7–11.** O
+      `BleRemoteModule.kt` exige `BLUETOOTH_SCAN`/`CONNECT`, que não existem
+      abaixo de API 31 — a faixa que o próprio módulo diz suportar, e a mais
+      provável de um telemóvel barato.
+    * **Em aberto: o `NsdManager` nunca viu um PC.** Nenhum destes se fecha sem
+      um aparelho: **o Kotlin nunca foi compilado**. O `ci.yml` corre `ruff`,
+      `pytest` e `tsc` a cada push e não toca em Kotlin; o `build-android.yml`
+      que o compila é `workflow_dispatch` e vai para a EAS, ou seja, só alguém
+      o dispara à mão. E não há runner de testes na app mobile — nem um
+      `*.test.tsx` — pelo que a guarda nova lê o source e prova que o comando
+      sai pelo transporte que o `status` diz estar activo, e **não** que um
+      gesto chegue ao fim.
 
 ### Reserva financeira (Pista A)
 

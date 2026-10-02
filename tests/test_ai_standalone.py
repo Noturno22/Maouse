@@ -43,6 +43,31 @@ FIXTURE = RAIZ / "tests" / "fixtures" / "corpus_regressao_v1.npz"
 MODELO = RAIZ / "models" / "gesture_mlp.npz"
 
 
+def _modelo_disponivel() -> str:
+    """Ou o caminho do modelo, ou a razão por que não há modelo.
+
+    `models/gesture_mlp.npz` está no `.gitattributes` como ficheiro do
+    git-lfs, e um clone feito **sem** `git lfs` fica com um ficheiro de 131
+    bytes que é o *ponteiro*, não o modelo. A guarda antiga era só
+    `MODELO.is_file()`, e um ponteiro é um ficheiro: passava a guarda e o
+    `np.load` rebentava a seguir com um `ValueError` confuso sobre
+    `allow_pickle`, três vezes, em vez de dizer o que falta.
+
+    Ler os primeiros bytes é a forma barata e exacta de o distinguir — o
+    ponteiro é texto ASCII e começa por `version https://git-lfs`.
+    """
+    if not MODELO.is_file():
+        return f"modelo ausente: {MODELO}"
+    with open(MODELO, "rb") as f:
+        cabecalho = f.read(64)
+    if cabecalho.startswith(b"version https://git-lfs"):
+        return (
+            f"o modelo em {MODELO} é um ponteiro do git-lfs, não o modelo: "
+            f"corre `git lfs install && git lfs pull`"
+        )
+    return ""
+
+
 @pytest.fixture(scope="module")
 def ia_sozinha():
     """(acertos, total) por nome de gesto, com o modelo sozinho.
@@ -52,8 +77,9 @@ def ia_sozinha():
     (transição), como o portão também exclui: quem está a meio de mudar de pose
     não pertence a nenhuma classe.
     """
-    if not MODELO.is_file():
-        pytest.skip(f"modelo ausente: {MODELO}")
+    falta = _modelo_disponivel()
+    if falta:
+        pytest.skip(falta)
     ai = GestureAI(str(MODELO))
     corpus = Corpus.load(str(FIXTURE))
     acertos, total = Counter(), Counter()

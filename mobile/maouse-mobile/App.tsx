@@ -22,7 +22,15 @@ import { useAccessibilityStatus } from './src/hooks/useAccessibilityStatus';
 import ProGate from './src/components/ProGate';
 import RemoteScreen from './src/components/RemoteScreen';
 import { useRemoteStore } from './src/store/remote';
-import { remote } from './src/services/remoteClient';
+// A **fachada**, nunca o `remoteClient` directamente. O `status` que decide
+// enviar gestos vem da store, que fala com a fachada — e a fachada cobre `wifi`
+// **e** `ble`. Importando o cliente cru, o `status` podia ser `connected` por
+// BLE e o gesto saía por um WebSocket que nunca foi aberto: o rato não mexia e
+// a UI mostrava "PC remoto" ligado. Por WiFi funcionava por acidente, porque
+// ai o `ws` *é* o transporte activo — o que é pior, porque esconde o bug ate
+// alguem ligar o Bluetooth. A guarda que impede a volta a este import esta em
+// `tests/test_remote_ble.py::TestAFachadaNaSaoApanhadaPelaRaiz`.
+import { remote } from './src/services/remoteTransport';
 
 const { TouchController, KeyboardController, SystemController } = NativeModules;
 

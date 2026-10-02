@@ -228,7 +228,18 @@ class Config:
     remote_port: int = 8765
     # "0.0.0.0" aceita ligações da rede local e internet; "127.0.0.1" só local.
     remote_bind: str = "0.0.0.0"
-    # Token de autenticação (gerado automaticamente à primeira execução).
+    # Credencial de emparelhamento: um código de 6 dígitos que o utilizador lê
+    # aqui e escreve no telemóvel. Eram 16 hex (64 bits), que se copiava sem
+    # erro mas não cabia de relance num ecrã e acabava no ecrã de alguém.
+    #
+    # O que segura um segredo de 6 dígitos não é o segredo: são a comparação
+    # em tempo constante, o limite de tentativas por origem (`AuthLimiter`) e o
+    # facto de nenhum dígito ir para o log. Vê `core/remote.py`.
+    remote_code: str = ""
+    # `remote_token` é o nome antigo (16 hex) e já não autentica. Continua a
+    # ser lido para um `settings.json` copiado de outra máquina não rebentar
+    # com um `KeyError` ao carregar — e é ignorado a seguir. Ver
+    # `RemoteServer._ensure_code`.
     remote_token: str = ""
     # Ganho do movimento RELATIVO do touchpad do telemóvel. O dedo percorre
     # píxeis de ecrã 1:1, mas o touchpad tem ~330 px e o ecrã 1366 — com 1:1
@@ -241,6 +252,14 @@ class Config:
     # o mDNS nao circule (VPN, redes de empresa) — mesmo desligado, o controlo
     # remoto por IP continua a funcionar.
     remote_discovery: bool = True
+    # Publicar também um peripheral BLE GATT, para o telefone controlar o PC
+    # sem rede nenhuma. É independente do WiFi: funciona em redes onde o mDNS
+    # não circule, e até sem rede, porque o Bluetooth não passa por ela.
+    #
+    # Desligado por omissão porque é a única opção que depende de hardware que
+    # pode não existir (e de `bluetoothd` a correr), e quem não a quer não deve
+    # pagar o custo de tentar.
+    remote_ble: bool = False
 
     # ── Modo Trading Master (botão circular tv.png no dashboard) ──────
     # Modo dedicado a trading (multi-monitor): liga o controlo remoto por
@@ -363,14 +382,29 @@ def load_settings(cfg):
             cfg.remote_port = int(data["remote_port"])
         if "remote_bind" in data:
             cfg.remote_bind = str(data["remote_bind"])
+        if "remote_code" in data:
+            cfg.remote_code = str(data["remote_code"])
         if "remote_token" in data:
-            cfg.remote_token = str(data["remote_token"])
+            # Nome antigo, lido e deitado fora. Sem esta linha, um
+            # `settings.json` de antes do código de 6 dígitos — de outro PC, de
+            # outro sistema, de um backup — rebentava o arranque. O import do
+            # log é aqui e não no topo do ficheiro porque `core/__init__`
+            # importa o tracker, que importa `config`: no topo do ficheiro os
+            # dois modulos entram em ciclo um com o outro.
+            from core.log import get_logger
+
+            get_logger("config").debug(
+                "settings.json traz `remote_token` (nome antigo): ignorado, "
+                "o emparelhamento passou a usar `remote_code`."
+            )
         if "remote_move_gain" in data:
             cfg.remote_move_gain = min(
                 max(float(data["remote_move_gain"]), 1.0), 8.0
             )
         if "remote_discovery" in data:
             cfg.remote_discovery = bool(data["remote_discovery"])
+        if "remote_ble" in data:
+            cfg.remote_ble = bool(data["remote_ble"])
         if "trading_master_enabled" in data:
             cfg.trading_master_enabled = bool(data["trading_master_enabled"])
         if "tv_button_enabled" in data:
@@ -433,9 +467,10 @@ def save_settings(cfg, smooth_name):
                     "remote_enabled": bool(cfg.remote_enabled),
                     "remote_port": int(cfg.remote_port),
                     "remote_bind": str(cfg.remote_bind),
-                    "remote_token": str(cfg.remote_token),
+                    "remote_code": str(cfg.remote_code),
                     "remote_move_gain": round(cfg.remote_move_gain, 2),
                     "remote_discovery": bool(cfg.remote_discovery),
+                    "remote_ble": bool(cfg.remote_ble),
                     "trading_master_enabled": bool(cfg.trading_master_enabled),
                     "tv_button_enabled": bool(cfg.tv_button_enabled),
                     "tv_tool_combos": dict(cfg.tv_tool_combos),

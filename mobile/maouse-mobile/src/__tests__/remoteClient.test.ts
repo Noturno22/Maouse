@@ -20,6 +20,16 @@ import { buildWsUrl, RemoteClient } from '../services/remoteClient';
 // `core/licensing.py` valida a assinatura. Aqui so se prova que ele viaja.
 const LEASE = 'lease-abc';
 
+// A credencial do `auth` e' um codigo de 6 digitos (CODE_LEN em
+// `pairingCode.ts`), lido nas definicoes do PC. Antes disto era um `token` de
+// 16 hex, e o cliente aceitava qualquer string; o `normalizeCode` de hoje
+// strippa o que nao e' digito, pelo que um token antigo colocado aqui vira ""
+// e o cliente recusa ligar sem sequer abrir a ligacao — e o teste falha com
+// "nenhum WebSocket foi aberto", que nao diz nada do que mudou.
+const CODE = '314159';
+// Um codigo com o formato certo e o valor errado: e' o que o PC recusa.
+const CODE_ERRADO = '271828';
+
 // ---------------------------------------------------------------------------
 // Teia de WebSocket minima, so o suficiente para o cliente falar.
 // ---------------------------------------------------------------------------
@@ -165,12 +175,13 @@ describe('buildWsUrl', () => {
     );
   });
 
-  it('mantem o token fora do URL', () => {
-    // O token nao viaja na ligacao; viaja no corpo da primeira mensagem. Se
+  it('mantem o codigo fora do URL', () => {
+    // O codigo nao viaja na ligacao; viaja no corpo da primeira mensagem. Se
     // algum dia aparecer na URL, este teste falha -- e e' o que o impede.
     const url = buildWsUrl('192.168.1.20', 8765);
-    expect(url).not.toMatch(/token/i);
+    expect(url).not.toMatch(/code|codigo|código|token/i);
     expect(url).not.toMatch(/[?]/);
+    expect(url).not.toContain(CODE);
   });
 });
 
@@ -183,7 +194,7 @@ describe('RemoteClient — handshake de auth', () => {
     withFakeWebSocket(() => {
       const cbs = makeCallbacks();
       const c = new RemoteClient();
-      c.connect('ws://192.168.1.20:8765', 'tok-123', LEASE, cbs);
+      c.connect('ws://192.168.1.20:8765', CODE, LEASE, cbs);
 
       FakeWebSocket.last().accept();
 
@@ -191,7 +202,7 @@ describe('RemoteClient — handshake de auth', () => {
       expect(ws.sent).toHaveLength(1);
       expect(ws.sent[0]).toEqual({
         cmd: 'auth',
-        token: 'tok-123',
+        code: CODE,
         lease: LEASE,
       });
     });
@@ -203,7 +214,7 @@ describe('RemoteClient — handshake de auth', () => {
     withFakeWebSocket(() => {
       const cbs = makeCallbacks();
       const c = new RemoteClient();
-      c.connect('ws://192.168.1.20:8765', 'tok-123', '  ', cbs);
+      c.connect('ws://192.168.1.20:8765', CODE, '  ', cbs);
 
       expect(FakeWebSocket.instances).toHaveLength(0);
       expect(cbs.onError).toHaveBeenCalledWith(
@@ -216,7 +227,7 @@ describe('RemoteClient — handshake de auth', () => {
     withFakeWebSocket(() => {
       const cbs = makeCallbacks();
       const c = new RemoteClient();
-      c.connect('ws://192.168.1.20:8765', 'tok-123', LEASE, cbs);
+      c.connect('ws://192.168.1.20:8765', CODE, LEASE, cbs);
 
       FakeWebSocket.last().accept();
 
@@ -230,7 +241,7 @@ describe('RemoteClient — handshake de auth', () => {
     withFakeWebSocket(() => {
       const cbs = makeCallbacks();
       const c = new RemoteClient();
-      c.connect('ws://192.168.1.20:8765', 'tok-123', LEASE, cbs);
+      c.connect('ws://192.168.1.20:8765', CODE, LEASE, cbs);
 
       const ws = FakeWebSocket.last();
       ws.accept();
@@ -249,7 +260,7 @@ describe('RemoteClient — handshake de auth', () => {
     withFakeWebSocket(() => {
       const cbs = makeCallbacks();
       const c = new RemoteClient();
-      c.connect('ws://192.168.1.20:8765', 'tok-123', LEASE, cbs);
+      c.connect('ws://192.168.1.20:8765', CODE, LEASE, cbs);
 
       const ws = FakeWebSocket.last();
       c.move(10, 20);
@@ -268,7 +279,7 @@ describe('RemoteClient — handshake de auth', () => {
     withFakeWebSocket(() => {
       const cbs = makeCallbacks();
       const c = new RemoteClient();
-      c.connect('ws://192.168.1.20:8765', 'tok-123', LEASE, cbs);
+      c.connect('ws://192.168.1.20:8765', CODE, LEASE, cbs);
 
       const ws = FakeWebSocket.last();
       ws.accept();
@@ -286,7 +297,7 @@ describe('RemoteClient — handshake de auth', () => {
     withFakeWebSocket(() => {
       const cbs = makeCallbacks();
       const c = new RemoteClient();
-      c.connect('ws://192.168.1.20:8765', 'tok-123', LEASE, cbs);
+      c.connect('ws://192.168.1.20:8765', CODE, LEASE, cbs);
 
       const ws = FakeWebSocket.last();
       ws.accept();
@@ -297,11 +308,11 @@ describe('RemoteClient — handshake de auth', () => {
     });
   });
 
-  it('fecha e explica quando o token é recusado', () => {
+  it('fecha e explica quando o codigo é recusado', () => {
     withFakeWebSocket(() => {
       const cbs = makeCallbacks();
       const c = new RemoteClient();
-      c.connect('ws://192.168.1.20:8765', 'token-errado', LEASE, cbs);
+      c.connect('ws://192.168.1.20:8765', CODE_ERRADO, LEASE, cbs);
 
       const ws = FakeWebSocket.last();
       ws.accept();
@@ -310,13 +321,39 @@ describe('RemoteClient — handshake de auth', () => {
       expect(c.isConnected).toBe(false);
       expect(ws.closed).toBe(true);
       expect(cbs.onError).toHaveBeenCalledWith(
-        expect.stringContaining('Token recusado'),
+        expect.stringContaining('Código recusado'),
       );
     });
   });
 
-  it('recusa ligar sem token, sem sequer abrir a ligacao', () => {
-    // O token vem de um campo que o utilizador pode deixar vazio. Abrir a
+  it('distingue o bloqueio do codigo errado, e diz quanto falta', () => {
+    // As duas falhas nao sao a mesma coisa: 'codigo errado' e' um erro de
+    // escrita e o utilizador reescreve; 'demasiadas tentativas' e' o PC a dizer
+    // para parar. Com a mesma frase nos dois, o utilizador reescrevia o codigo
+    // certo, voltava a bater no bloqueio e ainda culparia o teclado por um
+    // limite que e' do PC.
+    withFakeWebSocket(() => {
+      const cbs = makeCallbacks();
+      const c = new RemoteClient();
+      c.connect('ws://192.168.1.20:8765', CODE_ERRADO, LEASE, cbs);
+
+      const ws = FakeWebSocket.last();
+      ws.accept();
+      ws.deliver({
+        cmd: 'auth',
+        ok: false,
+        error: 'auth_locked',
+        retry_after: 173,
+      });
+
+      const mensagem = cbs.onError.mock.calls[0][0] as string;
+      expect(mensagem).toContain('Demasiadas tentativas');
+      expect(mensagem).toContain('173');
+    });
+  });
+
+  it('recusa ligar sem codigo, sem sequer abrir a ligacao', () => {
+    // O codigo vem de um campo que o utilizador pode deixar vazio. Abrir a
     // ligacao para a recusar a seguir gastaria uma ronda e mostraria um erro
     // de rede em vez do erro util.
     withFakeWebSocket(() => {
@@ -327,8 +364,38 @@ describe('RemoteClient — handshake de auth', () => {
 
       expect(FakeWebSocket.instances).toHaveLength(0);
       expect(cbs.onError).toHaveBeenCalledWith(
-        expect.stringContaining('token'),
+        expect.stringContaining('6 dígitos'),
       );
+    });
+  });
+
+  it('recusa um codigo com letras, ou curto, ou vazio', () => {
+    // O `normalizeCode` strippa o que nao e' digito e corta a 6, portanto
+    // '12a345' fica '12345' — curto demais para ser um codigo. Nenhum destes
+    // pode gastar uma ronda de ligacao.
+    withFakeWebSocket(() => {
+      for (const mau of ['12a345', 'abc', '', '   ', '1.2.3.4']) {
+        const cbs = makeCallbacks();
+        new RemoteClient().connect('ws://192.168.1.20:8765', mau, LEASE, cbs);
+        expect(FakeWebSocket.instances).toHaveLength(0);
+      }
+    });
+  });
+
+  it('corta um codigo colado demasiado longo aos 6 digitos', () => {
+    // Nao e' um erro: e' o que impede que um codigo colado de outra app, ou um
+    // numero de telefone, encha o campo. O que sai do campo tem de ser um
+    // codigo, e 8 digitos nao sao um codigo de 6 — mas os 6 primeiros sao, e o
+    // PC so conhece 6. Recusar aqui seria deixar o utilizador sem poder ligar
+    // por causa de um espaco a mais no clipboard.
+    withFakeWebSocket(() => {
+      const cbs = makeCallbacks();
+      const c = new RemoteClient();
+      c.connect('ws://192.168.1.20:8765', '12345678', LEASE, cbs);
+
+      const ws = FakeWebSocket.last();
+      ws.accept();
+      expect(ws.sent[0]).toEqual({ cmd: 'auth', code: '123456', lease: LEASE });
     });
   });
 });
@@ -342,7 +409,7 @@ describe('RemoteClient — o que o PC manda', () => {
     withFakeWebSocket(() => {
       const cbs = makeCallbacks();
       const c = new RemoteClient();
-      c.connect('ws://192.168.1.20:8765', 'tok-123', LEASE, cbs);
+      c.connect('ws://192.168.1.20:8765', CODE, LEASE, cbs);
 
       const ws = FakeWebSocket.last();
       ws.accept();
@@ -362,7 +429,7 @@ describe('RemoteClient — o que o PC manda', () => {
     withFakeWebSocket(() => {
       const cbs = makeCallbacks();
       const c = new RemoteClient();
-      c.connect('ws://192.168.1.20:8765', 'tok-123', LEASE, cbs);
+      c.connect('ws://192.168.1.20:8765', CODE, LEASE, cbs);
 
       const ws = FakeWebSocket.last();
       ws.accept();
@@ -381,7 +448,7 @@ describe('RemoteClient — o que o PC manda', () => {
     withFakeWebSocket(() => {
       const cbs = makeCallbacks();
       const c = new RemoteClient();
-      c.connect('ws://192.168.1.20:8765', 'tok-123', LEASE, cbs);
+      c.connect('ws://192.168.1.20:8765', CODE, LEASE, cbs);
 
       FakeWebSocket.last().accept();
       FakeWebSocket.last().serverClose(1006);
@@ -400,7 +467,7 @@ describe('RemoteClient — o que o PC manda', () => {
     await withFakeWebSocket(async () => {
       const cbs = makeCallbacks();
       const c = new RemoteClient();
-      c.connect('ws://192.168.1.20:8765', 'tok-123', LEASE, cbs);
+      c.connect('ws://192.168.1.20:8765', CODE, LEASE, cbs);
 
       FakeWebSocket.last().accept();
       FakeWebSocket.last().deliver({ cmd: 'auth', ok: true, w: 1920, h: 1080 });

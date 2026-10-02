@@ -13,3 +13,9 @@ pyttsx3>=2.9
 PySide6>=6.6
 cryptography>=42
 zeroconf>=0.131
+# Controlo remoto por Bluetooth (core/remote_ble.py). O `pip` instala
+# `dbus-next` e o codigo importa `dbus_next`; o `dbus-next` puro fala com o
+# `bluetoothd` pela D-Bus de sistema, que e o que permite ao PC publicar-se
+# como peripheral GATT. Nao esta no `requirements.txt` porque nao ha BlueZ no
+# Windows, e la o import nem nunca corre.
+dbus-next>=0.2.3

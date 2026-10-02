@@ -10,11 +10,11 @@ import pytest
 
 from core.remote import Button
 from tests.lease_test_keys import VALID_LEASE
-from tests.test_remote_protocol_contract import _run, _server
+from tests.test_remote_protocol_contract import CODE, _run, _server
 
 pytestmark = pytest.mark.usefixtures("patched_public_key")
 
-AUTH = {"cmd": "auth", "token": "segredo123", "lease": VALID_LEASE}
+AUTH = {"cmd": "auth", "code": CODE, "lease": VALID_LEASE}
 
 
 def _held_calls(mouse):

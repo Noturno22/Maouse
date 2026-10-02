@@ -1,14 +1,19 @@
 """Testes da descoberta mDNS do PC (core.discovery).
 
-O teste que realmente importa aqui e `test_token_nunca_vai_nos_txt`: os TXT de
+O teste que realmente importa aqui e `test_codigo_nunca_vai_nos_txt`: os TXT de
 mDNS sao lidos em claro por tudo o que esteja na rede, sem autenticacao nem
 permissao. Se o token acabar la, qualquer vizinho do WiFi entra no PC. Os
 restes existem porque a alternativa a mDNS funcionar e a Maouse nao arrancar, e
 isso nao pode depender de o Avahi estar instalado.
 """
+import os
+import subprocess
+import sys
+
 import pytest
 
 from config import Config
+from core import discovery
 from core.discovery import (
     _MDNS_TYPE,
     SERVICE_TYPE,
@@ -16,7 +21,7 @@ from core.discovery import (
     device_id,
 )
 
-TOKEN = "e7f3a9c1b2d40856"
+TOKEN = "428193"
 ENDERECO = "192.168.0.10"
 
 
@@ -54,7 +59,7 @@ class ZCQueFalhaNoRegister(FakeZC):
 def _cfg(**kw):
     cfg = Config()
     cfg.remote_port = 8765
-    cfg.remote_token = TOKEN
+    cfg.remote_code = TOKEN
     for k, v in kw.items():
         setattr(cfg, k, v)
     return cfg
@@ -117,14 +122,200 @@ def test_device_id_e_curto_estavel_e_nao_o_mac():
     int(a, 16)  # hexadecimal puro
 
 
+class TestDeviceIdNaoDependeDoMac:
+    """O `id` tem de sobreviver a arranques mesmo sem hardware de que o tirar.
+
+    `uuid.getnode()` nao devolve sempre um endereco de hardware. Quando nao
+    devolve, devolve um valor pseudo-aleatorio com o bit multicast ligado
+    (RFC 4122 §4.5) que so e estavel enquanto o processo vive — porque o
+    unico sitio que o memoriza e o modulo `uuid`. Derivar o anuncio de
+    ai dava um "PC novo" a cada arranque, e o telefone nunca reconheceria a
+    mesma maquina.
+    """
+
+    def test_getnode_que_nao_e_hardware_e_rejeitado(self, monkeypatch):
+        # 0x5b95ac792c49: o valor que `getnode()` devolveu nesta maquina, e que
+        # nao e o MAC de interface nenhuma. Bit multicast ligado.
+        monkeypatch.setattr(discovery.uuid, "getnode", lambda: 0x5B95AC792C49)
+        assert discovery._hardware_id() is None
+
+    def test_getnode_que_e_hardware_e_aceite(self, monkeypatch):
+        # 0x30f7725f564b: o MAC do `wlp13s0`, bit multicast desligado.
+        monkeypatch.setattr(discovery.uuid, "getnode", lambda: 0x30F7725F564B)
+        assert discovery._hardware_id() == "30f7725f564b"
+
+    def test_getnode_que_levanta_da_none(self, monkeypatch):
+        def lanca():
+            raise OSError("sem /sys e sem netlink")
+
+        monkeypatch.setattr(discovery.uuid, "getnode", lanca)
+        assert discovery._hardware_id() is None
+
+    def test_id_sem_hardware_vem_do_ficheiro_e_repete_entre_chamadas(
+        self, monkeypatch, tmp_path
+    ):
+        monkeypatch.setattr(discovery.uuid, "getnode", lambda: 0x5B95AC792C49)
+        monkeypatch.setattr(discovery, "user_data_dir", lambda: str(tmp_path))
+        monkeypatch.setattr(discovery.uuid, "uuid4", lambda: _uuid4_fixo())
+
+        primeiro = device_id()
+
+        ficheiro = tmp_path / discovery._ID_FILE
+        assert ficheiro.exists(), "sem hardware, o id tem de ficar guardado"
+        assert ficheiro.read_text(encoding="utf-8").strip() == "01234567"
+
+        # O `device_id` e chamado varias vezes por anuncio (rotulo e TXT), e
+        # outra vez no arranque seguinte. E o ficheiro que as une: se a segunda
+        # chamada gerasse um valor novo, o telefone veria dois PCs.
+        assert device_id() == primeiro
+        assert device_id() == primeiro
+
+    def test_ficheiro_ja_preenchido_nao_e_reescrito(self, monkeypatch, tmp_path):
+        # Um `settings.json` (ou um `user_data_dir`) reescrito nao pode trocar
+        # o id de uma maquina que ja foi pareada com o telefone.
+        monkeypatch.setattr(discovery.uuid, "getnode", lambda: 0x5B95AC792C49)
+        monkeypatch.setattr(discovery, "user_data_dir", lambda: str(tmp_path))
+        (tmp_path / discovery._ID_FILE).write_text("abcd1234", encoding="utf-8")
+        monkeypatch.setattr(discovery.uuid, "uuid4", lambda: _uuid4_fixo())
+
+        discovery.device_id()
+        assert (tmp_path / discovery._ID_FILE).read_text(
+            encoding="utf-8") == "abcd1234"
+
+    def test_sem_permissao_para_escrever_nao_levanta(self, monkeypatch, tmp_path):
+        # Nao ha disco onde guardar: e para isso que o id e gerado e nao lido.
+        # A aplicacao tem de arrancar na mesma.
+        monkeypatch.setattr(discovery.uuid, "getnode", lambda: 0x5B95AC792C49)
+        monkeypatch.setattr(discovery, "user_data_dir", lambda: "/proc/nao/escrevivel")
+        monkeypatch.setattr(discovery.uuid, "uuid4", lambda: _uuid4_fixo())
+        assert len(device_id()) == 8
+
+
+def _uuid4_fixo():
+    import uuid
+
+    return uuid.UUID("0123456789abcdef0123456789abcdef")
+
+
+# ── O anúncio tem de dizer a verdade sobre o servidor ─────────────────────
+
+class _ServidorFalso:
+    def __init__(self, running=True):
+        self.is_running = running
+
+
+class _JanelaFalsa:
+    """O minimo que `_apply_discovery` toca, sem construir a janela toda.
+
+    Chamar o metodo com um `self` emprestado e o que torna a decisao
+    testavel sem camara, tracker e event loop Qt — que e o que a deixava
+    testavel, e portanto a deixar o anuncio mentir em silencio.
+    """
+
+    def __init__(self, cfg, servidor, anuncio):
+        self._cfg = cfg
+        self._remote = servidor
+        self._discovery = anuncio
+
+
+def _janela(servidor, anuncio, cfg, descoberta=True):
+    """(metodo, janela) para chamar `_apply_discovery` sem construir a janela.
+
+    A `cfg` e a mesma do anunciador, como em `main.py`: sao o mesmo objecto, e
+    dois objectos diferentes fariam o teste passar sem que a janela e o
+    anuncio vissem a mesma porta.
+    """
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from ui.main_window import MainWindow
+
+    cfg.remote_discovery = descoberta
+    return MainWindow._apply_discovery, _JanelaFalsa(cfg, servidor, anuncio)
+
+
+class TestAnuncioSegueOPortao:
+    """Mudar a porta nas definicoes tem de republicar o anuncio.
+
+    Sem isto, o `_maouse._tcp` continuava a apontar para a porta antiga: o
+    telefone encontrava o PC e levava com uma ligacao recusada. E o inverso
+    tambem — desligar o remoto pela UI deixava o anuncio no ar.
+    """
+
+    def test_mudar_a_porta_republica_o_anuncio(self):
+        cfg = _cfg()
+        zc = FakeZC()
+        anuncio = _adv(cfg=cfg, zc_factory=lambda: zc)
+        assert anuncio.start() is True
+        metodo, janela = _janela(_ServidorFalso(), anuncio, cfg)
+
+        cfg.remote_port = 9123
+        metodo(janela)
+
+        assert anuncio.port == 9123, "o anuncio ficou na porta antiga"
+        assert len(zc.unregistered) == 1, "o anuncio velho tem de sair do ar"
+        assert len(zc.registered) == 2, "e tem de entrar outro com a porta nova"
+
+    def test_porta_igual_nao_toca_em_nada(self):
+        cfg = _cfg()
+        zc = FakeZC()
+        anuncio = _adv(cfg=cfg, zc_factory=lambda: zc)
+        anuncio.start()
+        metodo, janela = _janela(_ServidorFalso(), anuncio, cfg)
+
+        metodo(janela)
+
+        assert zc.unregistered == [], "anunciar o que ja esta certo seria churn"
+        assert len(zc.registered) == 1
+
+    def test_desligar_o_remoto_retira_o_anuncio(self):
+        cfg = _cfg()
+        zc = FakeZC()
+        anuncio = _adv(cfg=cfg, zc_factory=lambda: zc)
+        anuncio.start()
+        metodo, janela = _janela(_ServidorFalso(running=False), anuncio, cfg)
+
+        metodo(janela)
+
+        assert anuncio.running is False
+        assert len(zc.unregistered) == 1
+
+    def test_desligar_a_descoberta_retira_o_anuncio(self):
+        cfg = _cfg()
+        anuncio = _adv(cfg=cfg)
+        anuncio.start()
+        metodo, janela = _janela(_ServidorFalso(), anuncio, cfg, descoberta=False)
+
+        metodo(janela)
+
+        assert anuncio.running is False
+
+    def test_anuncio_que_falhou_no_arranque_tenta_de_nova(self):
+        # A rede pode voltar depois do arranque. E por isso que o objecto e
+        # entregue a janela mesmo quando o `start()` falhou.
+        cfg = _cfg()
+        anuncio = _adv(cfg=cfg, zc_factory=ZCQueNaoConstrói(OSError("sem avahi")))
+        metodo, janela = _janela(_ServidorFalso(), anuncio, cfg)
+
+        metodo(janela)
+        assert anuncio.running is False, "o injetor continua a falhar, claro"
+
+        anuncio._zc_factory = FakeZC
+        metodo(janela)
+        assert anuncio.running is True, "a rede voltou e o anuncio nao voltou"
+
+    def test_sem_anunciador_nao_levanta(self):
+        metodo, janela = _janela(_ServidorFalso(), None, _cfg())
+        metodo(janela)
+
+
+
 # ── O teste que segura a porta ─────────────────────────────────────────────
 
-def test_token_nunca_vai_nos_txt():
+def test_codigo_nunca_vai_nos_txt():
     # mDNS nao tem autenticacao: os TXT sao lidos em claro por qualquer
-    # coisa na rede, sempre que quiser. Um token aqui e o mesmo que pregar a
+    # coisa na rede, sempre que quiser. O codigo aqui e o mesmo que pregar a
     # senha a porta da rua. Se este teste falhar, alguem met um campo novo no
     # `_txt_properties` e nao pensou nisto.
-    adv = _adv(cfg=_cfg(remote_token=TOKEN))
+    adv = _adv(cfg=_cfg(remote_code=TOKEN))
     info = adv.build_info()
     assert TOKEN.encode() not in info.text
     assert TOKEN not in info.name
@@ -251,3 +442,64 @@ def test_excepcao_no_stop_nao_sobe():
     adv.start()
     adv.stop()
     assert adv.running is False
+
+
+# ── A dependencia que a aplicacao nao pode ter no arranque ───────────────
+
+class TestSemZeroconfInstalado:
+    """Sem o `zeroconf` instalado, perde-se a descoberta — nunca a Maouse.
+
+    O `main.py` importa este modulo ao nivel do modulo. Com o `zeroconf`
+    importado no topo deste ficheiro, um `ImportError` aqui era um
+    `ImportError` la, e a aplicacao nao arrancava. E o que aconteceu de facto
+    num venv instalado antes deste modulo existir.
+    """
+
+    def test_importar_o_modulo_nao_precisa_do_zeroconf(self):
+        # Provado noutro processo: aqui o `zeroconf` ja esta importado, e um
+        # import no topo deste modulo passaria o teste sem dizer nada.
+        r = subprocess.run(
+            [sys.executable, "-c", _SEM_ZEROCONF],
+            capture_output=True, text=True,
+        )
+        assert r.returncode == 0, r.stderr
+        assert "OK" in r.stdout
+
+    def test_main_importa_sem_o_zeroconf(self):
+        # A promessa do modulo, provada na coisa que a faz: o `main.py`.
+        r = subprocess.run(
+            [sys.executable, "-c", _SEM_ZEROCONF + "\nimport main"],
+            capture_output=True, text=True,
+        )
+        assert r.returncode == 0, r.stderr
+
+    def test_start_sem_zeroconf_devolve_false_e_nao_levanta(self, monkeypatch):
+        # `zc_factory` injetado nao chega: e o `build_info` que precisa do
+        # `ServiceInfo` verdadeiro para montar o anuncio.
+        monkeypatch.setattr(discovery, "_zeroconf", lambda: None)
+        adv = _adv()
+        assert adv.build_info() is None
+        assert adv.start() is False
+        assert adv.running is False
+
+    def test_restart_sem_zeroconf_nao_levanta(self, monkeypatch):
+        monkeypatch.setattr(discovery, "_zeroconf", lambda: None)
+        adv = _adv()
+        assert adv.restart() is False
+
+
+# Pseudo-subprocesso: bloqueia o `zeroconf` no `sys.meta_path` antes de
+# qualquer import, que e o que um ambiente sem o pacote instalado faz.
+_SEM_ZEROCONF = """
+import sys
+
+class _BloqueiaZeroconf:
+    def find_spec(self, name, path=None, target=None):
+        if name.split(".")[0] == "zeroconf":
+            raise ModuleNotFoundError("No module named %r" % name)
+        return None
+
+sys.meta_path.insert(0, _BloqueiaZeroconf())
+sys.modules.pop("zeroconf", None)
+print("OK")
+"""
