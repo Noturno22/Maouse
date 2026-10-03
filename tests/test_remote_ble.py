@@ -468,12 +468,17 @@ class TestSemDbusNext:
         # em falta, e o mesmo que o `zeroconf` em `core/discovery.py`.
         codigo = """
 import sys
+# `find_spec`, e nao `find_module`/`load_module`: esse par pertence ao protocolo
+# que o Python 3.12 removeu. Um finder que o implementa ainda e' consultado e
+# depois IGNORADO -- o import passava limpo e o `dbus_next` do disco era
+# encontrado. O teste so falhava onde a dependencia ESTA instalada, que e o CI
+# (`requirements-linux.txt`); onde ela falta, o `_dbus()` devolvia `None` pela
+# razao errada e o teste passava sem nunca ter bloqueado nada.
 class Bloqueia:
-    def find_module(self, nome, caminho=None):
+    def find_spec(self, nome, caminho=None, target=None):
         if nome == "dbus_next" or nome.startswith("dbus_next."):
-            return self
-    def load_module(self, nome):
-        raise ImportError("sem dbus_next")
+            raise ImportError("sem dbus_next")
+        return None
 sys.meta_path.insert(0, Bloqueia())
 import core.remote_ble as m
 assert m._dbus() is None
@@ -487,12 +492,17 @@ print("OK")
     def test_e_main_que_aguenta_a_ausencia(self):
         codigo = """
 import sys
+# `find_spec`, e nao `find_module`/`load_module`: esse par pertence ao protocolo
+# que o Python 3.12 removeu. Um finder que o implementa ainda e' consultado e
+# depois IGNORADO -- o import passava limpo e o `dbus_next` do disco era
+# encontrado. O teste so falhava onde a dependencia ESTA instalada, que e o CI
+# (`requirements-linux.txt`); onde ela falta, o `_dbus()` devolvia `None` pela
+# razao errada e o teste passava sem nunca ter bloqueado nada.
 class Bloqueia:
-    def find_module(self, nome, caminho=None):
+    def find_spec(self, nome, caminho=None, target=None):
         if nome == "dbus_next" or nome.startswith("dbus_next."):
-            return self
-    def load_module(self, nome):
-        raise ImportError("sem dbus_next")
+            raise ImportError("sem dbus_next")
+        return None
 sys.meta_path.insert(0, Bloqueia())
 print("OK")
 """
