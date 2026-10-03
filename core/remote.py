@@ -5,10 +5,19 @@ teclado do PC via WiFi (rede local) ou Internet (IP público + porta).
 
 Protocolo (JSON por mensagem):
 
-  -> {"cmd": "auth", "code": "123456"}            # primeira mensagem obrigatória
+-> {"cmd": "auth", "code": "123456", "lease": "..."}  # 1ª msg obrigatória
   <- {"cmd": "auth", "ok": true, "w": 1920, "h": 1080}
   <- {"cmd": "auth", "ok": false, "error": "auth_required"}   # código errado
   <- {"cmd": "auth", "ok": false, "error": "auth_locked"}     # muitas tentativas
+  <- {"cmd": "auth", "ok": false, "error": "pro_required"}    # sem lease Pro válida
+
+  O `code` é o segredo de emparelhamento definido no PC (6 dígitos); o nome
+  antigo `token` ainda é aceite. O `lease` é o JWT ES256 que o license-server
+  emite para o telemóvel (tier `mobile_pro`). O gate exige os dois, e pela ordem
+  certa: código errado ou muitas tentativas dão `auth_required`/`auth_locked`;
+  só depois de o código passar é a lease verificada, e lease ausente, expirada ou
+  de tier não pago dá `pro_required`. Em qualquer caso a ligação é fechada. Ver
+  `core.licensing.verify_remote_entitlement`.
   -> {"cmd": "ping"}
   <- {"ok": true, "pong": true}
   -> {"cmd": "move", "dx": 12, "dy": -4}          # relativo, com remote_move_gain
@@ -62,6 +71,7 @@ except Exception:
     Button = None
 
 from config import Config
+from core.licensing import verify_remote_entitlement
 from core.log import get_logger, trace
 from core.mouse_ctl import MouseCtl
 
@@ -618,7 +628,7 @@ class RemoteServer:
             async for raw in connection:
                 if authed is False:
                     data = self._decode(raw)
-                    # `code` é o nome actual; `token` é o nome de antes do
+# `code` é o nome actual; `token` é o nome de antes do
                     # código de 6 dígitos. Aceitar os dois é uma linha e
                     # poupa a reinstalar a app num telemóvel com um build de
                     # desenvolvimento já instalado — o `auth` é a única
@@ -630,6 +640,23 @@ class RemoteServer:
                         else "bad"
                     )
                     if estado == "ok":
+                        # A lease só é verificada depois de o código passar. Ao
+                        # contrário, quem não tem o código consegue sondar o
+                        # entitlement pela diferença entre `pro_required` e
+                        # `auth_required`, sem nunca se ter autenticado.
+                        ok, motivo = verify_remote_entitlement(data.get("lease"))
+                        if not ok:
+                            await self._send(
+                                connection,
+                                {"cmd": "auth", "ok": False,
+                                 "error": "pro_required", "reason": motivo},
+                            )
+                            log.warning(
+                                "Telemóvel autenticado mas sem entitlement (%s).",
+                                motivo,
+                            )
+                            await connection.close()
+                            return
                         authed = True
                         await self._send(
                             connection,

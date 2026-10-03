@@ -86,10 +86,11 @@ export const remote = {
   connect(
     url: string,
     code: string,
+    lease: string,
     cbs: RemoteClientCallbacks
   ): void {
     transport = 'wifi';
-    ws.connect(url, code, cbs);
+    ws.connect(url, code, lease, cbs);
   },
 
   close(): void {

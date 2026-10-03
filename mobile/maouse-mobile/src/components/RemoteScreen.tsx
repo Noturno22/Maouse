@@ -13,12 +13,15 @@ import {
   View,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import type { ProEntitlement } from '../hooks/useProEntitlement';
 import { remote } from '../services/remoteTransport';
 import { CODE_LEN, codeCompleto, normalizeCode } from '../services/pairingCode';
 import { useRemoteStore } from '../store/remote';
+import ProGate from './ProGate';
 
 interface Props {
   onBack: () => void;
+  entitlement: ProEntitlement;
 }
 
 interface TouchPos {
@@ -38,7 +41,7 @@ const DRAG_HOLD_MS = 380;
 const TAP_SLOP_PX = 12;
 const TAP_DECISION_DEADZONE = 1.5;
 
-export default function RemoteScreen({ onBack }: Props) {
+export default function RemoteScreen({ onBack, entitlement }: Props) {
   const {
     host,
     port,
@@ -51,8 +54,8 @@ export default function RemoteScreen({ onBack }: Props) {
     blePeers,
     peers,
     discovering,
-  mdnsRunning,
-  stopDiscover,
+    mdnsRunning,
+    stopDiscover,
     saveConfig,
     setForwardGestures,
     connect,
@@ -72,6 +75,11 @@ export default function RemoteScreen({ onBack }: Props) {
   const connected = status === 'connected';
   const busy = status === 'connecting';
   const codeOk = codeCompleto(codeDraft);
+
+  // 'loading' é o estado entre o mount e o `hydrate()` ler o AsyncStorage. Sem
+  // esta guarda vê-se um frame do ecrã errado: paywall a um Pro, formulário a um Free.
+  const licenseStatus = entitlement.status;
+  const isPro = entitlement.isPro;
 
   useEffect(() => {
     setHostDraft((v) => v || host);
@@ -587,6 +595,32 @@ export default function RemoteScreen({ onBack }: Props) {
     </View>
   );
 
+  const renderBody = () => {
+    if (licenseStatus === 'loading') {
+      return (
+        <View style={styles.form}>
+          <ActivityIndicator testID="remote-license-loading" color={ACCENT} />
+        </View>
+      );
+    }
+    if (!isPro) {
+      return <ProGate feature="remote" entitlement={entitlement} onClose={onBack} />;
+    }
+    if (connected) return renderConnected();
+    // O formulário ganhou o painel de descoberta, e a lista de PCs encontrados
+    // cresce a cada anúncio. Num ecrã pequeno o formulário passa do fundo, e o
+    // botão LIGAR - que é o que se quer alcançar - é o último.
+    return (
+      <ScrollView
+        style={styles.formScroll}
+        contentContainerStyle={styles.form}
+        keyboardShouldPersistTaps="handled"
+      >
+        {renderConnectForm()}
+      </ScrollView>
+    );
+  };
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -620,21 +654,7 @@ export default function RemoteScreen({ onBack }: Props) {
         </View>
       </View>
 
-      {connected ? (
-        renderConnected()
-      ) : (
-        // O formulário ganhou o painel de descoberta, e a lista de PCs
-        // encontrados cresce a cada anúncio. Num ecrã pequeno o formulário
-        // passa do fundo — e o botão LIGAR, que é o que se quer alcançar,
-        // é o último.
-        <ScrollView
-          style={styles.formScroll}
-          contentContainerStyle={styles.form}
-          keyboardShouldPersistTaps="handled"
-        >
-          {renderConnectForm()}
-        </ScrollView>
-      )}
+{renderBody()}
     </KeyboardAvoidingView>
   );
 }

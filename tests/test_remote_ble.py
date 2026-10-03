@@ -36,6 +36,8 @@ from core.remote_ble import (
     split_frame,
 )
 
+_TEM_DBUS = remote_ble._dbus() is not None
+
 
 class RatoFalso:
     """O mínimo que o `RemoteServer` lhexe, sem `pynput` nem ecrã."""
@@ -277,6 +279,7 @@ def _propriedade(iface, nome):
     raise AssertionError(f"{iface.name} nao tem a propriedade {nome!r}")
 
 
+@pytest.mark.skipif(not _TEM_DBUS, reason="dbus-next e' dependencia so de Linux")
 class TestPropriedadesGatt:
     """As duas coisas que o BlueZ descarta se errarem, e os sinais (`Flags`).
 
@@ -287,7 +290,6 @@ class TestPropriedadesGatt:
 
     def _ifs(self):
         api = remote_ble._dbus()
-        assert api is not None, "o dbus-next nao esta instalado neste venv"
         srv = _srv()
         return api, srv, remote_ble._build_interfaces(api, srv)
 
@@ -324,6 +326,7 @@ class TestPropriedadesGatt:
         assert TX_PATH.startswith(SERVICE_PATH)
 
 
+@pytest.mark.skipif(not _TEM_DBUS, reason="dbus-next e' dependencia so de Linux")
 class TestContratoGattDbus:
     """O que o BlueZ exige de cada propriedade, verificado sobre a interface.
 
@@ -450,6 +453,7 @@ class TestSessoes:
         assert RemoteBLE._device_key(opts) == "30:F7:72:5F:56:4C"
         assert RemoteBLE._device_key({}) == "?"
 
+    @pytest.mark.skipif(not _TEM_DBUS, reason="exige as interfaces D-Bus construidas")
     def test_escrita_de_outra_caracteristica_e_ignorada(self):
         srv = _srv()
         _service, _rx, tx = remote_ble._build_interfaces(
@@ -468,12 +472,17 @@ class TestSemDbusNext:
         # em falta, e o mesmo que o `zeroconf` em `core/discovery.py`.
         codigo = """
 import sys
+# `find_spec`, e nao `find_module`/`load_module`: esse par pertence ao protocolo
+# que o Python 3.12 removeu. Um finder que o implementa ainda e' consultado e
+# depois IGNORADO -- o import passava limpo e o `dbus_next` do disco era
+# encontrado. O teste so falhava onde a dependencia ESTA instalada, que e o CI
+# (`requirements-linux.txt`); onde ela falta, o `_dbus()` devolvia `None` pela
+# razao errada e o teste passava sem nunca ter bloqueado nada.
 class Bloqueia:
-    def find_module(self, nome, caminho=None):
+    def find_spec(self, nome, caminho=None, target=None):
         if nome == "dbus_next" or nome.startswith("dbus_next."):
-            return self
-    def load_module(self, nome):
-        raise ImportError("sem dbus_next")
+            raise ImportError("sem dbus_next")
+        return None
 sys.meta_path.insert(0, Bloqueia())
 import core.remote_ble as m
 assert m._dbus() is None
@@ -487,12 +496,17 @@ print("OK")
     def test_e_main_que_aguenta_a_ausencia(self):
         codigo = """
 import sys
+# `find_spec`, e nao `find_module`/`load_module`: esse par pertence ao protocolo
+# que o Python 3.12 removeu. Um finder que o implementa ainda e' consultado e
+# depois IGNORADO -- o import passava limpo e o `dbus_next` do disco era
+# encontrado. O teste so falhava onde a dependencia ESTA instalada, que e o CI
+# (`requirements-linux.txt`); onde ela falta, o `_dbus()` devolvia `None` pela
+# razao errada e o teste passava sem nunca ter bloqueado nada.
 class Bloqueia:
-    def find_module(self, nome, caminho=None):
+    def find_spec(self, nome, caminho=None, target=None):
         if nome == "dbus_next" or nome.startswith("dbus_next."):
-            return self
-    def load_module(self, nome):
-        raise ImportError("sem dbus_next")
+            raise ImportError("sem dbus_next")
+        return None
 sys.meta_path.insert(0, Bloqueia())
 print("OK")
 """

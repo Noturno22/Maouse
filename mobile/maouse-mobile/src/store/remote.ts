@@ -5,6 +5,7 @@ import {
   RemoteScreenInfo,
   buildWsUrl,
 } from '../services/remoteClient';
+import { useLicenseStore } from './license';
 import {
   DiscoveredPeer,
   isSupported as mdnsSupported,
@@ -277,6 +278,7 @@ export const useRemoteStore = create<RemoteState>((set, get) => {
 
   connect: () => {
     const { host, port, code } = get();
+    const { lease } = useLicenseStore.getState();
     const h = String(host || '').trim();
     if (!h) {
       set({
@@ -295,8 +297,8 @@ export const useRemoteStore = create<RemoteState>((set, get) => {
       return;
     }
     const url = buildWsUrl(h, port);
-    set({ status: 'connecting', error: '', autoConnecting: false });
-    remote.connect(url, code, {
+    set({ status: 'connecting', error: '', screen: null, autoConnecting: false });
+    remote.connect(url, code, lease, {
       onOpen: (screen) => {
         resetReconnect();
         set({ status: 'connected', screen, error: '', autoConnecting: false });
@@ -493,10 +495,11 @@ export const useRemoteStore = create<RemoteState>((set, get) => {
       });
       return;
     }
+    const { lease } = useLicenseStore.getState();
     const url = buildWsUrl(peer.host, String(peer.port));
-    set({ status: 'connecting', error: '', autoConnecting: false });
+    set({ status: 'connecting', error: '', screen: null, autoConnecting: false });
     void get().saveConfig({ host: peer.host, port: String(peer.port) });
-    remote.connect(url, code, {
+    remote.connect(url, code, lease, {
       onOpen: (screen) => {
         resetReconnect();
         set({ status: 'connected', screen, error: '', autoConnecting: false });

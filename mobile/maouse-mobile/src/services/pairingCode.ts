@@ -48,6 +48,7 @@ export function codeCompleto(value: unknown): boolean {
  * escrita, «demasiadas tentativas» é o PC a dizer para parar. A mesma frase
  * para as duas fazia o utilizador reescrever o código certo e voltar a bater
  * no bloqueio — e a culpar o teclado pelo que é um limite do PC.
+ * O `pro_required` é um caso à parte: o código passou, e quem manda é o paywall, não o teclado.
  */
 export function authErrorMessage(
   error: unknown,
@@ -59,6 +60,9 @@ export function authErrorMessage(
   }
   if (error === 'auth_required') {
     return 'Código recusado. Confirma os 6 dígitos no PC (podem ter mudado).';
+  }
+  if (error === 'pro_required') {
+    return 'O PC recusou a licença Pro. Tenta "Restaurar" ou compra o Pro.';
   }
   return String(error || 'Auth falhou.');
 }

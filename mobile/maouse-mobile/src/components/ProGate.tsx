@@ -10,15 +10,34 @@ import {
 
 import type { ProEntitlement } from '../hooks/useProEntitlement';
 
+type GateFeature = 'device' | 'remote';
+
+const COPY: Record<GateFeature, { title: string; subtitle: string; dismiss: string }> = {
+  device: {
+    title: 'Desbloqueia o controlo completo',
+    subtitle:
+      'O nível gratuito só permite navegar e pré-visualizar gestos. O Pro pago único ativa o controlo real: toque, clique, scroll, voltar, início e notificações.',
+    dismiss: 'Continuar versão gratuita',
+  },
+  remote: {
+    title: 'O PC remoto faz parte do Pro',
+    subtitle:
+      'Controlar o rato e o teclado do teu PC a partir do telemóvel exige o Pro. É a mesma compra única que desbloqueia os gestos no telemóvel.',
+    dismiss: 'Voltar',
+  },
+};
+
 interface Props {
   entitlement: ProEntitlement;
   onClose: () => void;
+  feature?: GateFeature;
 }
 
-export default function ProGate({ entitlement, onClose }: Props) {
+export default function ProGate({ entitlement, onClose, feature = 'device' }: Props) {
   const { product, purchasing, actionError, purchasePro, restorePro } =
     entitlement;
 
+  const copy = COPY[feature];
   const price = product?.displayPrice ?? '';
 
   return (
@@ -26,12 +45,8 @@ export default function ProGate({ entitlement, onClose }: Props) {
       <View style={styles.backdrop}>
         <View style={styles.card}>
           <Text style={styles.eyebrow}>Mãouse</Text>
-          <Text style={styles.title}>Desbloqueia o controlo completo</Text>
-          <Text style={styles.subtitle}>
-            O nível gratuito só permite navegar e pré-visualizar gestos. O Pro
-            pago único ativa o controlo real: toque, clique, scroll, voltar,
-            início e notificações.
-          </Text>
+          <Text style={styles.title}>{copy.title}</Text>
+          <Text style={styles.subtitle}>{copy.subtitle}</Text>
 
           <View style={styles.priceRow}>
             <Text style={styles.price}>
@@ -66,7 +81,7 @@ export default function ProGate({ entitlement, onClose }: Props) {
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.freeButton} onPress={onClose}>
-            <Text style={styles.freeText}>Continuar versão gratuita</Text>
+            <Text style={styles.freeText}>{copy.dismiss}</Text>
           </TouchableOpacity>
         </View>
       </View>

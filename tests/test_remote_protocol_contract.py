@@ -16,9 +16,13 @@ import json
 from types import SimpleNamespace
 
 import pytest
+from cryptography.hazmat.primitives.asymmetric import ec
 
 from config import Config
 from core.remote import RemoteServer
+from tests.lease_test_keys import VALID_LEASE, make_test_lease
+
+pytestmark = pytest.mark.usefixtures("patched_public_key")
 
 # Os comandos que o `remoteClient.ts` sabe mandar, com um payload representativo.
 # Esta tupla é a fonte de verdade: se acrescentares um comando lá, acrescentas
@@ -259,7 +263,7 @@ def test_resposta_de_auth_ok_tem_ecra():
     touchpad passa a mover o rato com a escala errada.
     """
     srv, _ = _server()
-    _, replies = _run(srv, [{"cmd": "auth", "code": CODE}])
+    _, replies = _run(srv, [{"cmd": "auth", "code": CODE, "lease": VALID_LEASE}])
 
     assert replies[0] == {"cmd": "auth", "ok": True, "w": 1920, "h": 1080}
 
@@ -282,6 +286,77 @@ def test_resposta_de_auth_falhado_tem_error_auth_required():
     assert replies[0]["retry_after"] == 0, "sem bloqueio, o telemóvel pode repetir já"
     assert conn.closed, "o servidor tem de fechar a ligação depois de auth falhada"
 
+
+# ── Gate Pro: o código sozinho não abre o rato de ninguém ───────────────────
+
+def test_code_valido_sem_lease_e_recusado():
+    """O bypass que este gate fecha: código certo, nenhum pagamento.
+
+    Sem lease, um utilizador Free na mesma rede tinha rato, teclado, scroll e
+    media keys completos. O código continua a ser o que emparelha o telemóvel
+    com o PC; o lease é que diz que o telemóvel pagou.
+    """
+    srv, _ = _server()
+    conn, replies = _run(srv, [{"cmd": "auth", "code": CODE}])
+
+    assert replies[0]["ok"] is False
+    assert replies[0]["error"] == "pro_required"
+    assert conn.closed
+
+
+def test_lease_assinado_por_outra_chave_e_recusado():
+    foreign = ec.generate_private_key(ec.SECP256R1())
+    srv, _ = _server()
+    conn, replies = _run(
+        srv,
+        [{"cmd": "auth", "code": CODE,
+          "lease": make_test_lease(key=foreign)}],
+    )
+
+    assert replies[0]["ok"] is False
+    assert replies[0]["error"] == "pro_required"
+    assert replies[0]["reason"] == "assinatura_invalida"
+
+
+def test_lease_expirado_e_recusado():
+    srv, _ = _server()
+    conn, replies = _run(
+        srv,
+        [{"cmd": "auth", "code": CODE, "lease": make_test_lease(exp_delta=-1)}],
+    )
+
+    assert replies[0]["ok"] is False
+    assert replies[0]["reason"] == "lease_expirado"
+
+
+def test_lease_de_tier_errado_e_recusado():
+    srv, _ = _server()
+    conn, replies = _run(
+        srv,
+        [{"cmd": "auth", "code": CODE, "lease": make_test_lease(tier="free")}],
+    )
+
+    assert replies[0]["ok"] is False
+    assert replies[0]["reason"] == "tier_invalido"
+
+
+def test_lease_de_free_nao_basta_mesmo_com_code_certo():
+    srv, _ = _server()
+    conn, replies = _run(
+        srv,
+        [{"cmd": "auth", "code": CODE, "lease": make_test_lease(tier="free")}],
+    )
+
+    assert replies[0]["error"] == "pro_required"
+    assert conn.closed
+
+
+def test_nenhum_comando_passa_sem_auth():
+    srv, _ = _server()
+    conn, replies = _run(srv, [{"cmd": "move", "dx": 500, "dy": 500}])
+
+    assert conn.closed
+    assert all(r.get("cmd") != "auth" or r.get("ok") is not True for r in replies)
 
 def test_resposta_de_auth_bloqueado_diz_quando_tentar_de_novo():
     """As 5 tentativas que fecham a porta, e o `retry_after` que as explica.
@@ -311,7 +386,7 @@ def test_resposta_de_comando_tem_ok_e_note():
     """O TS consome `ok` de cada resposta de comando; `note` é o que o PC devolve."""
     srv, _ = _server()
     _, replies = _run(srv, [
-        {"cmd": "auth", "code": CODE},
+        {"cmd": "auth", "code": CODE, "lease": VALID_LEASE},
         {"cmd": "move", "dx": 4, "dy": 0},
     ])
 
@@ -322,7 +397,7 @@ def test_comando_sem_cmd_da_bad_command():
     """Um frame que não é comando tem de ser recusado, não ignorado em silêncio."""
     srv, _ = _server()
     _, replies = _run(srv, [
-        {"cmd": "auth", "code": CODE},
+        {"cmd": "auth", "code": CODE, "lease": VALID_LEASE},
         {"nao": "e um comando"},
     ])
 
@@ -337,7 +412,7 @@ def test_comando_desconhecido_nao_mata_a_ligacao():
     """
     srv, _ = _server()
     conn, replies = _run(srv, [
-        {"cmd": "auth", "code": CODE},
+        {"cmd": "auth", "code": CODE, "lease": VALID_LEASE},
         {"cmd": "comando_do_futuro"},
         {"cmd": "ping"},
     ])
@@ -353,7 +428,7 @@ def test_ping_nao_precisa_de_rato_nem_de_ganho():
     """`ping` responde antes do despacho: é o keepalive que mede a ligação viva."""
     srv, mouse = _server()
     _, replies = _run(srv, [
-        {"cmd": "auth", "code": CODE},
+        {"cmd": "auth", "code": CODE, "lease": VALID_LEASE},
         {"cmd": "ping"},
     ])
 
@@ -385,7 +460,7 @@ def test_ping_antes_do_auth_nao_sobrevive():
     srv, _ = _server()
     conn, replies = _run(srv, [
         {"cmd": "ping"},
-        {"cmd": "auth", "code": CODE},
+        {"cmd": "auth", "code": CODE, "lease": VALID_LEASE},
     ])
 
     assert replies[0]["cmd"] == "auth"
@@ -439,7 +514,7 @@ def test_o_code_compara_se_no_corpo_da_mensagem():
     jeito ao cliente", esta é a linha que quebra.
     """
     srv, _ = _server()
-    _, replies = _run(srv, [{"cmd": "auth", "code": CODE}])
+    _, replies = _run(srv, [{"cmd": "auth", "code": CODE, "lease": VALID_LEASE}])
     assert replies[0]["ok"] is True, "o código no corpo tem de ser aceite"
 
     qs = f"code={CODE}"

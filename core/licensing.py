@@ -90,6 +90,76 @@ def _load_public_key():
         return serialization.load_pem_public_key(fh.read())
 
 
+def _verify_es256(pub_key, signing_input: bytes, raw_sig: bytes) -> bool:
+    """O PyJWT emite raw r||s; a `cryptography` quer DER. Fazer a ponte."""
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.asymmetric.utils import encode_dss_signature
+    try:
+        r = int.from_bytes(raw_sig[:32], "big")
+        s = int.from_bytes(raw_sig[32:], "big")
+        der_sig = encode_dss_signature(r, s)
+        pub_key.verify(der_sig, signing_input, ec.ECDSA(hashes.SHA256()))
+        return True
+    except Exception:
+        return False
+
+
+def _decode_signed_lease(lease, pub_key):
+    """Payload de um lease com assinatura válida, ou None.
+
+    None = não prova nada. Rejeitar `alg:none` aqui é o que impede um JWT
+    forjado sem chave.
+    """
+    if not lease or not isinstance(lease, str):
+        return None
+    try:
+        header_b64, payload_b64, sig_b64 = lease.split(".")
+    except ValueError:
+        return None
+    try:
+        header = json.loads(_b64d(header_b64))
+        payload = json.loads(_b64d(payload_b64))
+        raw_sig = base64.urlsafe_b64decode(sig_b64 + "=" * (-len(sig_b64) % 4))
+    except Exception:
+        return None
+    if header.get("alg") != "ES256":
+        return None  # rejeita alg:none e outras
+    if not _verify_es256(pub_key, f"{header_b64}.{payload_b64}".encode(), raw_sig):
+        return None
+    return payload
+
+
+# `pro` (chave de desktop) também abre: quem tem as duas não deve ficar de fora.
+_REMOTE_TIERS = ("mobile_pro", "pro")
+
+
+def verify_remote_entitlement(lease) -> tuple[bool, str]:
+    """Verifica um lease de entitlement com a chave pública embutida no PC.
+
+    Ao contrário de `_validate_local_lease`, NÃO amarra ao machine id do
+    desktop: o lease mobile é emitido com o `device_id` do telemóvel
+    (`sub = machine:{device_id}`), por isso exigir o machine id do PC
+    rejeitaria um purchase legítimo. Prova o pagamento a assinatura do
+    servidor, mais o tier e a expiração.
+    """
+    try:
+        pub_key = _load_public_key()
+    except Exception:
+        return False, "chave_indisponivel"
+    payload = _decode_signed_lease(lease, pub_key)
+    if payload is None:
+        return False, "assinatura_invalida"
+    if payload.get("tier") not in _REMOTE_TIERS:
+        return False, "tier_invalido"
+    try:
+        exp = int(payload.get("exp", 0))
+    except (TypeError, ValueError):
+        return False, "exp_invalido"
+    if exp <= 0 or time.time() > exp:
+        return False, "lease_expirado"
+    return True, "ok"
+
+
 class LicenseManager:
     def __init__(self, secret: str = "", store_path=None,
                  endpoints=None, trial_seconds=TRIAL_DEFAULT_SECONDS,
