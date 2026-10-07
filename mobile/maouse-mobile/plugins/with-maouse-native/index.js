@@ -38,6 +38,7 @@ const ANDROID_KOTLIN_FILES = [
   "KeyboardControllerModule.kt",
   "SystemControllerModule.kt",
   "BleRemoteModule.kt",
+  "RfcommRemoteModule.kt",
   "MdnsDiscoveryModule.kt",
   "MaousePackage.kt",
 ];

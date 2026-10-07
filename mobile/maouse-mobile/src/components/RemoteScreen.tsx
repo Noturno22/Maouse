@@ -52,6 +52,7 @@ export default function RemoteScreen({ onBack, entitlement }: Props) {
     error,
     scanning,
     blePeers,
+    rfcommPeers,
     peers,
     discovering,
     mdnsRunning,
@@ -63,6 +64,8 @@ export default function RemoteScreen({ onBack, entitlement }: Props) {
     discover,
     scanBle,
     connectBle,
+    listRfcomm,
+    connectRfcomm,
     connectPeer,
   } = useRemoteStore();
 
@@ -411,12 +414,18 @@ export default function RemoteScreen({ onBack, entitlement }: Props) {
     </View>
   );
 
-  // Procura o PC por mDNS ou por Bluetooth.
+  // Procura o PC por mDNS, por BLE ou pela lista de emparelhados.
   //
-  // As duas vias ficam lado a lado porque resolvem problemas diferentes: o
-  // mDNS acha o PC em qualquer rede onde circule, e o BLE funciona sem rede
-  // nenhuma — que é o caso de uma rede de empresa onde o multicast está
-  // bloqueado, ou de um telemóvel em dados móveis com o PC em Ethernet.
+  // As três vias resolvem problemas diferentes: o mDNS acha o PC em qualquer
+  // rede onde circule, o BLE funciona sem rede nenhuma — que é o caso de uma
+  // rede de empresa onde o multicast está bloqueado, ou de um telemóvel em
+  // dados móveis com o PC em Ethernet — e os emparelhados são permanentes e
+  // independentes da rede e do alcance BLE.
+  //
+  // A lista de emparelhados não é um scan: o Android tem os dispositivos
+  // emparelhados em memória, e `getBondedDevices` resolve na hora. Só se
+  // emparelha o PC **uma vez**, nas Definições do telemóvel, e a partir daí
+  // aparece aqui para sempre.
   const renderDiscoveryPanel = () => (
     <View style={styles.discoveryPanel}>
       <View style={styles.discoveryRow}>
@@ -445,6 +454,13 @@ export default function RemoteScreen({ onBack, entitlement }: Props) {
           )}
         </TouchableOpacity>
       </View>
+
+      <TouchableOpacity
+        style={styles.discoveryBtnWide}
+        onPress={() => void listRfcomm()}
+      >
+        <Text style={styles.discoveryBtnText}>LISTAR EMPAREIHADOS</Text>
+      </TouchableOpacity>
 
       {peers.map((p) => (
         <TouchableOpacity
@@ -476,7 +492,25 @@ export default function RemoteScreen({ onBack, entitlement }: Props) {
         </TouchableOpacity>
       ))}
 
-      {peers.length === 0 && blePeers.length === 0 && !scanning && !discovering ? (
+      {rfcommPeers.map((p) => (
+        <TouchableOpacity
+          key={`rfcomm-${p.address}`}
+          style={styles.peerRow}
+          onPress={() => {
+            saveConfig({ code: codeDraft });
+            void connectRfcomm(p.address, p.name);
+          }}
+        >
+          <Text style={styles.peerName}>{p.name || p.address}</Text>
+          <Text style={styles.peerAddr}>{p.address} · RFCOMM</Text>
+        </TouchableOpacity>
+      ))}
+
+      {peers.length === 0 &&
+      blePeers.length === 0 &&
+      rfcommPeers.length === 0 &&
+      !scanning &&
+      !discovering ? (
         <Text style={styles.discoveryHint}>
           A procura na rede só funciona se o telemóvel e o PC estiverem na mesma
           rede local e o multicast não estiver bloqueado. O Bluetooth não usa a
@@ -724,6 +758,16 @@ const styles = StyleSheet.create({
   },
   discoveryBtn: {
     flex: 1,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: ACCENT,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 40,
+  },
+  discoveryBtnWide: {
+    marginTop: 8,
     paddingVertical: 10,
     borderRadius: 8,
     borderWidth: 1,

@@ -7,7 +7,7 @@ import com.facebook.react.uimanager.ViewManager
 
 /**
  * MaousePackage: regista os módulos nativos (Touch, Keyboard, System, Ble,
- * MdnsDiscovery). Adicionado no MainApplication.kt à lista de packages do
+ * Rfcomm, MdnsDiscovery). Adicionado no MainApplication.kt à lista de packages do
  * React Native.
  */
 class MaousePackage : ReactPackage {
@@ -17,6 +17,7 @@ class MaousePackage : ReactPackage {
             KeyboardControllerModule(reactContext),
             SystemControllerModule(reactContext),
             BleRemoteModule(reactContext),
+            RfcommRemoteModule(reactContext),
             MdnsDiscoveryModule(reactContext),
         )
 

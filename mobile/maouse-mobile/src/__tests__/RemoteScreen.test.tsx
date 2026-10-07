@@ -41,6 +41,7 @@ const mockStoreState = {
   error: null,
   scanning: false,
   blePeers: [],
+  rfcommPeers: [],
   peers: [],
   discovering: false,
   mdnsRunning: false,
@@ -52,6 +53,8 @@ const mockStoreState = {
   discover: jest.fn(),
   scanBle: jest.fn(),
   connectBle: jest.fn(),
+  listRfcomm: jest.fn(),
+  connectRfcomm: jest.fn(),
   connectPeer: jest.fn(),
 };
 

@@ -15,6 +15,7 @@ import {
   ble,
   bleModule,
   remote,
+  rfcomm,
   scanForPeers,
 } from '../services/remoteTransport';
 import { CODE_LEN, codeCompleto, normalizeCode } from '../services/pairingCode';
@@ -66,13 +67,16 @@ interface RemoteConfig {
   code: string;
   forwardGestures: boolean;
   /** Último transporte utilizado */
-  lastTransport?: 'wifi' | 'ble';
+  lastTransport?: 'wifi' | 'ble' | 'rfcomm';
   /** Último peer WiFi */
   lastPeerHost?: string;
   lastPeerPort?: string;
   /** Último peer BLE */
   lastBleAddress?: string;
   lastBleName?: string;
+  /** Último peer RFCOMM (já emparelhado nas Definições do Android) */
+  lastRfcommAddress?: string;
+  lastRfcommName?: string;
   /** Tentar ligar automaticamente ao último alvo */
   autoConnect?: boolean;
 }
@@ -91,6 +95,8 @@ interface RemoteState extends RemoteConfig {
   scanning: boolean;
   /** PCs encontrados por BLE, com o primeiro a ser o mais recente. */
   blePeers: BlePeer[];
+  /** PCs já emparelhados no Android, disponíveis por RFCOMM. */
+  rfcommPeers: BlePeer[];
   /** PCs encontrados por mDNS. */
   peers: DiscoveredPeer[];
   /** A descoberta está a correr? */
@@ -110,6 +116,10 @@ interface RemoteState extends RemoteConfig {
   scanBle: (seconds?: number) => Promise<void>;
   /** Liga por BLE a um dos endereços de `blePeers`. */
   connectBle: (address: string, name?: string) => Promise<void>;
+  /** Lista os PCs já emparelhados no Android. */
+  listRfcomm: () => Promise<void>;
+  /** Liga por RFCOMM a um dos endereços de `rfcommPeers`. */
+  connectRfcomm: (address: string, name?: string) => Promise<void>;
   /** Liga ao PC escolhido na lista de mDNS. */
   connectPeer: (peer: DiscoveredPeer) => void;
 }
@@ -139,6 +149,11 @@ export const useRemoteStore = create<RemoteState>((set, get) => {
       if (st.lastTransport === 'ble' && st.lastBleAddress) {
         set({ autoConnecting: true });
         st.connectBle(st.lastBleAddress, st.lastBleName).catch(() => {});
+        return;
+      }
+      if (st.lastTransport === 'rfcomm' && st.lastRfcommAddress) {
+        set({ autoConnecting: true });
+        st.connectRfcomm(st.lastRfcommAddress, st.lastRfcommName).catch(() => {});
         return;
       }
       if (st.lastPeerHost && st.lastPeerPort) {
@@ -175,6 +190,7 @@ export const useRemoteStore = create<RemoteState>((set, get) => {
   error: '',
   scanning: false,
   blePeers: [],
+  rfcommPeers: [],
   peers: [],
   discovering: false,
   mdnsRunning: false,
@@ -197,7 +213,9 @@ export const useRemoteStore = create<RemoteState>((set, get) => {
         code: codeCompleto(guardado) ? guardado : '',
         forwardGestures: cfg.forwardGestures === true,
         lastTransport:
-          cfg.lastTransport === 'wifi' || cfg.lastTransport === 'ble'
+          cfg.lastTransport === 'wifi' ||
+          cfg.lastTransport === 'ble' ||
+          cfg.lastTransport === 'rfcomm'
             ? cfg.lastTransport
             : undefined,
         lastPeerHost:
@@ -208,6 +226,12 @@ export const useRemoteStore = create<RemoteState>((set, get) => {
           typeof cfg.lastBleAddress === 'string' ? cfg.lastBleAddress : undefined,
         lastBleName:
           typeof cfg.lastBleName === 'string' ? cfg.lastBleName : undefined,
+        lastRfcommAddress:
+          typeof cfg.lastRfcommAddress === 'string'
+            ? cfg.lastRfcommAddress
+            : undefined,
+        lastRfcommName:
+          typeof cfg.lastRfcommName === 'string' ? cfg.lastRfcommName : undefined,
         autoConnect: cfg.autoConnect !== false,
       });
 
@@ -223,6 +247,13 @@ export const useRemoteStore = create<RemoteState>((set, get) => {
           set({ autoConnecting: true });
           ble.requestPermissions().catch(() => {});
           await st.connectBle(st.lastBleAddress, st.lastBleName).catch(() => {});
+          return;
+        }
+        if (st.lastTransport === 'rfcomm' && st.lastRfcommAddress) {
+          set({ autoConnecting: true });
+          await st.connectRfcomm(st.lastRfcommAddress, st.lastRfcommName).catch(
+            () => {}
+          );
           return;
         }
         if (st.lastTransport === 'wifi' && st.lastPeerHost && st.lastPeerPort) {
@@ -468,6 +499,72 @@ export const useRemoteStore = create<RemoteState>((set, get) => {
           lastTransport: 'ble',
           lastBleAddress: address,
           lastBleName: name,
+        });
+      },
+      onClose: (message) => {
+        const wasConnected = get().status === 'connected';
+        set((s) => ({
+          status: message ? 'disconnected' : s.status,
+          error: message || s.error,
+          autoConnecting: false,
+        }));
+        if (message && wasConnected) scheduleReconnect();
+      },
+      onError: (message) => set({ status: 'error', error: message, autoConnecting: false }),
+    });
+  },
+
+  listRfcomm: async () => {
+    if (!rfcomm.isSupported) {
+      set({ error: 'O Bluetooth só está disponível no Android.' });
+      return;
+    }
+    try {
+      const peers = await rfcomm.listBondedPeers();
+      set({ rfcommPeers: peers, error: '' });
+      if (peers.length === 0) {
+        set({
+          error:
+            'Nenhum PC emparelhado. Emparelha o PC nas Definições do telemóvel primeiro.',
+        });
+      }
+    } catch (e: any) {
+      set({ error: e?.message || 'Não foi possível ler os dispositivos emparelhados.' });
+    }
+  },
+
+  connectRfcomm: async (address, name) => {
+    const { code } = get();
+    if (!codeCompleto(code)) {
+      set({
+        status: 'error',
+        error: 'O código são 6 dígitos — escreve-os antes de ligar.',
+      });
+      return;
+    }
+    set({ status: 'connecting', error: '', screen: null, autoConnecting: false });
+    try {
+      if (!(await rfcomm.requestPermissions())) {
+        throw new Error(
+          'O telemóvel não deu permissão de Bluetooth. Ativa-a em Definições.'
+        );
+      }
+    } catch (e: any) {
+      set({
+        status: 'error',
+        error: e?.message || 'Falta a permissão de Bluetooth.',
+        autoConnecting: false,
+      });
+      return;
+    }
+    remote.connectRfcomm(address, code, {
+      onOpen: (screen) => {
+        resetReconnect();
+        set({ status: 'connected', screen, error: '', autoConnecting: false });
+        get().saveConfig({
+          lastTransport: 'rfcomm',
+          lastRfcommAddress: address,
+          lastRfcommName: name,
         });
       },
       onClose: (message) => {

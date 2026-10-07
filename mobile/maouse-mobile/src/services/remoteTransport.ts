@@ -1,9 +1,9 @@
-// Escolhe o transporte do controlo remoto: WebSocket (WiFi) ou BLE.
+// Escolhe o transporte do controlo remoto: WebSocket (WiFi), BLE ou RFCOMM.
 //
 // A `RemoteScreen` chama `remote.move()`, `remote.click()` e companhia há
-// centenas de linhas e não deve saber qual dos dois transportes está em uso.
+// centenas de linhas e não deve saber qual dos três transportes está em uso.
 // Por isso `remote` é esta fachada, e não o `RemoteClient` do WebSocket: os
-// dois clientes implementam a mesma interface e aqui escolhe-se um.
+// três clientes implementam a mesma interface e aqui escolhe-se um.
 //
 // A interface é o `RemoteClient` original, com uma coisa a mais —
 // `connectBle` / `disconnectBle` não fazem sentido num cliente WebSocket, e
@@ -21,10 +21,11 @@ import {
   RemoteScreenInfo,
 } from './remoteClient';
 import { BleRemoteClient } from './bleRemoteClient';
+import { RfcommRemoteClient } from './rfcommRemoteClient';
 
-export type RemoteTransport = 'wifi' | 'ble';
+export type RemoteTransport = 'wifi' | 'ble' | 'rfcomm';
 
-const { BleRemote } = NativeModules as {
+const { BleRemote, RfcommRemote } = NativeModules as {
   BleRemote?: {
     hasPermissions(): Promise<boolean>;
     isBluetoothEnabled(): Promise<boolean>;
@@ -36,6 +37,17 @@ const { BleRemote } = NativeModules as {
     sendMove(dxTenths: number, dyTenths: number): Promise<boolean>;
     isConnected(): Promise<boolean>;
     // Exigidos pelo `NativeEventEmitter`; ver `mdnsDiscovery.ts`.
+    addListener(event: string): void;
+    removeListeners(count: number): void;
+  };
+  RfcommRemote?: {
+    hasPermissions(): Promise<boolean>;
+    isBluetoothEnabled(): Promise<boolean>;
+    connect(address: string): Promise<boolean>;
+    disconnect(): void;
+    sendJson(json: string): Promise<boolean>;
+    isConnected(): Promise<boolean>;
+    listBonded(): Promise<Array<{ address: string; name: string }>>;
     addListener(event: string): void;
     removeListeners(count: number): void;
   };
@@ -55,7 +67,25 @@ export const ble: BleRemoteClient = new BleRemoteClient(
   Platform.OS === 'android' ? BleRemote : undefined
 );
 
+export const rfcomm: RfcommRemoteClient = new RfcommRemoteClient(
+  Platform.OS === 'android' ? RfcommRemote : undefined
+);
+
 let transport: RemoteTransport = 'wifi';
+
+/**
+ * O cliente do transporte activo.
+ *
+ * Existe para os doze comandos de baixo lerem `active().click(...)` em vez de
+ * um `transport === 'ble' ? ble : ws` repetido — que com três transportes
+ * passavam a ser ternários aninhados que ninguém conseguia ler. Os três
+ * clientes implementam a mesma interface, por isso a escolha é só isto.
+ */
+function active(): RemoteClient | BleRemoteClient | RfcommRemoteClient {
+  if (transport === 'ble') return ble;
+  if (transport === 'rfcomm') return rfcomm;
+  return ws;
+}
 
 export const remote = {
   get transport(): RemoteTransport {
@@ -63,7 +93,7 @@ export const remote = {
   },
 
   get isConnected(): boolean {
-    return transport === 'ble' ? ble.isConnected : ws.isConnected;
+    return active().isConnected;
   },
 
   /** Liga por Bluetooth a um endereço MAC já descoberto, com o código de 6 dígitos. */
@@ -83,6 +113,28 @@ export const remote = {
     }
   },
 
+  /**
+   * Liga por RFCOMM a um PC **já emparelhado** nas Definições do Android.
+   *
+   * Ao contrário do BLE, o endereço não vem de um varrimento: o RFCOMM não
+   * anuncia nada, e o Android só liga a um dispositivo emparelhado.
+   */
+  connectRfcomm(
+    address: string,
+    code: string,
+    cbs: RemoteClientCallbacks
+  ): void {
+    transport = 'rfcomm';
+    rfcomm.connect(address, code, cbs);
+  },
+
+  closeRfcomm(): void {
+    if (transport === 'rfcomm') {
+      rfcomm.close();
+      transport = 'wifi';
+    }
+  },
+
   connect(
     url: string,
     code: string,
@@ -94,42 +146,29 @@ export const remote = {
   },
 
   close(): void {
-    if (transport === 'ble') {
-      ble.close();
-      transport = 'wifi';
-      return;
-    }
-    ws.close();
+    active().close();
+    transport = 'wifi';
   },
 
-  move: (dx: number, dy: number) =>
-    transport === 'ble' ? ble.move(dx, dy) : ws.move(dx, dy),
-  moveTo: (x: number, y: number) =>
-    transport === 'ble' ? ble.moveTo(x, y) : ws.moveTo(x, y),
+  move: (dx: number, dy: number) => active().move(dx, dy),
+  moveTo: (x: number, y: number) => active().moveTo(x, y),
   click: (button?: 'left' | 'right' | 'middle', count?: number) =>
-    transport === 'ble' ? ble.click(button, count) : ws.click(button, count),
+    active().click(button, count),
   press: (button?: 'left' | 'right' | 'middle') =>
-    transport === 'ble' ? ble.press(button) : ws.press(button),
+    active().press(button),
   release: (button?: 'left' | 'right' | 'middle') =>
-    transport === 'ble' ? ble.release(button) : ws.release(button),
-  scroll: (dx?: number, dy?: number) =>
-    transport === 'ble' ? ble.scroll(dx, dy) : ws.scroll(dx, dy),
-  key: (key: string) => (transport === 'ble' ? ble.key(key) : ws.key(key)),
-  combo: (mods: string[], key: string) =>
-    transport === 'ble' ? ble.combo(mods, key) : ws.combo(mods, key),
-  text: (text: string) =>
-    transport === 'ble' ? ble.text(text) : ws.text(text),
-  media: (action: string) =>
-    transport === 'ble' ? ble.media(action) : ws.media(action),
+    active().release(button),
+  scroll: (dx?: number, dy?: number) => active().scroll(dx, dy),
+  key: (key: string) => active().key(key),
+  combo: (mods: string[], key: string) => active().combo(mods, key),
+  text: (text: string) => active().text(text),
+  media: (action: string) => active().media(action),
   gesture: (
     event: string,
     x?: number,
     y?: number,
     value?: number
-  ) =>
-    transport === 'ble'
-      ? ble.gesture(event, x, y, value)
-      : ws.gesture(event, x, y, value),
+  ) => active().gesture(event, x, y, value),
 };
 
 export const ws = new RemoteClient();
