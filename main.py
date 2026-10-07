@@ -46,6 +46,8 @@ from core.mouse_ctl import MouseCtl, MuteMouse
 from core.remote import RemoteArbiter, RemoteServer, lan_ips
 from core.remote_ble import SERVICE_UUID as BLE_SERVICE_UUID
 from core.remote_ble import RemoteBLE
+from core.remote_rfcomm import SERVICE_UUID as RFCOMM_SERVICE_UUID
+from core.remote_rfcomm import RemoteRFCOMM
 from core.snap import SnapEngine
 from core.tracker import HandTracker, ensure_model
 from core.tray import TrayAppAdapter, TrayIcon
@@ -466,6 +468,7 @@ def main():
     remote = None
     discovery = None
     ble = None
+    rfcomm = None
     if cfg.remote_enabled:
         remote = RemoteServer(cfg, mouse)
         if remote.start():
@@ -507,6 +510,29 @@ def main():
                 except Exception as exc:
                     log.warning("BLE indisponivel (%s); a usar apenas WiFi.", exc)
                     ble = None
+
+            # O RFCOMM é o mesmo negócio do BLE com outro transporte: também
+            # entrega ao `_handle` deste `RemoteServer` e não tem comandos
+            # próprios. A diferença é que aqui o servidor é um executável
+            # WinRT à parte, que detém a porta — e um executável que não
+            # existe, ou um adaptador sem rádio, não pode impedir a Maouse de
+            # arrancar. Mesmo tratamento que o BLE: aviso e segue.
+            if cfg.remote_rfcomm:
+                try:
+                    rfcomm = RemoteRFCOMM(cfg, remote)
+                    if rfcomm.start():
+                        log.info("Controlo remoto por RFCOMM ativo (servico %s).",
+                                 RFCOMM_SERVICE_UUID)
+                    else:
+                        log.warning(
+                            "RFCOMM nao arrancou (executavel nativo em falta, "
+                            "adaptador desligado ou sem radio Bluetooth). "
+                            "O WiFi continua."
+                        )
+                        rfcomm = None
+                except Exception as exc:
+                    log.warning("RFCOMM indisponivel (%s); a usar apenas WiFi.", exc)
+                    rfcomm = None
     else:
         log.info("Controlo remoto por telemovel desativado.")
     tuner = AutoTuner(cfg)
@@ -689,6 +715,13 @@ def main():
         if ble is not None:
             try:
                 ble.stop()
+            except Exception:
+                pass
+        # Mesmo motivo e mesma ordem que o BLE: o `RemoteRFCOMM` entrega
+        # comandos ao `RemoteServer`, portanto tem de descer antes dele.
+        if rfcomm is not None:
+            try:
+                rfcomm.stop()
             except Exception:
                 pass
         if remote is not None:

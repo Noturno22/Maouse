@@ -81,15 +81,15 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo [1/7] A instalar PyInstaller ...
+echo [1/8] A instalar PyInstaller ...
 .venv\Scripts\python.exe -m pip install --upgrade -r requirements-build.txt -q
 if errorlevel 1 exit /b 1
 
-echo [2/7] A gerar icone (.ico) ...
+echo [2/8] A gerar icone (.ico) ...
 .venv\Scripts\python.exe tools\generate_ico.py
 if errorlevel 1 exit /b 1
 
-echo [3/7] A gerar metadados de versao (version_info.txt) ...
+echo [3/8] A gerar metadados de versao (version_info.txt) ...
 .venv\Scripts\python.exe tools\gen_version_info.py
 if errorlevel 1 exit /b 1
 
@@ -97,11 +97,11 @@ rem O URL do license-server de produção tem de viajar DENTRO do .exe: num
 rem build PyInstaller não há env vars de compilação em runtime. Sem isto o
 rem binário traz o placeholder e a ativação de chaves Pro não funciona.
 rem Ver docs/DESKTOP_LICENSE_URL.md.
-echo [4/7] A embebir o endpoint do license-server ...
+echo [4/8] A embebir o endpoint do license-server ...
 .venv\Scripts\python.exe tools\gen_license_endpoint.py
 if errorlevel 1 exit /b 1
 
-echo [5/7] A construir executavel (pode demorar varios minutos) ...
+echo [5/8] A construir executavel (pode demorar varios minutos) ...
 .venv\Scripts\python.exe -m PyInstaller maouse.spec --noconfirm
 if errorlevel 1 exit /b 1
 rem Modelos críticos (hand_landmarker.task, gesture_mlp.npz) entram pelo
@@ -109,33 +109,67 @@ rem maouse.spec. Vosk/Piper são descarregados em %LOCALAPPDATA%\Maouse.
 xcopy /E /I /Y assets\fonts "dist\Maouse\assets\fonts" >nul
 xcopy /E /I /Y assets\brand "dist\Maouse\assets\brand" >nul
 
+rem ── Servidor RFCOMM (Bluetooth Classic) ─────────────────────────────────
+rem `RemoteRFCOMM` procura o executavel ao lado do Maouse.exe (ver
+rem core/remote_rfcomm.py: _caminho_host). Sem ele a opcao remote_rfcomm
+rem simplesmente nao funciona, e nao ha como o utilizador dar por isso alem
+rem de um aviso no log — por isso e erro duro, e nao um aviso.
+rem
+rem O build nativo precisa de Visual Studio Build Tools + Windows SDK, que
+rem nem toda a gente tem. Para quem so quer o WiFi e o BLE:
+rem   set MAOUSE_SKIP_RFCOMM=1 && build.bat
+echo [6/8] A construir o servidor RFCOMM nativo ...
+if "%MAOUSE_SKIP_RFCOMM%"=="1" goto rfcomm_pular
+call native\build-host.bat
+if errorlevel 1 goto rfcomm_falhou
+if not exist "build\rfcomm-host\maouse-bluetooth-host.exe" goto rfcomm_falhou
+copy /Y "build\rfcomm-host\maouse-bluetooth-host.exe" "dist\Maouse\maouse-bluetooth-host.exe" >nul
+if not exist "dist\Maouse\maouse-bluetooth-host.exe" goto rfcomm_falhou
+goto rfcomm_pronto
+
+rem Os ramos sao labels e nao blocos if (...) aninhados: o parser do cmd conta os
+rem parenteses de "Program Files (x86)" mesmo dentro de aspas e falha com
+rem "')' was unexpected at this time". Ver a nota em native\build-host.bat.
+
+:rfcomm_pular
+echo AVISO: MAOUSE_SKIP_RFCOMM=1 - a distribuir SEM controlo por Bluetooth Classic.
+goto rfcomm_pronto
+
+:rfcomm_falhou
+echo ERRO: o servidor RFCOMM nao compilou ou nao chegou ao dist\Maouse\.
+echo Instala o "Desktop development with C++" (Visual Studio Build Tools +
+echo Windows SDK), ou define MAOUSE_SKIP_RFCOMM=1 para o dispensar.
+exit /b 1
+
+:rfcomm_pronto
+
 rem ── Assinar o Maouse.exe (antes de o empacotar no instalador) ───────
 if "%USE_ESIGNER%"=="1" (
-    echo [5/6] A assinar Maouse.exe - eSigner cloud (CodeSignTool) ...
+    echo [7/8] A assinar Maouse.exe - eSigner cloud ^(CodeSignTool^) ...
     set "ESIGNER_TARGET=%CD%\dist\Maouse\Maouse.exe"
     call :esign
     if errorlevel 1 echo AVISO: falhou a assinatura via eSigner - a continuar sem ela.
 ) else if "%USE_THUMBPRINT%"=="1" (
     if defined SIGNTOOL (
-        echo [6/7] A assinar Maouse.exe - thumbprint %CERT_THUMBPRINT% ...
+        echo [7/8] A assinar Maouse.exe - thumbprint %CERT_THUMBPRINT% ...
         "%SIGNTOOL%" sign /fd SHA256 /tr http://ts.ssl.com /td SHA256 /sha1 "%CERT_THUMBPRINT%" "dist\Maouse\Maouse.exe"
         if errorlevel 1 echo AVISO: falhou a assinatura do Maouse.exe - a continuar sem ela.
     ) else (
-        echo [6/7] Assinatura do Maouse.exe ignorada.
+        echo [7/8] Assinatura do Maouse.exe ignorada.
     )
 ) else if defined PFX_PATH (
     if defined SIGNTOOL (
-        echo [6/7] A assinar Maouse.exe - SHA256 + timestamp ...
+        echo [7/8] A assinar Maouse.exe - SHA256 + timestamp ...
         "%SIGNTOOL%" sign /f "%PFX_PATH%" /p "%PFX_PASS%" /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /d "Maouse" "dist\Maouse\Maouse.exe"
         if errorlevel 1 echo AVISO: falhou a assinatura do Maouse.exe - a continuar sem ela.
     ) else (
-        echo [6/7] Assinatura do Maouse.exe ignorada.
+        echo [7/8] Assinatura do Maouse.exe ignorada.
     )
 ) else (
-    echo [6/7] Assinatura do Maouse.exe ignorada.
+    echo [7/8] Assinatura do Maouse.exe ignorada.
 )
 
-echo [7/7] A gerar instalador 1-clique (Inno Setup) ...
+echo [8/8] A gerar instalador 1-clique (Inno Setup) ...
 set "ISCC=C:\Users\Luar Studio Angola\AppData\Local\Programs\Inno Setup 6\ISCC.exe"
 if not exist "%ISCC%" (
     echo ATENCAO: Inno Setup nao encontrado em "%ISCC%"
@@ -153,13 +187,13 @@ if not exist "%ISCC%" (
     )
     if errorlevel 1 exit /b 1
     if "%USE_ESIGNER%"=="1" (
-        echo [7/7] A assinar instalador - eSigner cloud (CodeSignTool) ...
+        echo [8/8] A assinar instalador - eSigner cloud ^(CodeSignTool^) ...
         set "ESIGNER_TARGET=%CD%\dist\Maouse-Setup-1.0.0.exe"
         call :esign
         if errorlevel 1 echo AVISO: falhou a assinatura do instalador via eSigner - a continuar sem ela.
     )
     if "%USE_THUMBPRINT%"=="1" (
-        echo [7/7] A assinar instalador - thumbprint %CERT_THUMBPRINT% ...
+        echo [8/8] A assinar instalador - thumbprint %CERT_THUMBPRINT% ...
         "%SIGNTOOL%" sign /fd SHA256 /tr http://ts.ssl.com /td SHA256 /sha1 "%CERT_THUMBPRINT%" "dist\Maouse-Setup-1.0.0.exe"
         if errorlevel 1 echo AVISO: falhou a assinatura do instalador por thumbprint - a continuar sem ela.
     )
