@@ -16,6 +16,10 @@
  */
 import { buildWsUrl, RemoteClient } from '../services/remoteClient';
 
+// O PC so aceita comandos com um lease assinado; o cliente envia-o no auth e o
+// `core/licensing.py` valida a assinatura. Aqui so se prova que ele viaja.
+const LEASE = 'lease-abc';
+
 // A credencial do `auth` e' um codigo de 6 digitos (CODE_LEN em
 // `pairingCode.ts`), lido nas definicoes do PC. Antes disto era um `token` de
 // 16 hex, e o cliente aceitava qualquer string; o `normalizeCode` de hoje
@@ -190,13 +194,62 @@ describe('RemoteClient — handshake de auth', () => {
     withFakeWebSocket(() => {
       const cbs = makeCallbacks();
       const c = new RemoteClient();
-      c.connect('ws://192.168.1.20:8765', CODE, cbs);
+      c.connect('ws://192.168.1.20:8765', CODE, LEASE, cbs);
 
       FakeWebSocket.last().accept();
 
       const ws = FakeWebSocket.last();
       expect(ws.sent).toHaveLength(1);
-      expect(ws.sent[0]).toEqual({ cmd: 'auth', code: CODE });
+      expect(ws.sent[0]).toEqual({
+        cmd: 'auth',
+        code: CODE,
+        lease: LEASE,
+      });
+    });
+  });
+
+  it('sem lease nao abre ligacao nenhuma', () => {
+    // O gate esta no PC, mas nao vale a pena mandar um auth que vai ser
+    // recusado: o utilizador vê "Pro" em vez de "token recusado".
+    withFakeWebSocket(() => {
+      const cbs = makeCallbacks();
+      const c = new RemoteClient();
+      c.connect('ws://192.168.1.20:8765', CODE, '  ', cbs);
+
+      expect(FakeWebSocket.instances).toHaveLength(0);
+      expect(cbs.onError).toHaveBeenCalledWith(
+        expect.stringContaining('Pro')
+      );
+    });
+  });
+
+  it('manda o lease no auth para o PC o validar', () => {
+    withFakeWebSocket(() => {
+      const cbs = makeCallbacks();
+      const c = new RemoteClient();
+      c.connect('ws://192.168.1.20:8765', CODE, LEASE, cbs);
+
+      FakeWebSocket.last().accept();
+
+      const sent = FakeWebSocket.last().sent[0] as SentFrame;
+      expect(sent.cmd).toBe('auth');
+      expect(sent.lease).toBe(LEASE);
+    });
+  });
+
+  it('traduz pro_required para uma mensagem de comprar', () => {
+    withFakeWebSocket(() => {
+      const cbs = makeCallbacks();
+      const c = new RemoteClient();
+      c.connect('ws://192.168.1.20:8765', CODE, LEASE, cbs);
+
+      const ws = FakeWebSocket.last();
+      ws.accept();
+      ws.deliver({ cmd: 'auth', ok: false, error: 'pro_required' });
+
+      expect(cbs.onError).toHaveBeenCalledWith(
+        expect.stringContaining('licença Pro')
+      );
     });
   });
 
@@ -207,7 +260,7 @@ describe('RemoteClient — handshake de auth', () => {
     withFakeWebSocket(() => {
       const cbs = makeCallbacks();
       const c = new RemoteClient();
-      c.connect('ws://192.168.1.20:8765', CODE, cbs);
+      c.connect('ws://192.168.1.20:8765', CODE, LEASE, cbs);
 
       const ws = FakeWebSocket.last();
       c.move(10, 20);
@@ -226,7 +279,7 @@ describe('RemoteClient — handshake de auth', () => {
     withFakeWebSocket(() => {
       const cbs = makeCallbacks();
       const c = new RemoteClient();
-      c.connect('ws://192.168.1.20:8765', CODE, cbs);
+      c.connect('ws://192.168.1.20:8765', CODE, LEASE, cbs);
 
       const ws = FakeWebSocket.last();
       ws.accept();
@@ -244,7 +297,7 @@ describe('RemoteClient — handshake de auth', () => {
     withFakeWebSocket(() => {
       const cbs = makeCallbacks();
       const c = new RemoteClient();
-      c.connect('ws://192.168.1.20:8765', CODE, cbs);
+      c.connect('ws://192.168.1.20:8765', CODE, LEASE, cbs);
 
       const ws = FakeWebSocket.last();
       ws.accept();
@@ -259,7 +312,7 @@ describe('RemoteClient — handshake de auth', () => {
     withFakeWebSocket(() => {
       const cbs = makeCallbacks();
       const c = new RemoteClient();
-      c.connect('ws://192.168.1.20:8765', CODE_ERRADO, cbs);
+      c.connect('ws://192.168.1.20:8765', CODE_ERRADO, LEASE, cbs);
 
       const ws = FakeWebSocket.last();
       ws.accept();
@@ -282,7 +335,7 @@ describe('RemoteClient — handshake de auth', () => {
     withFakeWebSocket(() => {
       const cbs = makeCallbacks();
       const c = new RemoteClient();
-      c.connect('ws://192.168.1.20:8765', CODE_ERRADO, cbs);
+      c.connect('ws://192.168.1.20:8765', CODE_ERRADO, LEASE, cbs);
 
       const ws = FakeWebSocket.last();
       ws.accept();
@@ -307,7 +360,7 @@ describe('RemoteClient — handshake de auth', () => {
       const cbs = makeCallbacks();
       const c = new RemoteClient();
 
-      c.connect('ws://192.168.1.20:8765', '   ', cbs);
+      c.connect('ws://192.168.1.20:8765', '   ', LEASE, cbs);
 
       expect(FakeWebSocket.instances).toHaveLength(0);
       expect(cbs.onError).toHaveBeenCalledWith(
@@ -323,7 +376,7 @@ describe('RemoteClient — handshake de auth', () => {
     withFakeWebSocket(() => {
       for (const mau of ['12a345', 'abc', '', '   ', '1.2.3.4']) {
         const cbs = makeCallbacks();
-        new RemoteClient().connect('ws://192.168.1.20:8765', mau, cbs);
+        new RemoteClient().connect('ws://192.168.1.20:8765', mau, LEASE, cbs);
         expect(FakeWebSocket.instances).toHaveLength(0);
       }
     });
@@ -338,11 +391,11 @@ describe('RemoteClient — handshake de auth', () => {
     withFakeWebSocket(() => {
       const cbs = makeCallbacks();
       const c = new RemoteClient();
-      c.connect('ws://192.168.1.20:8765', '12345678', cbs);
+      c.connect('ws://192.168.1.20:8765', '12345678', LEASE, cbs);
 
       const ws = FakeWebSocket.last();
       ws.accept();
-      expect(ws.sent[0]).toEqual({ cmd: 'auth', code: '123456' });
+      expect(ws.sent[0]).toEqual({ cmd: 'auth', code: '123456', lease: LEASE });
     });
   });
 });
@@ -356,7 +409,7 @@ describe('RemoteClient — o que o PC manda', () => {
     withFakeWebSocket(() => {
       const cbs = makeCallbacks();
       const c = new RemoteClient();
-      c.connect('ws://192.168.1.20:8765', CODE, cbs);
+      c.connect('ws://192.168.1.20:8765', CODE, LEASE, cbs);
 
       const ws = FakeWebSocket.last();
       ws.accept();
@@ -376,7 +429,7 @@ describe('RemoteClient — o que o PC manda', () => {
     withFakeWebSocket(() => {
       const cbs = makeCallbacks();
       const c = new RemoteClient();
-      c.connect('ws://192.168.1.20:8765', CODE, cbs);
+      c.connect('ws://192.168.1.20:8765', CODE, LEASE, cbs);
 
       const ws = FakeWebSocket.last();
       ws.accept();
@@ -395,7 +448,7 @@ describe('RemoteClient — o que o PC manda', () => {
     withFakeWebSocket(() => {
       const cbs = makeCallbacks();
       const c = new RemoteClient();
-      c.connect('ws://192.168.1.20:8765', CODE, cbs);
+      c.connect('ws://192.168.1.20:8765', CODE, LEASE, cbs);
 
       FakeWebSocket.last().accept();
       FakeWebSocket.last().serverClose(1006);
@@ -414,7 +467,7 @@ describe('RemoteClient — o que o PC manda', () => {
     await withFakeWebSocket(async () => {
       const cbs = makeCallbacks();
       const c = new RemoteClient();
-      c.connect('ws://192.168.1.20:8765', CODE, cbs);
+      c.connect('ws://192.168.1.20:8765', CODE, LEASE, cbs);
 
       FakeWebSocket.last().accept();
       FakeWebSocket.last().deliver({ cmd: 'auth', ok: true, w: 1920, h: 1080 });

@@ -260,6 +260,13 @@ class Config:
     # pode não existir (e de `bluetoothd` a correr), e quem não a quer não deve
     # pagar o custo de tentar.
     remote_ble: bool = False
+    # Publicar também um serviço RFCOMM/SPP (Bluetooth Classic), que é o
+    # transporte que o Android aceita sem uma app extra de background. Igual
+    # ao BLE: não passa pela rede e chega onde o mDNS não chega.
+    #
+    # Desligado por omissão porque precisa do executável nativo
+    # (`maouse-bluetooth-host.exe`) e de um adaptador Bluetooth a funcionar.
+    remote_rfcomm: bool = False
 
     # ── Modo Trading Master (botão circular tv.png no dashboard) ──────
     # Modo dedicado a trading (multi-monitor): liga o controlo remoto por
@@ -405,6 +412,8 @@ def load_settings(cfg):
             cfg.remote_discovery = bool(data["remote_discovery"])
         if "remote_ble" in data:
             cfg.remote_ble = bool(data["remote_ble"])
+        if "remote_rfcomm" in data:
+            cfg.remote_rfcomm = bool(data["remote_rfcomm"])
         if "trading_master_enabled" in data:
             cfg.trading_master_enabled = bool(data["trading_master_enabled"])
         if "tv_button_enabled" in data:
@@ -471,6 +480,7 @@ def save_settings(cfg, smooth_name):
                     "remote_move_gain": round(cfg.remote_move_gain, 2),
                     "remote_discovery": bool(cfg.remote_discovery),
                     "remote_ble": bool(cfg.remote_ble),
+                    "remote_rfcomm": bool(cfg.remote_rfcomm),
                     "trading_master_enabled": bool(cfg.trading_master_enabled),
                     "tv_button_enabled": bool(cfg.tv_button_enabled),
                     "tv_tool_combos": dict(cfg.tv_tool_combos),

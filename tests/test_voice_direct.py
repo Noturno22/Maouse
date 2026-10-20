@@ -269,6 +269,14 @@ def test_start_sem_portaudio_desactiva_a_voz_em_vez_de_rebentar(monkeypatch, cap
     importam `sounddevice` ja apanham largo; este era o unico que nao.
     """
     monkeypatch.setattr(sys, "meta_path", [_PortAudioAusente()] + list(sys.meta_path))
+    # `sys.meta_path` so e' consultado em cache miss, e o `sounddevice` ja esta
+    # em `sys.modules` porque `core/audio_devices.py` o importa ao nivel do
+    # modulo. O finder nunca era chamado: o `start()` ia direito a interrogar o
+    # microfone a serio, e o teste media a maquina em vez do tratamento do
+    # `OSError`. Nos dois sentidos em que falhava -- com microfone o `start()`
+    # devolvia `True`, sem microfone dava "Error querying device -1" -- nenhuma
+    # das falhas tinha a ver com o que o teste diz testar.
+    monkeypatch.delitem(sys.modules, "sounddevice", raising=False)
     ve, _ = make_ve()
 
     assert ve.start() is False

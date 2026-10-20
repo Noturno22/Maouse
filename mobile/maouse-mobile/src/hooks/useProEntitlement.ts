@@ -27,7 +27,7 @@ export function useProEntitlement(): ProEntitlement {
   const tier = useLicenseStore((s) => s.tier);
   const status = useLicenseStore((s) => s.status);
   const hydrate = useLicenseStore((s) => s.hydrate);
-  const unlockPro = useLicenseStore((s) => s.unlockPro);
+  const grant = useLicenseStore((s) => s.grant);
 
   const [product, setProduct] = useState<Product | null>(null);
   const [purchasing, setPurchasing] = useState(false);
@@ -42,13 +42,13 @@ export function useProEntitlement(): ProEntitlement {
       setPurchasing(true);
       try {
         const deviceId = await getDeviceId();
-        await entitleMobilePurchase({
+        const res = await entitleMobilePurchase({
           purchaseToken: purchase.purchaseToken || '',
           productId: purchase.productId,
           packageName: androidPackage(purchase),
           deviceId,
         });
-        await unlockPro();
+        await grant(res.lease);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         setActionError(msg);
@@ -112,13 +112,13 @@ export function useProEntitlement(): ProEntitlement {
       );
       if (found && found.purchaseToken) {
         const deviceId = await getDeviceId();
-        await entitleMobilePurchase({
+        const res = await entitleMobilePurchase({
           purchaseToken: found.purchaseToken,
           productId: found.productId,
           packageName: androidPackage(found),
           deviceId,
         });
-        await unlockPro();
+        await grant(res.lease);
         await iap.finishTransaction({ purchase: found, isConsumable: false });
       } else {
         setActionError('Sem compras ativas para restaurar');
@@ -129,7 +129,7 @@ export function useProEntitlement(): ProEntitlement {
     } finally {
       setPurchasing(false);
     }
-  }, [iap, unlockPro]);
+  }, [iap, grant]);
 
   return {
     isPro: tier === 'mobile_pro',

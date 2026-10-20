@@ -56,7 +56,8 @@
       [
         "expo-iap",
         {}
-      ]
+      ],
+      "expo-router"
     ],
     "extra": {
       "licenseServerUrl": "https://license.maouse.app",
