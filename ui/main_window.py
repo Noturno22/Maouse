@@ -563,14 +563,22 @@ class MainWindow(QMainWindow):
 
         Repassa também quando o anúncio não está de pé: pode ter falhado no
         arranque (sem rede, interface a cair) e entretanto a rede ter voltado.
+
+        O anunciador é criado aqui quando falta, e não só no `main.py`: se o
+        servidor falhou no arranque (porta ocupada) ou só foi ligado depois
+        nas definições, o `main.py` nunca chegou a construí-lo. Sem isto, o
+        telefone não encontrava o PC quando só pede o código de 6 dígitos.
         """
-        adv = self._discovery
-        if adv is None:
-            return
         servidor = bool(self._remote is not None and self._remote.is_running)
+        adv = self._discovery
         if not (servidor and self._cfg.remote_discovery):
-            adv.stop()
+            if adv is not None:
+                adv.stop()
             return
+        if adv is None:
+            from core.discovery import MaouseAdvertiser
+
+            adv = self._discovery = MaouseAdvertiser(self._cfg)
         if adv.running and adv.port == int(self._cfg.remote_port):
             return
         adv.restart()
@@ -935,6 +943,15 @@ class MainWindow(QMainWindow):
                 self._remote.stop()
             except Exception as e:
                 log.debug("Falha ao parar o controlo remoto: %s", e)
+        # O anuncio sai depois do servidor: enquanto o socket fechava ainda
+        # podia chegar um pedido, e o telefone nao pode encontrar um PC que
+        # ja nao responde. O `main.py` tambem o para, mas so quando foi ele a
+        # criar o anunciador; quando a janela o criou, esta e a unica paragem.
+        if self._discovery is not None:
+            try:
+                self._discovery.stop()
+            except Exception as e:
+                log.debug("Falha ao parar a descoberta mDNS: %s", e)
         for obj, meth in (
             (self._snap, "stop"), (self._voice, "stop"),
             (self._speaker, "stop"), (self._tracker, "close"),

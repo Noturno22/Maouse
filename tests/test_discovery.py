@@ -204,6 +204,28 @@ class _ServidorFalso:
         self.is_running = running
 
 
+class AnuncioFalso:
+    """Anunciador sem rede, para provar quando a janela o constroi."""
+
+    criados = []
+
+    def __init__(self, cfg):
+        self.cfg = cfg
+        self.running = False
+        self.port = None
+        self.restarts = 0
+        AnuncioFalso.criados.append(self)
+
+    def restart(self):
+        self.restarts += 1
+        self.running = True
+        self.port = int(self.cfg.remote_port)
+        return True
+
+    def stop(self):
+        self.running = False
+
+
 class _JanelaFalsa:
     """O minimo que `_apply_discovery` toca, sem construir a janela toda.
 
@@ -302,9 +324,47 @@ class TestAnuncioSegueOPortao:
         metodo(janela)
         assert anuncio.running is True, "a rede voltou e o anuncio nao voltou"
 
-    def test_sem_anunciador_nao_levanta(self):
+    def test_sem_anunciador_cria_quando_o_servidor_esta_no_ar(self, monkeypatch):
+        # O `main.py` so constroi o anunciador quando o servidor arranca de
+        # primeira. Se o arranque falhou (porta ocupada) e o servidor so subiu
+        # depois nas definicoes, o objecto nunca existiu — e o telefone, que
+        # agora so pede o codigo, ficava sem descobrir o PC.
+        AnuncioFalso.criados.clear()
+        monkeypatch.setattr(discovery, "MaouseAdvertiser", AnuncioFalso)
         metodo, janela = _janela(_ServidorFalso(), None, _cfg())
+
         metodo(janela)
+
+        assert janela._discovery is AnuncioFalso.criados[0]
+        assert janela._discovery.cfg is janela._cfg
+        assert janela._discovery.restarts == 1
+        assert janela._discovery.running is True
+
+    def test_servidor_que_sobe_depois_ganha_anuncio(self, monkeypatch):
+        AnuncioFalso.criados.clear()
+        monkeypatch.setattr(discovery, "MaouseAdvertiser", AnuncioFalso)
+        servidor = _ServidorFalso(running=False)
+        metodo, janela = _janela(servidor, None, _cfg())
+
+        metodo(janela)
+        assert janela._discovery is None, "sem servidor nao ha o que anunciar"
+
+        servidor.is_running = True
+        metodo(janela)
+
+        assert janela._discovery is not None
+        assert janela._discovery.running is True
+        assert janela._discovery.port == 8765
+
+    def test_descoberta_desligada_nao_cria_anunciador(self, monkeypatch):
+        AnuncioFalso.criados.clear()
+        monkeypatch.setattr(discovery, "MaouseAdvertiser", AnuncioFalso)
+        metodo, janela = _janela(_ServidorFalso(), None, _cfg(), descoberta=False)
+
+        metodo(janela)
+
+        assert janela._discovery is None
+        assert AnuncioFalso.criados == []
 
 
 
