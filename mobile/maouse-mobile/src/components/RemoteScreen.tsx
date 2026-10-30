@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -15,7 +15,15 @@ import {
 import * as Haptics from 'expo-haptics';
 import { remote } from '../services/remoteTransport';
 import { CODE_LEN, codeCompleto, normalizeCode } from '../services/pairingCode';
-import { useRemoteStore } from '../store/remote';
+import {
+  BlePeer,
+  DiscoveredPeer,
+  useRemoteStore,
+} from '../store/remote';
+
+type ConnectTarget =
+  | { kind: 'wifi'; peer: DiscoveredPeer }
+  | { kind: 'ble'; peer: BlePeer };
 
 interface Props {
   onBack: () => void;
@@ -40,8 +48,6 @@ const TAP_DECISION_DEADZONE = 1.5;
 
 export default function RemoteScreen({ onBack }: Props) {
   const {
-    host,
-    port,
     code,
     forwardGestures,
     status,
@@ -51,11 +57,14 @@ export default function RemoteScreen({ onBack }: Props) {
     blePeers,
     peers,
     discovering,
-  mdnsRunning,
-  stopDiscover,
+    mdnsRunning,
+    lastTransport,
+    lastPeerHost,
+    lastPeerPort,
+    lastBleAddress,
+    stopDiscover,
     saveConfig,
     setForwardGestures,
-    connect,
     disconnect,
     discover,
     scanBle,
@@ -63,21 +72,25 @@ export default function RemoteScreen({ onBack }: Props) {
     connectPeer,
   } = useRemoteStore();
 
-  const [hostDraft, setHostDraft] = useState(host);
-  const [portDraft, setPortDraft] = useState(port);
-  const [codeDraft, setCodeDraft] = useState(code);
+  const [codeDraft, setCodeDraft] = useState<string>(code);
   const kbBufRef = useRef('');
   const [kbText, setKbText] = useState('');
+  const autoAttemptRef = useRef('');
+  const manualStopRef = useRef(false);
 
   const connected = status === 'connected';
   const busy = status === 'connecting';
   const codeOk = codeCompleto(codeDraft);
 
   useEffect(() => {
-    setHostDraft((v) => v || host);
-    setPortDraft((v) => v || port);
-    setCodeDraft((v) => v || code);
-  }, [host, port, code]);
+    setCodeDraft((v: string) => v || code);
+  }, [code]);
+
+  // O código fica guardado assim que está completo, mesmo que ainda não haja
+  // PC à vista: reabrir a app não obriga a escrevê-lo outra vez.
+  useEffect(() => {
+    if (codeOk) void saveConfig({ code: codeDraft });
+  }, [codeOk, codeDraft, saveConfig]);
 
   // Sair da tela tem de parar a procura. O `NsdManager` é um registo nativo
   // que vive para sempre: sem isto, voltar a abrir a tela reencontra a procura
@@ -85,20 +98,92 @@ export default function RemoteScreen({ onBack }: Props) {
   // `NativeEventEmitter` continua a emitir para um componente que já não
   // existe — que em Android é uma `IllegalStateException` de acesso a um
   // CatalystInstance destruído, e só quando o utilizador abre a tela outra vez.
-  useEffect(() => () => stopDiscover(), [stopDiscover]);
+  // A procura arranca sozinha porque o ecrã só pede o código: exigir um toque
+  // em "procurar" para o PC aparecer era um segundo passo escondido.
+  useEffect(() => {
+    void discover();
+    return () => stopDiscover();
+  }, [discover, stopDiscover]);
+
+  const target = useMemo<ConnectTarget | null>(() => {
+    const lastWifi = peers.find(
+      (p: DiscoveredPeer) =>
+        p.host === lastPeerHost && String(p.port) === String(lastPeerPort)
+    );
+    const lastBle = blePeers.find((p: BlePeer) => p.address === lastBleAddress);
+
+    if (lastTransport === 'ble' && lastBle) return { kind: 'ble', peer: lastBle };
+    if (lastTransport === 'wifi' && lastWifi) {
+      return { kind: 'wifi', peer: lastWifi };
+    }
+    if (lastWifi) return { kind: 'wifi', peer: lastWifi };
+    if (lastBle) return { kind: 'ble', peer: lastBle };
+    // Sem histórico: só há escolha automática quando só um PC respondeu. Com
+    // vários, escolher por conta própria podia ligar ao PC errado; nesse caso
+    // o utilizador toca no nome do PC que quer.
+    if (peers.length === 1) return { kind: 'wifi', peer: peers[0] };
+    if (blePeers.length === 1) return { kind: 'ble', peer: blePeers[0] };
+    return null;
+  }, [
+    peers,
+    blePeers,
+    lastTransport,
+    lastPeerHost,
+    lastPeerPort,
+    lastBleAddress,
+  ]);
+
+  const connectTo = useCallback(
+    (next: ConnectTarget) => {
+      void (async () => {
+        await saveConfig({ code: codeDraft });
+        if (next.kind === 'wifi') connectPeer(next.peer);
+        else await connectBle(next.peer.address, next.peer.name);
+      })();
+    },
+    [codeDraft, saveConfig, connectPeer, connectBle]
+  );
+
+  // Liga sozinho quando o código está completo e há um PC encontrado. A chave
+  // impede que o mesmo par (código, PC) seja tentado em ciclo: um código errado
+  // não pode gastar tentativas a cada anúncio mDNS, e um PC inalcançável não
+  // pode abrir uma ligação por segundo.
+  useEffect(() => {
+    if (!codeOk || !target || manualStopRef.current) return;
+    if (status !== 'disconnected' && status !== 'error') return;
+    const key = `${codeDraft}|${target.kind}|${
+      target.kind === 'wifi'
+        ? `${target.peer.host}:${target.peer.port}`
+        : target.peer.address
+    }`;
+    if (autoAttemptRef.current === key) return;
+    autoAttemptRef.current = key;
+    connectTo(target);
+  }, [codeOk, codeDraft, target, status, connectTo]);
+
+  const resetAuto = useCallback(() => {
+    manualStopRef.current = false;
+    autoAttemptRef.current = '';
+  }, []);
+
+  const onPeerPress = useCallback(
+    (next: ConnectTarget) => {
+      resetAuto();
+      connectTo(next);
+    },
+    [connectTo, resetAuto]
+  );
+
+  const onDisconnectPress = useCallback(() => {
+    // Desligar à mão não pode ser desfeito no instante seguinte pelo auto-ligar:
+    // o utilizador disse que não, e a lista de PCs ainda está em memória.
+    manualStopRef.current = true;
+    disconnect();
+  }, [disconnect]);
 
   const haptic = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
   }, []);
-
-  const onConnectPress = () => {
-    saveConfig({
-      host: hostDraft,
-      port: portDraft,
-      code: codeDraft,
-    });
-    connect();
-  };
 
   const onKbChange = useCallback(
     (v: string) => {
@@ -386,7 +471,7 @@ export default function RemoteScreen({ onBack }: Props) {
           {keyBtn('Med', () => remote.click('middle', 1), 'Clique do meio')}
           <TouchableOpacity
             style={styles.stateButton}
-            onPress={disconnect}
+            onPress={onDisconnectPress}
             accessibilityLabel="Desligar do PC"
           >
             <Text style={styles.stateButtonText}>DESLIGAR</Text>
@@ -414,8 +499,11 @@ export default function RemoteScreen({ onBack }: Props) {
       <View style={styles.discoveryRow}>
         <TouchableOpacity
           style={styles.discoveryBtn}
-          onPress={discovering ? stopDiscover : discover}
-          disabled={mdnsRunning && !discovering}
+          onPress={() => {
+            manualStopRef.current = false;
+            if (mdnsRunning || discovering) stopDiscover();
+            else void discover();
+          }}
         >
           {discovering ? (
             <ActivityIndicator color={ACCENT} />
@@ -427,7 +515,10 @@ export default function RemoteScreen({ onBack }: Props) {
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.discoveryBtn}
-          onPress={() => scanBle(8)}
+          onPress={() => {
+            manualStopRef.current = false;
+            void scanBle(8);
+          }}
           disabled={scanning}
         >
           {scanning ? (
@@ -438,42 +529,33 @@ export default function RemoteScreen({ onBack }: Props) {
         </TouchableOpacity>
       </View>
 
-      {peers.map((p) => (
+      {peers.map((p: DiscoveredPeer) => (
         <TouchableOpacity
           key={`${p.host}:${p.port}`}
-          style={styles.peerRow}
-          onPress={() => {
-            saveConfig({ code: codeDraft });
-            connectPeer(p);
-          }}
+          style={[styles.peerRow, !codeOk && styles.peerRowDisabled]}
+          disabled={!codeOk}
+          onPress={() => onPeerPress({ kind: 'wifi', peer: p })}
         >
-          <Text style={styles.peerName}>{p.name || p.host}</Text>
-          <Text style={styles.peerAddr}>
-            {p.host}:{p.port}
-          </Text>
+          <Text style={styles.peerName}>{p.name || 'PC Mãouse'}</Text>
         </TouchableOpacity>
       ))}
 
-      {blePeers.map((p) => (
+      {blePeers.map((p: BlePeer) => (
         <TouchableOpacity
           key={p.address}
-          style={styles.peerRow}
-          onPress={() => {
-            saveConfig({ code: codeDraft });
-            void connectBle(p.address, p.name);
-          }}
+          style={[styles.peerRow, !codeOk && styles.peerRowDisabled]}
+          disabled={!codeOk}
+          onPress={() => onPeerPress({ kind: 'ble', peer: p })}
         >
-          <Text style={styles.peerName}>{p.name || p.address}</Text>
-          <Text style={styles.peerAddr}>{p.address}</Text>
+          <Text style={styles.peerName}>{p.name || 'PC Mãouse'}</Text>
         </TouchableOpacity>
       ))}
 
       {peers.length === 0 && blePeers.length === 0 && !scanning && !discovering ? (
         <Text style={styles.discoveryHint}>
-          A procura na rede só funciona se o telemóvel e o PC estiverem na mesma
-          rede local e o multicast não estiver bloqueado. O Bluetooth não usa a
-          rede, mas precisa de «Controlar também por Bluetooth» ligado nas
-          definições do PC.
+          {codeOk
+            ? 'Código completo. À procura do PC na mesma rede…'
+            : 'O PC tem de estar na mesma rede Wi‑Fi. Se a rede bloquear a descoberta, procura por Bluetooth.'}
         </Text>
       ) : null}
     </View>
@@ -483,38 +565,15 @@ export default function RemoteScreen({ onBack }: Props) {
     <View style={styles.form}>
       <Text style={styles.title}>Ligar ao PC</Text>
       <Text style={styles.subtitle}>
-        Procura o PC sozinha, ou escreve o IP à mão. O código de 6 dígitos é o
-        mesmo por WiFi e por Bluetooth, e só vive aqui e no PC.
+        Escreve o código de 6 dígitos que o Mãouse mostra no PC, em Definições
+        → Controlo remoto. O telemóvel encontra o PC sozinho.
       </Text>
-
-      {renderDiscoveryPanel()}
-
-      <Text style={styles.label}>IP do PC</Text>
-      <TextInput
-        style={styles.input}
-        value={hostDraft}
-        onChangeText={setHostDraft}
-        placeholder="ex.: 192.168.1.50"
-        placeholderTextColor="#9E9E9E"
-        autoCapitalize="none"
-        autoCorrect={false}
-        keyboardType={Platform.OS === 'ios' ? 'numbers-and-punctuation' : 'default'}
-      />
-
-      <Text style={styles.label}>Porta</Text>
-      <TextInput
-        style={styles.input}
-        value={portDraft}
-        onChangeText={setPortDraft}
-        placeholder="8765"
-        placeholderTextColor="#9E9E9E"
-        keyboardType="number-pad"
-      />
 
       <Text style={styles.label}>Código do PC</Text>
       <TextInput
         style={[styles.input, styles.codeInput, !codeOk && styles.inputCurto]}
         value={codeDraft}
+        autoFocus
         // O teclado de números não tem '#', '%' nem '@', e num campo de
         // emparelhamento um símbolo não faz sentido: o teclado do telemóvel é
         // maior do que o campo, e é preciso ver o que se escreve.
@@ -526,29 +585,21 @@ export default function RemoteScreen({ onBack }: Props) {
         onChangeText={(v) => {
           const limpo = normalizeCode(v);
           setCodeDraft(limpo);
-          // Auto-ligar no sexto dígito. É o que um telemóvel faz com o código
-          // de um banco: seis dígitos escritos é uma intenção acabada, e pedir
-          // outro toque num ecrã que se segura com uma mão é atrito a mais.
-          // Só quando o IP já está guardado — sem ele, adivinhar o endereço
-          // do PC é o trabalho que a descoberta faz.
-          if (codeCompleto(limpo) && hostDraft.trim()) {
-            saveConfig({
-              host: hostDraft,
-              port: portDraft,
-              code: limpo,
-            });
-            connect();
-          }
+          // Um código novo é uma tentativa nova: rearma o auto-ligar e limpa o
+          // "desligar à mão", senão o ecrã ficava a olhar para o PC sem ligar.
+          resetAuto();
         }}
-        onSubmitEditing={onConnectPress}
         autoCorrect={false}
         autoCapitalize="none"
       />
       <Text style={styles.codeHint}>
         {codeOk
-          ? `Código completo. É este que o PC tem de ter.`
-          : `São ${CODE_LEN} dígitos. Copia-os de Definições → Controlo remoto no PC.`}
+          ? 'Código completo — a ligação é automática quando o PC aparecer.'
+          : `São ${CODE_LEN} dígitos. Lê-os no PC, em Definições → Controlo remoto.`}
       </Text>
+
+      <Text style={[styles.label, styles.labelDiscovery]}>PCs encontrados</Text>
+      {renderDiscoveryPanel()}
 
       <View style={styles.switchRow}>
         <Text style={styles.switchLabel}>Gestos da câmara comandam o PC</Text>
@@ -567,22 +618,11 @@ export default function RemoteScreen({ onBack }: Props) {
           <ActivityIndicator color={ACCENT} />
           <Text style={styles.busyText}>A ligar…</Text>
         </View>
-      ) : (
-        <TouchableOpacity
-          style={[
-            styles.primaryButton,
-            !codeOk && styles.primaryButtonFraco,
-          ]}
-          onPress={onConnectPress}
-          disabled={!codeOk}
-        >
-          <Text style={styles.primaryButtonText}>LIGAR</Text>
-        </TouchableOpacity>
-      )}
+      ) : null}
 
       <Text style={styles.hint}>
-        Para o WiFi externo / Internet: encaminha a porta {portDraft || '8765'} no
-        router para este PC e liga a ws://IP-PÚBLICO:{portDraft || '8765'}.
+        Telemóvel e PC têm de estar na mesma rede Wi‑Fi. O Bluetooth é a
+        alternativa quando a rede bloqueia a descoberta.
       </Text>
     </View>
   );
@@ -734,10 +774,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     flexShrink: 1,
   },
-  peerAddr: {
-    color: '#9E9E9E',
-    fontSize: 12,
-    marginLeft: 10,
+  // Sem código completo não há o que ligar; a linha fica visível mas apagada,
+  // para o PC encontrado não parecer um botão avariado.
+  peerRowDisabled: {
+    opacity: 0.4,
   },
   discoveryHint: {
     color: '#9E9E9E',
@@ -786,6 +826,9 @@ const styles = StyleSheet.create({
     // fim e o último dígito fica a olhar para fora do meio do campo.
     paddingRight: 26,
   },
+  labelDiscovery: {
+    marginTop: 20,
+  },
   inputCurto: {
     borderColor: '#4A4A4A',
   },
@@ -822,25 +865,6 @@ const styles = StyleSheet.create({
     color: '#AAA',
     fontSize: 15,
     marginLeft: 10,
-  },
-  primaryButton: {
-    marginTop: 24,
-    backgroundColor: ACCENT,
-    borderRadius: 12,
-    paddingVertical: 15,
-    alignItems: 'center',
-  },
-  primaryButtonText: {
-    color: '#003049',
-    fontSize: 16,
-    fontWeight: '700',
-    letterSpacing: 1,
-  },
-  // Botão desligado: esbatido e sem acção. Um botão que parece activo e
-  // depois diz "código inválido" no ecrã é pior do que um botão cinzento.
-  primaryButtonFraco: {
-    backgroundColor: '#2F3A44',
-    opacity: 0.7,
   },
   hint: {
     color: '#9E9E9E',
