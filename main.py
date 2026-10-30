@@ -237,9 +237,14 @@ def run_gui(cfg, cam, tracker, mouse, smooth_idx, gesture_ai, voice, tuner, spea
     )
     window.setWindowTitle("Mãouse")
     window.resize(900, 640)
-    # Arranca OCULTA: a interface so aparece com o comando gui_toggle
-    # (gesto de paz com a mao esquerda). Serve apenas para configuracao.
-    window.hide()
+    # No modo normal a janela aparece logo: um processo invisivel sem icone na
+    # bandeja parece "a Maouse nao abriu". So o modo bandeja (--tray) arranca
+    # oculto, porque aí o icone da bandeja e' o ponto de controlo. Em qualquer
+    # dos casos o gesto gui_toggle continua a mostrar/ocultar a janela.
+    if tray_icon is not None:
+        window.hide()
+    else:
+        window.show()
 
     # Ctrl+C e `kill` devem fechar a Maouse de forma limpa. O detalhe que
     # demora a perceber e que **fechar a janela nao sai da aplicacao**: com
