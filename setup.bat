@@ -4,7 +4,7 @@ cd /d "%~dp0"
 
 if not exist .venv (
     echo A criar ambiente virtual...
-    python -m venv .venv || goto :erro
+    py -3.12 -m venv .venv || goto :erro
 )
 
 echo A instalar dependencias...
